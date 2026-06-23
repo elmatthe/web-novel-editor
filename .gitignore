@@ -1,0 +1,39 @@
+# --- Python virtual environments ---
+.venv/
+venv/
+.python_runtime/
+
+# --- Python build/cache artifacts ---
+__pycache__/
+*.pyc
+*.pyo
+.pytest_cache/
+dist/
+build/
+*.spec
+
+# --- In-repo tooling/binaries (auto-fetched, machine-specific) ---
+files/bin/
+
+# --- QA working folder (not shipped) ---
+test-logs/
+
+# --- Sandbox/agent scratch artifacts (not shipped) ---
+.test-tmp/
+__WE_CH_*
+__WE_P_*
+
+# --- Local test fixtures (not part of the shipped product) ---
+test-files/
+
+# --- Reference-only prior work (not part of the shipped tool) ---
+files/study-examples/
+
+# --- OS cruft ---
+.DS_Store
+Thumbs.db
+
+# --- Large test corpus (kept out of the repo to stay lean) ---
+# The full webscraped corpus (~3,000 PDFs, ~29 MB) is excluded. The pinned fixtures
+# the tests actually need live in test-files/shadow_slave/ and ARE committed.
+files/pdf-example-chapters/

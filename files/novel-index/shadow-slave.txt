@@ -1,0 +1,397 @@
+# ============================================================
+# Shadow Slave — Do-Not-Touch Protected Terms
+# ============================================================
+# Format: one term or phrase per line
+# Lines beginning with # are comments and are ignored
+# Blank lines are ignored
+# Preserve case exactly as written here
+# Multi-word phrases are supported
+# ============================================================
+
+
+# ------------------------------------------------------------
+# MAIN CAST — Primary characters
+# ------------------------------------------------------------
+Sunny
+Nephis
+Cassie
+Kai
+Effie
+Jet
+Rain
+Rani
+Mordret
+
+
+# ------------------------------------------------------------
+# SUPPORTING & RECURRING CHARACTERS
+# ------------------------------------------------------------
+Ananke
+Cassia
+Sunless
+Neph
+Night
+Gunlaug
+Caster
+Hector
+Athena
+Harper
+Bloodwave
+Tyris
+Roan
+Obel
+Dale
+Naomi
+Verne
+Luster
+Kim
+Kimmy
+Morgan
+Winter
+Samara
+Belle
+Dorn
+Quentin
+Seishan
+Asterion
+Felix
+Rin
+Mark
+Lucas
+Elliot
+Theo
+Noah
+Grace
+Iris
+Paul
+Mia
+Victor
+Leon
+Eric
+Julius
+Aiko
+Gemma
+Park
+Stephen
+Bliss
+Felise
+Fleur
+June
+Kurt
+Ray
+Sagramore
+Yutra
+Madoc
+Gwyn
+Amiran
+Cormac
+Gilead
+Pierce
+Sebastian
+Welthe
+Ki Song
+Lonesome Howl
+Moonveil
+Revel
+HelBast
+Morrow
+Xu
+Nightwalker
+Aether
+Ardon
+Naeve
+Knossos
+Sean
+Skif
+Typhaon
+Rivalen
+Tristan
+Jest
+Mercy
+Dar
+Karna
+Tamar
+Telle
+Ceres
+Helie
+Orum
+Siord
+Aidre
+Noctis
+Sevras
+Solvane
+Sun Prince
+One in the North
+Daeron
+Cronos
+Wind Flower
+Aemedon
+Aletheia
+Auro
+Eurys
+Omer
+Orphne
+Elyas
+Scholar
+Ariel
+Rock
+Kim Saitoh
+Azarax
+Kanakht
+Ling
+Erlas
+Gantry
+Gorn
+Kaor
+Sid
+Shakti
+Shim
+Andel
+HarusKido
+Scar
+Stev
+Cor
+Thane
+Davis
+Jesse
+Randall
+Jack
+Tessai
+Beth
+Pill
+Carin
+Gere
+Teddy
+Ren
+Nickel
+Lanard
+Leo Striker
+Daoist Saifer
+Fool
+Queen Bee
+Griffin
+Syclus
+Dimi
+Fireshing
+Straw Hat
+The Other Fool
+Blue Vash
+Lowph
+Dynisor
+Ash
+Catphine
+Alice
+Snow
+
+
+# ------------------------------------------------------------
+# TITLES / EPITHETS — Named roles and honorifics
+# ------------------------------------------------------------
+Lost From Light
+Changing Star
+Immortal Flame
+Raised by Wolves
+Nightingale
+Song of the Fallen
+Sky Tide
+Whispering Blade
+Wake of Ruin
+Summer Knight
+Not So Funny Anymore
+Black Moon
+Lightslayer
+Death Singer
+Dream Merchant
+Ravenheart
+Promise of a Distant Sky
+Ravensong
+Shield Wall
+Beastmaster
+Dire Fang
+Silent Stalker
+Blood Sage
+Hollow
+Nightmare
+Song Seer
+Song Hunter
+Song Knight
+Anvil
+Broken Sword
+Smile of Heaven
+Weaver
+Saint
+Scavenger
+Goliath
+White Feather
+Iron Hand
+Black Lion
+Silver Fang
+Silent Blade
+Fallen Grace
+Mountain King
+Crimson Terror
+Winter Beast
+Fallen Devil
+Stone Saint
+Dread Lord
+Nightmare Steed
+Soul Devourer
+Warden of Valor
+Anvil of Valor
+Saint of Sorrow
+Shadow Lord
+Mad Prince
+
+
+# ------------------------------------------------------------
+# DIVINE / COSMIC ENTITIES
+# ------------------------------------------------------------
+The Forgotten God
+War God
+Storm God
+Sun God
+Beast God
+Shadow God
+Heart God
+Demon of Oblivion
+Demon of Repose
+Hope
+Mirage
+Nether
+Demon of Fate
+
+
+# ------------------------------------------------------------
+# CREATURES / SHADOWS / SPECIAL ENTITIES
+# ------------------------------------------------------------
+Marvelous Mimic
+Ravenous Fiend
+Shadow Saint
+Shadow Slayer
+Soul Serpent
+Devouring Beast
+Soul Stealer
+Torment
+Undying Slaughter
+Original Child of Shadows
+Others
+
+
+# ------------------------------------------------------------
+# FACTIONS / CLANS / ORGANIZATIONS
+# ------------------------------------------------------------
+Valor Clan
+Song Clan
+House of Night
+Immortal Flame
+White Feather Clan
+Fire Keepers
+Chain Lords
+Six Plagues
+The Nine
+Government
+Great Clans
+Great Legacy Clans
+Lesser Clans
+Lesser Legacy Clans
+River People
+Riverborn
+Red Sect
+War Maidens
+Starlight Legion
+Special Reconnaissance Unit
+First Irregular Company
+Shadow Clan
+Sunny's cohort
+Ardent Wardens
+Blood Sisters
+Church of the Moon
+Dreamer Army
+Evacuation Army
+Irregulars
+Nightsingers
+Nightwalkers
+Outsiders
+Pilgrims
+Seven Heroes
+Seven Lords of Kingdom of Hope
+Warmongers
+Wolves
+Zealots
+Aegis Rose
+Dagonet
+Han Li
+Maharana
+Pandavar
+Sorrow
+
+
+# ------------------------------------------------------------
+# WORLD-SPECIFIC TERMS / LOCATIONS
+# ------------------------------------------------------------
+Dream Realm
+Forgotten Shore
+Tomb of Ariel
+Great River
+Kingdom of Hope
+Bastion
+Bright Castle
+Ashen Barrow
+Burned Forest
+Night Garden
+Night Temple
+Nameless Temple
+Nether's Tower
+Aletheia's Island
+Aletheia's Tower
+Verge
+Void
+Antarctica
+Antarctic Center
+Northern Quadrant Siege Capital
+Southern Quadrant
+Battlefield of the Gods
+Awakened Academy
+Colossal Statues of the Seven Heroes
+Africa
+Asia
+Australia
+Europe
+North America
+East Antarctica
+Eastern Quadrant
+Black Mountain
+Black Pyramid
+Black Skull Citadel
+Catacombs
+Chained Isles
+Crimson Spire
+Dark City
+Desecrated Grove
+Ebony Tower
+Erebus Field
+Eternal City
+Falcon Scott
+Godgrave
+Godheart
+Hall of Imagination
+Hollow Mountains
+House of Birth
+House of Parting
+House of Youth
+Iron Hand Island
+Ivory City
+Ivory Tower
+Jade Palace
+Labyrinth
+Lake of Tears
+LO49
+Temple of the Chalice
+Temple of the Nightmare Spell
+Tower of Longing
+Toy Room
+True Bastion
+Twilight
+Twilight Sea
+Twisted Rock Island
+Altar Island

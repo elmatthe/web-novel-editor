@@ -1,0 +1,15 @@
+# Webnovel Editor — Python dependencies
+# Pinned to exact versions resolved at first successful install (Phase 1, 2026-06-21,
+# Python 3.12.10). Per AI-WORKSPACE conventions, every package is pinned with ==.
+# The startup scripts install from this file (scripts/requirements.txt).
+#
+# tkinter is bundled with standard Python on Windows/macOS and is NOT pip-installable;
+# it is intentionally absent here. The app checks for it at startup.
+#
+# PyPDF2 was removed in Phase 6: nothing imports it yet. It is pinned ONLY when the
+# deferred orphan-single-heading-page removal feature is built (see BRIEFING deferred
+# features). Re-add `PyPDF2==3.0.1` (or migrate to the maintained `pypdf`) at that time.
+
+pdfplumber==0.11.10
+reportlab==5.0.0
+pytest==9.1.1
