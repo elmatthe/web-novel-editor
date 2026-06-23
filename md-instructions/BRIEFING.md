@@ -1,11 +1,21 @@
 # Webnovel Editor — Project Briefing
 
-## Version: v0.7.0
+## Version: v0.8.0
 
 ## Last Updated
-2026-06-22 — Phase 7: multi-novel architecture validation
+2026-06-22 — Phase 8: per-novel edit-details system
 
 ## Current Phase
+Phase 8 (Per-Novel Edit-Details System) complete. Added `files/Novel-Edits-Details/` with a
+`UNIVERSAL.md` baseline (always applied) and per-novel `<Novel-Name>.md` files layered on
+top (`Shadow-Slave.md` is the first). `scripts/core/edit_details.py` resolves the selected
+novel name to its markdown (case/separator-insensitive) and falls back to universal-only
+when no file matches, never crashing. `batch_runner.run_batch` now takes a `novel_name`,
+loads the edit details, and logs which layer was applied. Covered by
+`scripts/tests/test_edit_details.py` (19 tests). Each new novel is a drop-in
+`<Novel-Name>.md` — no code change.
+
+## Previous Phase
 Phase 7 (Multi-Novel Architecture Validation) complete. The universal-vs-profile-data split
 built across Phases 1–6 was validated as a pure data exercise: every universal rule module is
 genuinely novel-agnostic (no Shadow Slave hardcoding in logic), the `run_pipeline` interface

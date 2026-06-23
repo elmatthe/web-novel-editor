@@ -18,6 +18,7 @@ import os
 from pathlib import Path
 from typing import Callable, Sequence
 
+from core.edit_details import load_edit_details
 from core.protected_lexicon import load_protected_lexicon
 from core.replacement_log import ReplacementLog
 from pdf.builder import build_pdf
@@ -32,6 +33,10 @@ _NOVEL_INDEX = (
     Path(__file__).resolve().parents[2] / "files" / "novel-index" / "shadow-slave.txt"
 )
 
+# The novel selected for editing. Drives both the protected lexicon above and the
+# per-novel edit-details markdown (universal base + this novel's layer, if present).
+_NOVEL_NAME = "Shadow Slave"
+
 
 def _noop(*_args, **_kwargs) -> None:
     pass
@@ -44,6 +49,7 @@ def run_batch(
     write_replacement_log: bool = False,
     write_debug_text: bool = False,
     dry_run: bool = False,
+    novel_name: str = _NOVEL_NAME,
     gui_log: Callable[..., None] | None = None,
     progress: Callable[[int], None] | None = None,
 ) -> dict:
@@ -70,9 +76,19 @@ def run_batch(
     log(f"Starting batch: {total} file(s).", "accent")
     log(f"Output folder: {output_dir}", "muted")
 
+    # Load the per-novel edit details: UNIVERSAL.md is always the base; the selected
+    # novel's <Novel-Name>.md is layered on top when it exists, else universal-only.
+    details = load_edit_details(novel_name)
+    log("Loaded universal editor rules (UNIVERSAL.md).", "muted")
+    if details.used_universal_only:
+        log(f"No novel-specific edit details for '{novel_name}'; "
+            f"using universal rules only.", "muted")
+    else:
+        log(f"Applied novel-specific edit details: {details.novel_path.name}", "muted")
+
     # Load the protected lexicon once for the whole run (built-in names + user terms).
     lexicon = load_protected_lexicon(str(_NOVEL_INDEX), SS_CANONICAL_NAMES)
-    log(f"Loaded {len(lexicon.terms)} protected term(s) for Shadow Slave.", "muted")
+    log(f"Loaded {len(lexicon.terms)} protected term(s) for {novel_name}.", "muted")
     pipe_log = (lambda m: log(m, "muted")) if gui_log else None
 
     for i, src in enumerate(pdf_paths, start=1):

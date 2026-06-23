@@ -1,5 +1,42 @@
 # Webnovel Editor — Changelog
 
+## v0.8.0 — 2026-06-22 — Phase 8: Per-Novel Edit-Details System
+
+### Added
+- **`files/Novel-Edits-Details/`** — a new, extensible per-novel edit-details layer
+  (human-readable markdown that documents/specifies the editing rules):
+  - **`UNIVERSAL.md`** — the universal editor rules. The baseline edit logic that applies
+    to every novel regardless of selection (the default behaviour the tool always runs).
+  - **`Shadow-Slave.md`** — the Shadow Slave-specific edits (forced typo substitutions and
+    protected-term notes), layered on top of the universal rules. Kept in sync with
+    `scripts/profiles/shadow_slave/special_fixes.py`.
+- **`scripts/core/edit_details.py`** — the loader that wires this in:
+  - `UNIVERSAL.md` is **always loaded/applied as the base**.
+  - `load_edit_details(novel_name)` maps the selected novel name to its
+    `<Novel-Name>.md` and layers it on top. The lookup (`resolve_novel_md_path`) is
+    case- and separator-insensitive ("Shadow Slave" / "shadow-slave" / "Shadow_Slave"
+    all resolve to `Shadow-Slave.md`); `UNIVERSAL.md` is never returned as a novel match.
+  - **Fallback:** if no matching novel file exists (unknown novel, no selection, or a
+    missing folder), it falls back to **universal-only** editing and never crashes.
+  - `novel_md_filename()` gives the conventional `<Novel-Name>.md` name for scaffolding a
+    new novel (Title-Cased, hyphen-joined).
+
+### Changed
+- **`scripts/core/batch_runner.py`** — `run_batch` takes a `novel_name` parameter
+  (default "Shadow Slave"), loads the edit details once per run, and logs whether the
+  novel-specific layer was applied or it fell back to universal-only. No change to the
+  deterministic pipeline behaviour.
+
+### Tests
+- **`scripts/tests/test_edit_details.py`** (19 tests) — covers the novel-name → markdown
+  lookup (case/separator-insensitive, never matches UNIVERSAL, unknown/empty/None name,
+  missing folder), the universal-base + novel-layer composition, and — explicitly — the
+  **fallback-to-universal** case. Also asserts the shipped `UNIVERSAL.md` / `Shadow-Slave.md`
+  resolve and layer correctly.
+
+### Verified
+- `python scripts/verify.py` → PASS. Dependency pins exact; CHANGELOG v0.8.0 matches BRIEFING.
+
 ## v0.7.0 — 2026-06-22 — Phase 7: Multi-Novel Architecture Validation
 
 ### Validated (no core refactor — the universal/profile split held)
