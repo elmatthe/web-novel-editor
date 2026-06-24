@@ -9,11 +9,14 @@ from __future__ import annotations
 
 import pytest
 
-from gui import app as appmod
-
 
 def test_app_constructs_and_has_widgets():
     tk = pytest.importorskip("tkinter")
+    # Import the GUI module lazily so the suite collects cleanly on a machine without
+    # tkinter at all (gui.app imports tkinter at module load); skips here, runs on a
+    # real machine with a display.
+    from gui import app as appmod
+
     try:
         app = appmod.WebnovelEditorApp()
     except tk.TclError:
@@ -28,6 +31,10 @@ def test_app_constructs_and_has_widgets():
         assert app.opt_dry_run.get() is False
         assert app.opt_replacement_log.get() is False
         assert app.opt_debug_text.get() is False
+        # Novel dropdown exists, defaults to Shadow Slave, and offers the full roster.
+        assert app.novel_var.get() == "Shadow Slave"
+        assert "Shadow Slave" in app.novel_combo["values"]
+        assert str(app.novel_combo["state"]) == "readonly"
         # The log and progress helpers drive the real widgets without a mainloop.
         app._log("hello", "info")
         app._set_progress(2)

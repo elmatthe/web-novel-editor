@@ -47,6 +47,7 @@ def test_batch_round_trip(tmp_path):
     progress = []
     summary = run_batch(
         pdfs, out_dir,
+        novel_name="Shadow Slave",  # explicit: exercise the real SS pipeline (default is universal-only)
         gui_log=lambda m, level="info": logs.append((level, m)),
         progress=progress.append,
     )
