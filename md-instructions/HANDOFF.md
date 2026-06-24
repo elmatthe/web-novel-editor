@@ -27,7 +27,28 @@ Codex review pass. It assumes the reader has **only** the repo + this file (no c
 
 ---
 
-## Files created / modified / deleted
+## Files to pull (flat list, for quick machine reading)
+
+```
+# created
+scripts/core/novel_registry.py
+scripts/tests/test_novel_registry.py
+md-instructions/HANDOFF.md
+# modified
+scripts/core/batch_runner.py
+scripts/gui/app.py
+scripts/tests/test_batch.py
+scripts/tests/test_app.py
+md-instructions/CHANGELOG.md
+md-instructions/BRIEFING.md
+README.md
+# deleted
+(none)
+```
+
+All of the above are on branch `feature/novel-dropdown`. Nothing on `main` was touched.
+
+## Files created / modified / deleted (annotated)
 
 ### Created
 - `scripts/core/novel_registry.py` — roster derivation + `NovelDispatch` + `resolve_dispatch`.
@@ -47,6 +68,8 @@ Codex review pass. It assumes the reader has **only** the repo + this file (no c
 - `md-instructions/CHANGELOG.md` — v0.9.0 entry.
 - `md-instructions/BRIEFING.md` — version, current phase, deferred/next-steps updated; dropdown
   noted as v1 (supersedes the prior "v2 deferred" note).
+- `README.md` — GUI description now mentions the novel dropdown; Status section bumped to
+  v0.9.0 and describes the dropdown + universal-only fallback.
 
 ### Deleted
 - None.

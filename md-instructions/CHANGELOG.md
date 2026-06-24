@@ -45,6 +45,12 @@ only real profile).
   is read-only, and offers the roster; the `gui.app` import is now lazy so the suite collects
   cleanly on a machine with no tkinter at all (skips instead of erroring).
 
+### Docs
+- **`README.md`** — GUI description mentions the novel dropdown; Status section bumped to
+  v0.9.0 and describes the dropdown + universal-only fallback.
+- **`md-instructions/HANDOFF.md`** — Phase-9 handoff (branch, changed-file list, verify
+  result, decisions, and a "FOR CODEX REVIEW" section) for the home-PC pull + review pass.
+
 ### Verified
 - `python scripts/verify.py` → PASS. Suite green (corpus-gated tests skip only where the
   gitignored `test-files/shadow_slave/` fixtures are absent — the SS-unchanged guarantee is
