@@ -1,16 +1,37 @@
 # Webnovel Editor — Project Briefing
 
-## Version: v0.8.0
+## Version: v0.9.0
 
 ## Last Updated
-2026-06-22 — Phase 8: per-novel edit-details system
+2026-06-24 — Phase 9: novel-selection dropdown + dispatch registry
 
 ## Current Phase
+Phase 9 (Novel-Selection Dropdown + Dispatch Registry) complete. The GUI now has a labelled,
+read-only **novel dropdown** (`ttk.Combobox`, defaults to "Shadow Slave") populated from
+`files/novel-index/*.txt` — one entry per index file, placeholders included so the full
+roster is visible. The selection drives `run_batch`'s `novel_name`, which now dispatches
+through a **single registry** (`scripts/core/novel_registry.py`): a registered novel
+(Shadow Slave) runs its real profile pipeline; **any other novel** (unknown, placeholder-
+only, empty, or None) falls back to **universal-only** editing via the `lord_of_mysteries`
+stub (universal rules, no novel-specific substitutions) with an empty floor + that novel's
+own index. Per the user's decision, `run_batch`'s `novel_name` default changed from "Shadow
+Slave" to **universal-only** (the GUI always passes the selected novel explicitly). Logging
+records the selected novel and whether a novel-specific layer applied or it fell back.
+**This promotes the prior "v2 deferred" novel-profile dropdown into v1** — but as a UI +
+dispatch layer only; Shadow Slave is still the only real editorial profile, and its output
+is byte-for-byte unchanged. Covered by `scripts/tests/test_novel_registry.py`.
+
+This builds directly on Phase 8's edit-details markdown layer: the dropdown selection feeds
+both the pipeline dispatch (registry) and the `UNIVERSAL.md` + `<Novel-Name>.md` markdown
+resolution (`edit_details.py`), which stay consistent (Shadow Slave → profile + markdown;
+everyone else → universal-only + universal markdown).
+
+## Phase 8 (prior)
 Phase 8 (Per-Novel Edit-Details System) complete. Added `files/Novel-Edits-Details/` with a
 `UNIVERSAL.md` baseline (always applied) and per-novel `<Novel-Name>.md` files layered on
 top (`Shadow-Slave.md` is the first). `scripts/core/edit_details.py` resolves the selected
 novel name to its markdown (case/separator-insensitive) and falls back to universal-only
-when no file matches, never crashing. `batch_runner.run_batch` now takes a `novel_name`,
+when no file matches, never crashing. `batch_runner.run_batch` takes a `novel_name`,
 loads the edit details, and logs which layer was applied. Covered by
 `scripts/tests/test_edit_details.py` (19 tests). Each new novel is a drop-in
 `<Novel-Name>.md` — no code change.
@@ -91,7 +112,10 @@ pdfplumber, reportlab, pytest. (PyPDF2 was removed in Phase 6 — see Deferred F
   maintained `pypdf`) must be **re-added and pinned** when this feature is built. Noted in
   `scripts/requirements.txt` too.
 - **Tier 2 junk-strip** is built but log-only (gated off for this clean corpus).
-- **Multi-novel (Phase 7)** profile dropdown + 2nd novel profile/index/pipeline.
+- **Real per-novel editorial profiles beyond Shadow Slave.** The Phase-9 dropdown + registry
+  now ship in v1 (UI + dispatch only); authoring a 2nd novel's real profile (canonical
+  names + special-fixes + index terms + a `<Novel-Name>.md`) is the remaining data exercise.
+  Until then every non-Shadow-Slave novel runs universal-only by design.
 
 ## What Was Just Built or Changed (Phase 6)
 - **Bug hunt across every module — no Critical bugs.** Robustness against bad input
@@ -229,8 +253,10 @@ Inspecting the real extracted fixtures this session refined the prior recon:
   novel's) editorial profile by populating `profiles/<novel>/canonical_names.py` +
   `special_fixes.py` and `files/novel-index/<novel>.txt`, then flesh out its pipeline. No core
   refactor expected — the universal rules and the `run_pipeline` contract already hold.
-- **GUI novel-profile dropdown (v2):** add the selector and a profile->pipeline registry so the
-  batch runner dispatches to the chosen novel's `run_pipeline`. Deferred per spec.
+- **GUI novel-profile dropdown — DONE (Phase 9, now v1).** The selector + novel→pipeline
+  registry (`novel_registry.py`) ship in v1; the batch runner dispatches to the chosen
+  novel's `run_pipeline` (universal-only fallback for profile-less novels). Supersedes the
+  prior "v2 deferred" note. Remaining work is authoring real per-novel profiles (data only).
 - If/when **orphan single-heading-page removal** is built, re-add `PyPDF2` (or `pypdf`) to
   requirements (see Deferred Features).
 - `files/study-examples/` ports are complete and confirmed reference-only (no runtime import);

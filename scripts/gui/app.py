@@ -24,6 +24,7 @@ import tkinter as tk
 from tkinter import filedialog, messagebox, ttk
 
 from core.batch_runner import run_batch
+from core.novel_registry import DEFAULT_NOVEL, available_novels
 from utils.file_utils import open_in_file_manager
 
 # ---------------------------------------------------------------------------
@@ -154,15 +155,16 @@ class WebnovelEditorApp(tk.Tk):
         root.pack(fill="both", expand=True)
         root.columnconfigure(0, weight=1)
         # The log row expands; everything else is fixed height.
-        root.rowconfigure(4, weight=1)
+        root.rowconfigure(5, weight=1)
 
         self._build_header(root, row=0)
-        self._build_file_panel(root, row=1)
-        self._build_output_panel(root, row=2)
-        self._build_options_panel(root, row=3)
-        self._build_log_panel(root, row=4)
-        self._build_run_row(root, row=5)
-        self._build_status_bar(root, row=6)
+        self._build_novel_panel(root, row=1)
+        self._build_file_panel(root, row=2)
+        self._build_output_panel(root, row=3)
+        self._build_options_panel(root, row=4)
+        self._build_log_panel(root, row=5)
+        self._build_run_row(root, row=6)
+        self._build_status_bar(root, row=7)
 
         self._refresh_status()
         self._log("Ready. Add PDF files and choose an output folder to begin.", "muted")
@@ -176,6 +178,39 @@ class WebnovelEditorApp(tk.Tk):
             text="Batch-clean webscraped chapter PDFs into TTS-ready documents.",
             style="Subtitle.TLabel",
         ).pack(anchor="w", pady=(2, 0))
+
+    def _build_novel_panel(self, parent: ttk.Frame, row: int) -> None:
+        frame = ttk.Labelframe(parent, text="Novel", style="Card.TLabelframe",
+                               padding=PAD_M)
+        frame.grid(row=row, column=0, sticky="ew", pady=(0, PAD_M))
+        frame.columnconfigure(1, weight=1)
+
+        ttk.Label(frame, text="Editing profile:", style="Panel.TLabel").grid(
+            row=0, column=0, sticky="w", padx=(0, PAD_S))
+
+        # Roster derived from files/novel-index/ (one entry per index file). The selection
+        # drives run_batch's novel_name -> pipeline dispatch (universal-only fallback for
+        # novels without a real profile).
+        roster = available_novels()
+        default = DEFAULT_NOVEL if DEFAULT_NOVEL in roster else (roster[0] if roster else "")
+        self.novel_var = tk.StringVar(value=default)
+        self.novel_combo = ttk.Combobox(
+            frame, textvariable=self.novel_var, values=roster, state="readonly",
+            font=self.font_body,
+        )
+        self.novel_combo.grid(row=0, column=1, sticky="w")
+        self.novel_combo.bind("<<ComboboxSelected>>", self._on_novel_changed)
+
+        ttk.Label(
+            frame,
+            text="Shadow Slave applies its full profile; other novels use universal-only "
+                 "cleanup until a profile is added.",
+            style="PathValue.TLabel", wraplength=720, justify="left",
+        ).grid(row=1, column=0, columnspan=2, sticky="w", pady=(PAD_S, 0))
+
+    def _on_novel_changed(self, _event=None) -> None:
+        self._log(f"Novel selected: {self.novel_var.get()}", "info")
+        self._refresh_status()
 
     def _build_file_panel(self, parent: ttk.Frame, row: int) -> None:
         frame = ttk.Labelframe(parent, text="PDF Files", style="Card.TLabelframe",
@@ -358,6 +393,7 @@ class WebnovelEditorApp(tk.Tk):
                 write_replacement_log=self.opt_replacement_log.get(),
                 write_debug_text=self.opt_debug_text.get(),
                 dry_run=self.opt_dry_run.get(),
+                novel_name=self.novel_var.get(),  # always pass the selected novel explicitly
                 gui_log=lambda message, level="info": self.after(
                     0, self._log, message, level),
                 progress=lambda value: self.after(0, self._set_progress, value),
@@ -409,8 +445,11 @@ class WebnovelEditorApp(tk.Tk):
     def _refresh_status(self) -> None:
         out = getattr(self, "output_dir", "")
         out_label = out if out else "not selected"
+        novel = getattr(self, "novel_var", None)
+        novel_label = novel.get() if novel is not None else "—"
         self.status_var.set(
-            f"{len(self.file_paths)} file(s) queued   |   output: {out_label}")
+            f"novel: {novel_label}   |   {len(self.file_paths)} file(s) queued   "
+            f"|   output: {out_label}")
 
 
 def launch() -> None:

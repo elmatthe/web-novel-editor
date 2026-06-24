@@ -15,27 +15,15 @@ Originals are only ever opened for reading; this module never writes to an input
 from __future__ import annotations
 
 import os
-from pathlib import Path
-from typing import Callable, Sequence
+from typing import Callable, Optional, Sequence
 
 from core.edit_details import load_edit_details
+from core.novel_registry import NOVEL_INDEX_DIR, resolve_dispatch
 from core.protected_lexicon import load_protected_lexicon
 from core.replacement_log import ReplacementLog
 from pdf.builder import build_pdf
 from pdf.extractor import extract_text_from_pdf, is_low_confidence
-from pipelines import shadow_slave
-from profiles.shadow_slave.canonical_names import SS_CANONICAL_NAMES
 from utils.file_utils import debug_text_path, unique_output_path
-
-# Active novel profile (v1 supports Shadow Slave only). The novel-index file is
-# user-maintained; a missing/empty file falls back to the built-in canonical names.
-_NOVEL_INDEX = (
-    Path(__file__).resolve().parents[2] / "files" / "novel-index" / "shadow-slave.txt"
-)
-
-# The novel selected for editing. Drives both the protected lexicon above and the
-# per-novel edit-details markdown (universal base + this novel's layer, if present).
-_NOVEL_NAME = "Shadow Slave"
 
 
 def _noop(*_args, **_kwargs) -> None:
@@ -49,11 +37,17 @@ def run_batch(
     write_replacement_log: bool = False,
     write_debug_text: bool = False,
     dry_run: bool = False,
-    novel_name: str = _NOVEL_NAME,
+    novel_name: Optional[str] = None,
     gui_log: Callable[..., None] | None = None,
     progress: Callable[[int], None] | None = None,
 ) -> dict:
     """Process each PDF sequentially and return a run summary dict.
+
+    `novel_name` selects the editorial pipeline via `core.novel_registry.resolve_dispatch`.
+    A registered novel (e.g. "Shadow Slave") runs its real profile pipeline; any other
+    value — including None (the default) — falls back to **universal-only** editing (the
+    universal rules with no novel-specific substitutions). The GUI always passes the
+    selected novel explicitly; the bare default is universal-only by design.
 
     Callbacks (both optional):
         gui_log(message, level="info") — progress/diagnostic lines for the UI/log.
@@ -76,19 +70,31 @@ def run_batch(
     log(f"Starting batch: {total} file(s).", "accent")
     log(f"Output folder: {output_dir}", "muted")
 
-    # Load the per-novel edit details: UNIVERSAL.md is always the base; the selected
-    # novel's <Novel-Name>.md is layered on top when it exists, else universal-only.
+    # Resolve the selected novel to its pipeline + profile (universal-only fallback when
+    # the novel has no real editorial profile). This is the single dispatch seam.
+    dispatch = resolve_dispatch(novel_name)
+    selected_label = novel_name if novel_name else "(none — universal-only)"
+    log(f"Selected novel: {selected_label}", "accent")
+
+    # Load the per-novel edit details markdown: UNIVERSAL.md is always the base; the
+    # selected novel's <Novel-Name>.md is layered on top when it exists, else universal.
     details = load_edit_details(novel_name)
     log("Loaded universal editor rules (UNIVERSAL.md).", "muted")
-    if details.used_universal_only:
-        log(f"No novel-specific edit details for '{novel_name}'; "
-            f"using universal rules only.", "muted")
+    if dispatch.has_profile:
+        layer = details.novel_path.name if details.novel_path else "built-in profile"
+        log(f"Applied novel-specific editing layer for "
+            f"{dispatch.display_name} ({layer}).", "muted")
     else:
-        log(f"Applied novel-specific edit details: {details.novel_path.name}", "muted")
+        log(f"No novel-specific profile for '{selected_label}' — "
+            f"universal-only editing.", "muted")
 
-    # Load the protected lexicon once for the whole run (built-in names + user terms).
-    lexicon = load_protected_lexicon(str(_NOVEL_INDEX), SS_CANONICAL_NAMES)
-    log(f"Loaded {len(lexicon.terms)} protected term(s) for {novel_name}.", "muted")
+    # Load the protected lexicon once for the whole run (built-in names + user index).
+    index_path = (
+        str(NOVEL_INDEX_DIR / dispatch.index_filename) if dispatch.index_filename else ""
+    )
+    lexicon = load_protected_lexicon(index_path, dispatch.canonical_names)
+    log(f"Loaded {len(lexicon.terms)} protected term(s) for "
+        f"{dispatch.display_name}.", "muted")
     pipe_log = (lambda m: log(m, "muted")) if gui_log else None
 
     for i, src in enumerate(pdf_paths, start=1):
@@ -108,9 +114,9 @@ def run_batch(
                 skipped += 1
                 continue
 
-            # Run the deterministic editorial pipeline (extract -> clean -> build).
+            # Run the selected novel's editorial pipeline (extract -> clean -> build).
             repl_log = ReplacementLog() if write_replacement_log else None
-            text = shadow_slave.run_pipeline(
+            text = dispatch.run_pipeline(
                 text, lexicon, repl_log=repl_log, gui_log=pipe_log, dry_run=dry_run
             )
 

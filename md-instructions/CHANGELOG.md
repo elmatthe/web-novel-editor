@@ -1,5 +1,63 @@
 # Webnovel Editor — Changelog
 
+## v0.9.0 — 2026-06-24 — Phase 9: Novel-Selection Dropdown + Dispatch Registry
+
+Promotes the previously-deferred "v2" novel-profile dropdown into v1 as a **UI + dispatch
+layer only** (no new per-novel editorial profiles were authored — Shadow Slave remains the
+only real profile).
+
+### Added
+- **`scripts/core/novel_registry.py`** — the single source of truth for both the dropdown
+  roster and the novel → pipeline dispatch:
+  - `available_novels()` derives the roster from `files/novel-index/*.txt` (one entry per
+    index file, **including empty placeholders** so the full roster is visible). Display
+    names are the reverse of the name → filename convention (`shadow-slave.txt` →
+    "Shadow Slave"; `lord-of-the-mysteries.txt` → "Lord of the Mysteries", small words kept
+    lowercase). The default novel ("Shadow Slave") is listed first.
+  - `resolve_dispatch(novel_name)` returns a `NovelDispatch` (pipeline, canonical-name
+    floor, index filename, `has_profile`). A **registered** novel (Shadow Slave) gets its
+    real profile; **anything else** — unknown, placeholder-only, empty, or None — falls
+    back to **universal-only** editing via the `lord_of_mysteries` stub pipeline (universal
+    rules, no novel-specific substitutions) with an empty floor + that novel's own index.
+    Documented default-to-universal path; case/separator-insensitive; never raises.
+- **GUI novel dropdown** (`scripts/gui/app.py`) — a labelled, read-only `ttk.Combobox`
+  ("Novel" card) populated from `available_novels()`, defaulting to "Shadow Slave". The
+  selection is shown in the status bar and **always passed explicitly** to `run_batch`.
+
+### Changed
+- **`scripts/core/batch_runner.py`** — `run_batch` now dispatches via `resolve_dispatch`
+  instead of hardcoding the Shadow Slave pipeline/index/canonical names. Per the user's
+  decision (#3), the `novel_name` **default changed from "Shadow Slave" to universal-only**
+  (`None`): no implicit Shadow Slave. The GUI always passes the selected novel. Logging now
+  records the selected novel and whether a novel-specific layer applied or it fell back to
+  universal-only (extends the existing log; no new logging system).
+
+### Tests
+- **`scripts/tests/test_novel_registry.py`** (new) — roster derivation (synthetic + shipped
+  index dirs, placeholders included, default-first), filename ↔ display-name round-trip,
+  dispatch to the real SS profile vs. the universal-only fallback, that a profile-less novel
+  applies **no** other novel's special-fixes, **Shadow Slave dispatched output == direct
+  pipeline output** (a corpus-free synthetic-text version plus a fixture-backed one), and
+  `run_batch`'s universal-only default (#3) + explicit-novel logging.
+- **`scripts/tests/test_batch.py`** — the round-trip test now passes `novel_name="Shadow
+  Slave"` explicitly (it intentionally exercises the real SS pipeline under the new default).
+- **`scripts/tests/test_app.py`** — asserts the dropdown exists, defaults to "Shadow Slave",
+  is read-only, and offers the roster; the `gui.app` import is now lazy so the suite collects
+  cleanly on a machine with no tkinter at all (skips instead of erroring).
+
+### Docs
+- **`README.md`** — GUI description mentions the novel dropdown; Status section bumped to
+  v0.9.0 and describes the dropdown + universal-only fallback.
+- **`md-instructions/HANDOFF.md`** — Phase-9 handoff (branch, changed-file list, verify
+  result, decisions, and a "FOR CODEX REVIEW" section) for the home-PC pull + review pass.
+
+### Verified
+- `python scripts/verify.py` → PASS. Suite green (corpus-gated tests skip only where the
+  gitignored `test-files/shadow_slave/` fixtures are absent — the SS-unchanged guarantee is
+  *also* pinned by a corpus-free synthetic-text test that always runs). Manually exercised
+  the full `run_batch` dispatch on a synthesized PDF: SS output byte-for-byte identical via
+  dispatch, LOTM/other novels fall back to universal-only without applying SS fixes.
+
 ## v0.8.0 — 2026-06-22 — Phase 8: Per-Novel Edit-Details System
 
 ### Added
