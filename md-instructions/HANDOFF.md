@@ -1,181 +1,130 @@
-# HANDOFF — Phase 9: Novel-Selection Dropdown + Dispatch Registry
+# Web Novel Editor — Handoff
 
-This file is the single source of truth for pulling this work onto the home PC and for the
-Codex review pass. It assumes the reader has **only** the repo + this file (no chat context).
-
-- **Version:** v0.9.0 (Phase 9)
-- **Branch:** `feature/novel-dropdown` (do NOT squash-merge or delete; history not rewritten)
-- **Base:** branched from `593a9c4` (Merge PR #1 from elmatthe/release-main), i.e. v0.8.0.
-- **What this is:** promotes the previously-deferred "v2" novel-profile dropdown into v1 as a
-  **UI + dispatch layer only**. No new per-novel editorial profiles were authored — Shadow
-  Slave remains the only real profile, and its output is byte-for-byte unchanged.
+## Current Focus
+Phase-10 instruction drop (`Instructions_Phase10_JunkStrip_And_QA.md`) in progress on
+branch `feature/junk-strip-hardening`, re-based per Phase 0.5 onto `origin/main @ 319f523`
+(v0.9.0 — the dispatch registry is real and merged; the earlier "registry missing" finding
+only reflected a stale local clone). Phase 0 (baseline), Phase 0.5 (branch reconciliation,
+user-confirmed base) and Phase 1 recon are done; Phase 1 addendum (scan of the two new
+user-added corpora, The_Noble_Queen-v2 + Supreme_Magus-v2) is the current step, then
+Phase 2 rule work. User decisions on record: commit the 10 pinned fixtures (Phase 2);
+author Noble Queen + Supreme Magus profiles in Phase 5b (NO profanity-uncensor map);
+Renegade Immortal / Reverend Insanity stay universal-fallback placeholders; re-track
+AI-WORKSPACE.md; Setup_and_Run-template.* are study copies only — Phase 9 builds the
+single launcher per OS from them, then deletes them.
 
 ---
+
+## Open Issues / Bugs
+
+| # | Severity | File | Description | Status | Found by |
+|---|----------|------|-------------|--------|----------|
+| 1 | Minor | .gitignore / test-files/ | The 10 pinned fixture PDFs are gitignored AND untracked (BRIEFING/.gitignore comment claim they're committed — predates Phase 9, confirmed in the v0.9.0 handoff below). A fresh clone silently skips all fixture-backed tests. | Approved fix: commit them in Phase 2 | Claude Code |
+| 2 | Minor | md-instructions/BRIEFING.md | ~~States v0.9.0 features exist that don't~~ RESOLVED by Phase 0.5: the registry/dropdown DO exist on origin/main @ 319f523; the local clone was behind (release-main @ v0.8.0). Not a doc bug. | Resolved 2026-07-06 | Claude Code |
+| 3 | Minor | .test-tmp/ | Pre-existing repo-root folder is ACL-locked (access denied to list/read even via icacls). Gitignored, left untouched; QA scratch lives in files/qa-tools/scratch/ instead. | Open | Claude Code |
+
+---
+
+## Work Log (newest first)
+
+- 2026-07-06 — **Phase 0.5 (Branch Reconciliation) complete.** `git fetch --all` showed
+  origin/main advanced 4a42ba8 → 319f523: PR #2 merged the full v0.9.0 registry work
+  (novel_registry.py + GUI dropdown + tests, commits 44582a1…4b33035 on
+  origin/feature/novel-dropdown), followed by 6 GitHub web-UI curation commits (deleted
+  .claude/, .codex/, AI-WORKSPACE.md; re-uploaded md-instructions with uppercase
+  HANDOFF.md). Registry verified complete — **no rebuild needed**; Phase 5 reverts to
+  confirm/prove scope. Migration (user-approved, non-destructive): old feature branch
+  WIP-committed (792e2e2) and renamed `archive/junk-strip-hardening-pre-0.5`;
+  `feature/junk-strip-hardening` recreated from 319f523; restored forward the expanded
+  AI-WORKSPACE.md (re-tracked per user — DECISIONS.md entry due in Phase 10), the
+  1240-line instruction file (replacing main's stale 975-line copy), decisions-template,
+  launcher study templates (untracked, deleted at end of Phase 9), .gitignore scratch
+  rule; lowercase handoff.md merged into this uppercase HANDOFF.md (main's casing wins).
+  Full topology: files/qa-tools/scratch/phase0.5-branch-topology.md. — Claude Code
+
+- 2026-07-05 — Phase 0 + Phase 1 recon complete (on the old 7a44b73 base; baseline being
+  re-recorded on the new base). Old baseline: verify PASS, pytest 106/0/0; SHA-256 of all
+  3,010 corpus PDFs in files/qa-tools/scratch/corpus-hashes-baseline.txt. Phase 1:
+  machine-scanned 100% of webscraped_shadow_slave (3,000 PDFs) + 10 pinned fixtures —
+  ZERO junk of any class; all 49 promo-keyword hits are legitimate prose; repeated lines
+  are genuine narration refrains + the novel's own [system] lines (must never strip).
+  Real fingerprint evidence found in study-examples scrapers: webnovel.com
+  decorative-Unicode watermark letters (V2_DECORATIVE_REPLACEMENTS in
+  scrape_noble_queen-v3.py) — NFC does not fold these. Study-examples inventory for
+  Phase 5b: Noble Queen 26 terms, Supreme Magus 594-term master + 4 legacy lists.
+  User has since added two new corpora for the Phase 1 addendum:
+  files/pdf-example-chapters/The_Noble_Queen-v2/ (778 PDFs) and Supreme_Magus-v2/
+  (4,191 PDFs). Findings: files/qa-tools/scratch/phase0-baseline-notes.md +
+  phase1-findings.md + junk-scan-report.txt. — Claude Code
+
+---
+
+## Session Sync Log (newest first)
+
+### 2026-07-06 — HOME-PC — not pushed
+- Branch:  feature/junk-strip-hardening recreated from origin/main @ 319f523;
+           old branch preserved as archive/junk-strip-hardening-pre-0.5 (@ 792e2e2)
+- Changed: .gitignore (re-applied files/qa-tools/scratch/ rule on the new base),
+           md-instructions/Instructions_Phase10_JunkStrip_And_QA.md (user's 1240-line
+           version replaces main's stale copy), md-instructions/HANDOFF.md (this merge)
+- Added:   AI-WORKSPACE.md (re-tracked, user-directed), md-instructions/decisions-template.md
+- Local-only (untracked by design): Setup_and_Run-template.bat/.command (study copies,
+           deleted at Phase 9 step 12), files/qa-tools/scratch/* (gitignored)
+
+### 2026-07-05 — HOME-PC — not pushed
+- Added:   lowercase handoff.md (now merged into this file), .gitignore scratch rule.
+- Note:    All Phase 0/1 artifacts are local-only gitignored scratch.
+
+---
+
+# Historical — Phase 9 (v0.9.0) handoff, as merged to main
+
+*Kept for its still-load-bearing decisions (universal-seam coupling, fixture
+discrepancy). The "to pull this locally" instructions are obsolete — the branch is
+merged into main.*
+
+- **Version:** v0.9.0 (Phase 9)
+- **Branch:** `feature/novel-dropdown` (merged to main via PR #2, 43e2701)
+- **What it was:** promoted the previously-deferred "v2" novel-profile dropdown into v1 as
+  a **UI + dispatch layer only**. No new per-novel editorial profiles were authored —
+  Shadow Slave remains the only real profile, and its output is byte-for-byte unchanged.
 
 ## What changed (the 30-second version)
 
-1. **New registry** `scripts/core/novel_registry.py` — single source of truth for (a) the GUI
-   dropdown roster, derived from `files/novel-index/*.txt`, and (b) novel-name → pipeline
-   dispatch. Registered novel (Shadow Slave) → real profile; everything else → **universal-
-   only** fallback (the `lord_of_mysteries` universal stub, empty floor, no other novel's
-   special-fixes).
-2. **GUI dropdown** — labelled read-only combobox, defaults to "Shadow Slave", always passes
-   the selection explicitly to `run_batch`.
+1. **New registry** `scripts/core/novel_registry.py` — single source of truth for (a) the
+   GUI dropdown roster, derived from `files/novel-index/*.txt`, and (b) novel-name →
+   pipeline dispatch. Registered novel (Shadow Slave) → real profile; everything else →
+   **universal-only** fallback (the `lord_of_mysteries` universal stub, empty floor, no
+   other novel's special-fixes).
+2. **GUI dropdown** — labelled read-only combobox, defaults to "Shadow Slave", always
+   passes the selection explicitly to `run_batch`.
 3. **`run_batch` dispatches via the registry** and its `novel_name` default changed from
-   `"Shadow Slave"` to **universal-only** (`None`). Logging records the selected novel + which
-   layer ran.
+   `"Shadow Slave"` to **universal-only** (`None`). Logging records the selected novel +
+   which layer ran.
 
----
+## Verify result (at merge time)
 
-## Files to pull (flat list, for quick machine reading)
-
-```
-# created
-scripts/core/novel_registry.py
-scripts/tests/test_novel_registry.py
-md-instructions/HANDOFF.md
-# modified
-scripts/core/batch_runner.py
-scripts/gui/app.py
-scripts/tests/test_batch.py
-scripts/tests/test_app.py
-md-instructions/CHANGELOG.md
-md-instructions/BRIEFING.md
-README.md
-# deleted
-(none)
-```
-
-All of the above are on branch `feature/novel-dropdown`. Nothing on `main` was touched.
-
-## Files created / modified / deleted (annotated)
-
-### Created
-- `scripts/core/novel_registry.py` — roster derivation + `NovelDispatch` + `resolve_dispatch`.
-- `scripts/tests/test_novel_registry.py` — roster, dispatch, fallback, SS-unchanged, default.
-- `md-instructions/HANDOFF.md` — this file (final commit).
-
-### Modified
-- `scripts/core/batch_runner.py` — dispatch via `resolve_dispatch`; `novel_name` default →
-  universal-only; per-novel + layer logging. (Removed the hardcoded `_NOVEL_INDEX`/`_NOVEL_NAME`
-  and the direct `shadow_slave`/`SS_CANONICAL_NAMES` imports.)
-- `scripts/gui/app.py` — new "Novel" dropdown panel + `_on_novel_changed`; row layout shifted
-  by one; status bar shows the selected novel; `novel_name=self.novel_var.get()` passed to
-  `run_batch`.
-- `scripts/tests/test_batch.py` — round-trip test passes `novel_name="Shadow Slave"` explicitly.
-- `scripts/tests/test_app.py` — dropdown assertions; `gui.app` import made lazy (collect-clean
-  where tkinter is absent).
-- `md-instructions/CHANGELOG.md` — v0.9.0 entry.
-- `md-instructions/BRIEFING.md` — version, current phase, deferred/next-steps updated; dropdown
-  noted as v1 (supersedes the prior "v2 deferred" note).
-- `README.md` — GUI description now mentions the novel dropdown; Status section bumped to
-  v0.9.0 and describes the dropdown + universal-only fallback.
-
-### Deleted
-- None.
-
----
-
-## Verify result
-
-`python scripts/verify.py` → **PASS** (run on this branch).
-
-- pytest: **114 passed, 16 skipped** (was 86 passed / 1 skipped at v0.8.0).
-- Dependency pins: all `==`.
-- CHANGELOG bump: v0.9.0, matches BRIEFING.
-
-**About the skips (important):** the 16 skips are all **environment-gated, not failures**.
-The Shadow-Slave PDF corpus (`test-files/shadow_slave/`) is gitignored and is **not** in the
-repo (see "Pre-existing discrepancy" below), so corpus-backed tests skip wherever those local
-fixtures are absent. On a machine that has the fixtures (the home PC) most of these run. The
-container used here additionally lacks `tkinter`, so the GUI smoke test skips there too.
-
-The **"Shadow Slave output unchanged"** guarantee does **not** depend on the corpus: it is
+`python scripts/verify.py` → **PASS**: pytest **114 passed, 16 skipped** (was 86/1 at
+v0.8.0). The 16 skips are environment-gated (gitignored corpus fixtures + no tkinter in
+the review container), not failures. The "Shadow Slave output unchanged" guarantee is
 pinned by a corpus-free synthetic-text test
-(`test_shadow_slave_dispatch_equals_direct_pipeline_on_synthetic_text`) that runs everywhere.
-The full `run_batch` dispatch path was additionally exercised manually against a synthesized
-PDF: SS output byte-for-byte identical via dispatch; Lord of the Mysteries / other novels fall
-back to universal-only and do **not** apply Shadow Slave's forced substitutions.
+(`test_shadow_slave_dispatch_equals_direct_pipeline_on_synthetic_text`).
 
----
+## Decisions made in Phase 9 (still in force)
 
-## Decisions I made (where the spec left a choice)
-
-- **#1 — placeholder visibility (you leaned "show them"): SHOWING all index files.** The roster
-  has one entry per `files/novel-index/*.txt`, including the 7 empty placeholders, so the full
-  novel roster is visible. (`available_novels` does not filter empties.)
-- **#3 — `run_batch` default (you asked to confirm): CHANGED to universal-only.** You approved
-  this. `run_batch(novel_name=None)` now edits universal-only (no implicit Shadow Slave); the
-  GUI always passes the selected novel explicitly. **Downstream-test effect:** none broke — the
-  existing `run_batch` tests assert only generic behaviour. To keep coverage honest, the
-  round-trip test in `test_batch.py` now passes `novel_name="Shadow Slave"` explicitly, and new
-  tests pin the universal-only default.
-- **Display-name casing:** Title-Case with common small words kept lowercase unless first, so
-  `lord-of-the-mysteries.txt` → "Lord of the Mysteries" (matching your example) while
-  `shadow-slave.txt` → "Shadow Slave". Casing is cosmetic only — dispatch normalizes it away.
-- **Universal-only seam reuse:** per spec, the universal-only fallback reuses the existing
-  Phase-7 `lord_of_mysteries` stub pipeline (universal rules, empty profile) rather than
-  inventing new structure. See the Codex note below about the coupling this implies.
-- **`test_app.py` lazy import (small, supporting):** `from gui import app` moved inside the test
-  after `importorskip("tkinter")`, so the suite *collects* cleanly on a machine with no tkinter
-  at all (it previously errored at collection, contradicting the test's own "green headless"
-  docstring). Behaviour on a real machine is unchanged.
-
----
-
-## Pre-existing discrepancy I did NOT fix (out of scope, but you should know)
-
-`test-files/` is gitignored (`.gitignore` line ~27: `test-files/`) and the 10 Shadow-Slave
-fixtures were **never actually committed** (`git ls-tree -r HEAD` shows none). BRIEFING and a
-`.gitignore` comment both *claim* these fixtures "ARE committed" — that claim is inaccurate in
-the current repo. Consequence: corpus-backed tests skip anywhere the fixtures aren't present on
-disk. This predates Phase 9 and I left it alone. If you want those tests to run in clean clones
-/ CI / the Codex env, the fixtures need to be force-added (`git add -f test-files/shadow_slave`)
-or the ignore narrowed — your call.
-
----
-
-## To pull this locally (home PC)
-
-```bash
-# from your local full-stack repo root, with the elmatthe/web-novel-editor remote as 'origin'
-git fetch origin
-git checkout feature/novel-dropdown      # or: git switch feature/novel-dropdown
-git pull origin feature/novel-dropdown   # if the branch already exists locally
-
-# verify (needs the pinned deps; tkinter must be present for the GUI smoke test to run)
-python -m pip install -r scripts/requirements.txt
-python scripts/verify.py
-```
-
-If you keep the Shadow-Slave fixtures in `test-files/shadow_slave/` locally, the corpus-backed
-tests will run there even though they're gitignored.
-
----
-
-## FOR CODEX REVIEW — riskiest areas to check first
-
-1. **Dropdown roster derivation** (`novel_registry.available_novels` /
-   `display_name_from_index_filename`): one entry per `files/novel-index/*.txt`, placeholders
-   included, default ("Shadow Slave") listed first. Check the filename→display-name mapping and
-   that it round-trips with `index_filename_for` (e.g. `the-noble-queen.txt` ↔ "The Noble
-   Queen", `re-monster.txt` ↔ "Re Monster"). Casing of small words is intentional/cosmetic.
-2. **Dispatch fallback** (`resolve_dispatch`): confirm a profile-less / unknown / empty / None
-   novel resolves to the universal-only pipeline with an **empty** canonical floor and **no**
-   other novel's special-fixes, and that it never raises. Confirm case/separator-insensitivity
-   reuses `edit_details._norm_key` (single normalization source).
-3. **The `run_batch` default change (#3):** confirm `novel_name` default is universal-only and
-   that nothing else in the codebase relied on the old implicit "Shadow Slave" default. The GUI
-   passes `novel_var.get()` explicitly — confirm that path.
-4. **Shadow Slave output is byte-for-byte unchanged:** the load-bearing claim. Verify both the
-   synthetic-text equivalence test and (where fixtures exist) the corpus-backed one. The
-   dispatch for Shadow Slave must use the same pipeline, canonical names, and index file as the
-   old hardcoded path — `resolve_dispatch("Shadow Slave")` returns `shadow_slave.run_pipeline`,
-   `SS_CANONICAL_NAMES`, `shadow-slave.txt`.
-5. **Universal-seam coupling (latent):** the universal-only fallback currently reuses
-   `pipelines.lord_of_mysteries.run_pipeline`, which is universal-rules-only *only because* its
-   profile (`LOTM_SPECIAL_FIXES`) is empty. `test_universal_fallback_applies_no_special_fixes`
-   pins that emptiness. **If/when a real Lord of the Mysteries profile is authored**, that
-   pipeline stops being a neutral universal seam and every other profile-less novel would
-   inherit LOTM's fixes — at that point give the universal fallback its own dedicated pipeline
-   and register LOTM explicitly. Flagged in the `novel_registry` module docstring too.
+- **Placeholder visibility: SHOWING all index files** — roster has one entry per
+  `files/novel-index/*.txt`, including empty placeholders.
+- **`run_batch` default: universal-only (`None`)** — user-approved; the GUI always passes
+  the selected novel explicitly; new tests pin the default.
+- **Display-name casing:** Title-Case with small words lowercase unless first
+  (`lord-of-the-mysteries.txt` → "Lord of the Mysteries"). Cosmetic — dispatch
+  normalizes via `edit_details._norm_key`.
+- **Universal-seam coupling (latent):** the universal-only fallback reuses
+  `pipelines.lord_of_mysteries.run_pipeline`, which is universal-rules-only *only
+  because* `LOTM_SPECIAL_FIXES` is empty —
+  `test_universal_fallback_applies_no_special_fixes` pins that emptiness. **If/when a
+  real LOTM profile is authored, give the universal fallback its own dedicated pipeline
+  and register LOTM explicitly.** (Phase 5b step 3 of the current plan addresses this.)
+- **Fixture discrepancy (pre-existing):** `test-files/` is gitignored and the 10
+  Shadow-Slave fixtures were never actually committed despite BRIEFING/.gitignore
+  comments claiming so → open issue #1 above; approved fix lands in Phase 2.

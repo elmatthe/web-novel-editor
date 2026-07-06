@@ -22,6 +22,7 @@ test-logs/
 .test-tmp/
 __WE_CH_*
 __WE_P_*
+files/qa-tools/scratch/
 
 # --- Local test fixtures (not part of the shipped product) ---
 test-files/
