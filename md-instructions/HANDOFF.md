@@ -27,6 +27,25 @@ single launcher per OS from them, then deletes them.
 
 ## Work Log (newest first)
 
+- 2026-07-06 — **Phase 1 addendum complete: the junk-strip defect is now reproducible.**
+  Hashed (corpus-hashes-baseline-v2.txt, 7,979 SHA-256; SS subset byte-identical to the
+  original baseline), extracted (0 errors) and 100%-machine-scanned the two user-added
+  corpora. The_Noble_Queen-v2 (778 PDFs): ~60–73 files carry novelfire.net watermarks —
+  template sentences + domain spliced INLINE into prose (prose on both sides of the
+  splice), with 17 mangled domain spellings (n0velfire/Nove1Fire/NoveIFire/dropped-letter
+  variants) and letter-degraded templates down to "crs r s novelfirenet" skeletons.
+  Supreme_Magus-v2 (4,191 PDFs): inline domain watermarks from ~8 sites (NiceNovel,
+  NovelWell, NovelsToday, Libread, lightsnovel, pandasnovel scrambles), spaced-out
+  "f r e e w e b n o v e l. c o m" (5 files), ONE confirmed homoglyph watermark
+  (math-script freewebnovel.com, NFKC-foldable, ch 2151 — NFKC sweep of all 7,979 files
+  found no others), AN/discord/ko-fi/paypal support-block lines, and 4 WHOLE-FILE
+  Cloudflare error-1015 pages (chapter text missing — detect-and-report class, never
+  auto-strip). Current Tier 1 catches none of the bare/mangled/spaced/inline classes
+  (proven by execution). Shadow Slave re-confirmed clean. Evidence materially differs
+  from EDITING-RULES.md Stage 1.5 — spec update deferred to Phase 10 per plan. Full
+  details: files/qa-tools/scratch/phase1-findings.md (addendum §7–§11),
+  junk-scan-report.txt, homoglyph-domain-scan.txt. — Claude Code
+
 - 2026-07-06 — **Phase 0.5 (Branch Reconciliation) complete.** `git fetch --all` showed
   origin/main advanced 4a42ba8 → 319f523: PR #2 merged the full v0.9.0 registry work
   (novel_registry.py + GUI dropdown + tests, commits 44582a1…4b33035 on
