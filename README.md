@@ -26,7 +26,7 @@ and never has another novel's specific fixes applied to it.
 - Chapter title formatting and PDF heading layout
 - Protected names and terms, which are kept byte-for-byte unchanged
 
-## Setup and run (Commands)
+## Setup and run
 
 You do not need to open a terminal or install project dependencies by hand.
 
