@@ -25,7 +25,13 @@ __WE_P_*
 files/qa-tools/scratch/
 
 # --- Local test fixtures (not part of the shipped product) ---
-test-files/
+# The 10 pinned Shadow Slave fixture PDFs ARE committed (Phase 2, user-approved
+# exception to "no corpus PDFs in git") so fixture-backed tests run in every
+# clone instead of silently skipping. Everything else under test-files/ stays
+# local-only.
+test-files/*
+!test-files/shadow_slave/
+!test-files/shadow_slave/**
 
 # --- Reference-only prior work (not part of the shipped tool) ---
 files/study-examples/

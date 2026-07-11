@@ -1,0 +1,3 @@
+# Binary files must never get line-ending conversion (core.autocrlf=true would
+# corrupt the committed fixture PDFs on checkout without this).
+*.pdf binary
