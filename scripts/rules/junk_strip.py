@@ -59,12 +59,31 @@ _URL_RE = re.compile(r"\bhttps?://\S+", re.IGNORECASE)
 _WWW_RE = re.compile(r"\bwww\.[^\s,;)]+", re.IGNORECASE)
 
 # Spaced/obfuscated panda-novel promo (any spacing variant), ported verbatim.
+# Applied per line (with seam cleanup) alongside the spaced-domain patterns.
 _PANDA_NOVEL_PROMO_RE = re.compile(
     r"(?:Do\s+you\s+)?"
     r"Want\s+to\s+(?:read|see)\s+more\s+chapters\??\s*"
     r"(?:(?:Come\s+to|Please\s+visit)\s+)?"
     r"p\s*a\s*n\s*d\s*a\s*[\s\-\.\,]+n\s*o\s*v\s*e\s*l\s*[\s\-\.\,]*c\s*\.?\s*o\s*\.?\s*m",
     re.IGNORECASE,
+)
+
+# Spaced-out freewebnovel watermark ("f r e e w e b n o v e l. c o m", SM
+# ch 1853–1950), optionally wrapped in brackets. Zero-FP by construction: the
+# full 12-letter stem must appear in exact order.
+_SPACED_FREEWEBNOVEL_RE = re.compile(
+    r"(?:\[\s*)?(?<![A-Za-z0-9])"
+    + r"\s*".join("freewebnovel")
+    + r"\s*[.\s]+c\s*o\s*m(?![a-z0-9])"
+    + r"(?:\s*\])?",
+    re.IGNORECASE,
+)
+
+# (regex, replacement-log rule name) — spaced/obfuscated promo patterns handled
+# in the per-line pass so seam cleanup and the empty-line-drop convention apply.
+_SPACED_DOMAIN_PATTERNS = (
+    (_PANDA_NOVEL_PROMO_RE, "junk_strip.promo"),
+    (_SPACED_FREEWEBNOVEL_RE, "junk_strip.spaced_domain"),
 )
 
 # --- Tier 1: inline domain watermarks (Phase-2 hardening) ---------------------
@@ -241,6 +260,8 @@ _MAX_TEMPLATE_TOKENS = 12
 
 
 def _fold_word(word: str) -> str:
+    for ch in "()[]":
+        word = word.replace(ch, "")
     return word.translate(_FOLD_MAP).lower()
 
 
@@ -309,29 +330,46 @@ def _clean_removal_seam(line: str, start: int, end: int) -> str:
     return (left + right).strip()
 
 
+def _find_junk_match(line: str) -> "tuple[Optional[re.Match], str]":
+    """First junk-domain match on the line: exact spellings, then spaced/
+    obfuscated promos, then fuzzy dotted candidates."""
+    m = _EXACT_TOKEN_RE.search(line)
+    if m is not None:
+        return m, "junk_strip.domain"
+    for regex, rule in _SPACED_DOMAIN_PATTERNS:
+        m = regex.search(line)
+        if m is not None:
+            return m, rule
+    m = _DOTTED_TOKEN_RE.search(line)
+    while m is not None and not _is_junk_domain_stem(m.group(1)):
+        m = _DOTTED_TOKEN_RE.search(line, m.end())
+    return m, "junk_strip.domain"
+
+
 def _strip_domain_junk_line(line: str, repl_log) -> "Optional[str]":
     """Apply the domain-watermark passes to one wrapped-stream line.
 
-    Returns the cleaned line, or None when the removal leaves the line empty
+    Returns the cleaned line, or None when a removal leaves the line empty
     (the watermark was the whole line, so the line itself is dropped — the
     splice was injected mid-paragraph and the wrap stream rejoins correctly).
+    A line no removal touched is returned unchanged, even when blank.
     """
+    changed = False
     while True:
-        m = _EXACT_TOKEN_RE.search(line)
+        m, rule = _find_junk_match(line)
         if m is None:
-            m = _DOTTED_TOKEN_RE.search(line)
-            while m is not None and not _is_junk_domain_stem(m.group(1)):
-                m = _DOTTED_TOKEN_RE.search(line, m.end())
-            if m is None:
-                break
+            break
         start, consumed = _expand_template_left(line, m.start())
         end = m.end()
         # A template sentence owns its final period ("... on Libread.com.").
         if consumed and end < len(line) and line[end] == ".":
             end += 1
-        _record(repl_log, line[start:end], "junk_strip.domain", line[start:end])
+        _record(repl_log, line[start:end], rule, line[start:end])
         line = _clean_removal_seam(line, start, end)
-    return line if line else None
+        changed = True
+    if changed and not line:
+        return None
+    return line
 
 
 # --- Tier 2: heuristic promo lines (log-only by default) ---------------------
@@ -370,7 +408,6 @@ def strip_junk(
 
     for regex, rule in (
         (_AT_MARKER_RE, "junk_strip.at_marker"),
-        (_PANDA_NOVEL_PROMO_RE, "junk_strip.promo"),
         (_URL_RE, "junk_strip.url"),
         (_WWW_RE, "junk_strip.url"),
     ):

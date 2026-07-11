@@ -395,3 +395,56 @@ def test_plain_word_with_sentence_punctuation_stops_expansion():
     # to the preceding real sentence — it must survive ("read." stays).
     out = strip("She loved to read. Google search novelfirenet")
     assert out == "She loved to read."
+
+
+# =========================================================================
+# Task 3 — spaced-out domains ("f r e e w e b n o v e l. c o m")
+# =========================================================================
+
+
+def test_spaced_freewebnovel_with_template_removed():
+    line = (
+        '"Thanks, Trion." Lith said. The source of this content is '
+        "f r e e w e b n o v e l. c o m"
+    )
+    assert strip(line) == '"Thanks, Trion." Lith said.'
+
+
+def test_spaced_freewebnovel_bracketed_line_dropped():
+    text = "prose before\n[Updated from F r e e w e b n o v e l. c o m]\nprose after"
+    assert strip(text) == "prose before\nprose after"
+
+
+def test_spaced_freewebnovel_spaced_brackets_line_dropped():
+    text = (
+        "prose before\n"
+        "This chapter is updated by [ f r e e w e b n o v e l. c o m ]\n"
+        "prose after"
+    )
+    assert strip(text) == "prose before\nprose after"
+
+
+def test_spaced_panda_promo_with_trailing_prose_keeps_prose():
+    line = (
+        "Want to see more chapters? Please visit p a n d a -n o v e l .c o m "
+        "His fury was almost tangible"
+    )
+    assert strip(line) == "His fury was almost tangible"
+
+
+def test_spaced_panda_promo_alone_drops_line():
+    text = "held on\nWant to see more chapters? Please visit p a n d a -n o v e l .c o m\nlet go"
+    assert strip(text) == "held on\nlet go"
+
+
+def test_preexisting_blank_lines_are_preserved():
+    # Only a line that a junk removal itself emptied may be dropped; blank
+    # lines already present in the input (paragraph breaks) must survive.
+    text = "paragraph one.\n\nparagraph two."
+    assert strip(text) == text
+
+
+def test_spaced_letters_of_ordinary_words_survive():
+    # Spelling out ordinary words with spaces (stylistic emphasis) is not junk.
+    text = "He spelled it out: n o v e l. Then he grinned. F r e e, she said."
+    assert strip(text) == text
