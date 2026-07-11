@@ -411,6 +411,32 @@ _TIER2_PROMO_LINE_RE = re.compile(
 )
 
 
+# --- Whole-file CDN error pages: DETECT-AND-FLAG ONLY, never auto-strip ------
+# Supreme_Magus-v2 contains 4 whole-file Cloudflare error-1015 pages (ch 1423,
+# 1424, 1427, +1): the chapter text is MISSING, so silently stripping the junk
+# would yield an empty chapter. These files need a re-scrape, so the pipeline
+# flags them (gui warning + integrity_flag log entry) and leaves the text alone.
+# Two independent signals are required, so prose mentioning one phrase can
+# never be flagged.
+_ERROR_PAGE_SIGNALS = (
+    ("ray-id", re.compile(r"cloudflare\s+ray\s+id", re.IGNORECASE)),
+    ("security-footer", re.compile(r"performance\s*&\s*security\s+by", re.IGNORECASE)),
+    ("error-url", re.compile(r"developers\.cloudflare\.com|cloudflare-1xxx-errors", re.IGNORECASE)),
+    ("rate-limited", re.compile(r"you\s+are\s+being\s+rate\s+limited", re.IGNORECASE)),
+    ("error-code", re.compile(r"error\s+code[:\s]+10\d\d", re.IGNORECASE)),
+)
+
+
+def detect_error_page(text: str) -> Optional[str]:
+    """Return a reason string when ``text`` is a whole-file CDN error page
+    (>= 2 independent Cloudflare signals), else None. Detection only — the
+    caller must flag for re-scrape, never strip."""
+    hits = [name for name, regex in _ERROR_PAGE_SIGNALS if regex.search(text)]
+    if len(hits) >= 2:
+        return f"Cloudflare error page detected (signals: {', '.join(hits)})"
+    return None
+
+
 def _record(repl_log, original: str, rule: str, context: str) -> None:
     if repl_log is not None and original.strip():
         repl_log.record(original, "", rule, "fingerprint", context)

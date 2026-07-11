@@ -106,6 +106,20 @@ def run_pipeline(
     """Run the full Shadow Slave editorial pipeline over `text` and return clean text."""
     log = gui_log or (lambda *_a, **_k: None)
 
+    # Whole-file CDN error page? Flag for re-scrape and leave the text alone —
+    # the chapter content is missing, so stripping would yield an empty chapter.
+    error_reason = junk_strip.detect_error_page(text)
+    if error_reason:
+        log(f"  ⚠ {error_reason} — chapter text missing; file needs re-scrape")
+        if repl_log is not None:
+            repl_log.record(
+                error_reason,
+                "[FLAGGED: whole-file error page - re-scrape needed]",
+                "junk_strip.error_page_flag",
+                "integrity_flag",
+                text.split("\n", 1)[0],
+            )
+
     # --- BLOCK A — pre-mask cleanup ----------------------------------------
     n_quotes = len(_COUNT_DOUBLE_QUOTES.findall(text))
     text = unicode_cleanup.normalize_unicode(text)

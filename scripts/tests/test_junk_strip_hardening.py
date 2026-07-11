@@ -488,3 +488,77 @@ def test_stage1_nfc_does_not_fold_homoglyphs():
     assert HOMOGLYPH_WATERMARK in unicode_cleanup.normalize_unicode(
         f"prose {HOMOGLYPH_WATERMARK}"
     )
+
+
+# =========================================================================
+# Task 5 — Cloudflare error-1015 whole-file pages: detect-and-flag ONLY,
+# never auto-strip (guardrail — 4 such files in Supreme_Magus-v2)
+# =========================================================================
+
+# Redacted shape of the real extracted SM ch 1423/1424/1427 error pages.
+ERROR_PAGE_TEXT = (
+    "Chapter 1423:.\n"
+    "Please see\n"
+    "https://developers.cloudflare.com/support/troubleshooting/http-status-codes/"
+    "cloudflare-1xxx-errors/error-1015/ for\n"
+    "more details.\n"
+    "Cloudflare Ray ID: 9eb05cc15ec5142d (cid:127) Your IP: Click to reveal (cid:127) "
+    "Performance & security by\n"
+    "Cloudflare"
+)
+
+
+def test_error_page_detected_with_reason():
+    reason = junk_strip.detect_error_page(ERROR_PAGE_TEXT)
+    assert reason is not None
+    assert "loudflare" in reason
+
+
+def test_single_signal_in_prose_is_not_an_error_page():
+    assert junk_strip.detect_error_page("He grumbled about being rate limited by fate.") is None
+    assert junk_strip.detect_error_page("A normal chapter about a ray of light.") is None
+    assert junk_strip.detect_error_page("") is None
+
+
+def test_error_page_content_is_never_auto_stripped():
+    # Tier 1 may remove the URL token itself (existing rule), but the page's
+    # identifying content must survive so the file stays recognizable.
+    out = strip(ERROR_PAGE_TEXT)
+    assert "Cloudflare Ray ID: 9eb05cc15ec5142d" in out
+    assert "more details." in out
+
+
+@pytest.mark.parametrize("pipeline_name", ["shadow_slave", "lord_of_mysteries"])
+def test_pipelines_flag_error_page_without_stripping_it(pipeline_name):
+    import importlib
+
+    from core.protected_lexicon import ProtectedLexicon
+
+    pipeline = importlib.import_module(f"pipelines.{pipeline_name}")
+    log = ReplacementLog()
+    gui_lines: list[str] = []
+    out = pipeline.run_pipeline(
+        ERROR_PAGE_TEXT, ProtectedLexicon(), repl_log=log, gui_log=gui_lines.append
+    )
+    flags = [e for e in log.entries if e.rule == "junk_strip.error_page_flag"]
+    assert len(flags) == 1
+    assert flags[0].category == "integrity_flag"
+    assert any("re-scrape" in line for line in gui_lines)
+    # detect-and-flag only: the page body was not auto-stripped away
+    assert "Cloudflare Ray ID" in out
+
+
+@pytest.mark.parametrize("pipeline_name", ["shadow_slave", "lord_of_mysteries"])
+def test_pipelines_do_not_flag_ordinary_chapters(pipeline_name):
+    import importlib
+
+    from core.protected_lexicon import ProtectedLexicon
+
+    pipeline = importlib.import_module(f"pipelines.{pipeline_name}")
+    log = ReplacementLog()
+    pipeline.run_pipeline(
+        "Chapter 1: Dawn\nA quiet morning settled over the keep.",
+        ProtectedLexicon(),
+        repl_log=log,
+    )
+    assert not [e for e in log.entries if e.rule == "junk_strip.error_page_flag"]
