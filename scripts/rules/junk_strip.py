@@ -67,6 +67,184 @@ _PANDA_NOVEL_PROMO_RE = re.compile(
     re.IGNORECASE,
 )
 
+# --- Tier 1: inline domain watermarks (Phase-2 hardening) ---------------------
+# Evidence base: Phase-1 scans of the real The_Noble_Queen-v2 corpus (novelfire.net
+# spliced inline into prose with 17+ randomly mangled spellings — dropped letters,
+# 0-for-o / 1-for-l / I-for-l swaps, bracket obfuscation) and Supreme_Magus-v2
+# (inline domains from ~8 pirate mirrors glued to prose at line start/end).
+#
+# Two candidate generators, both anchored on STRUCTURAL domain signals (a glued
+# `.tld`, or an exact recorded spelling) — never loose word resemblance:
+#   1. an exact list of every spelling recorded in the wild (case-insensitive,
+#      strict boundaries), which guarantees regression coverage; and
+#   2. a bounded fuzzy matcher that generalizes over future random degradation:
+#      fold the stem (strip brackets/hyphens, 0->o, 1->l, 3->e, I->l, casefold),
+#      then require an exact / small-edit-distance / tail-truncation match against
+#      a known pirate-site stem. English-word stems (novel, read, well, today, ...)
+#      are guarded so prose words followed by a TLD can never fuzzy-match.
+# Anything that fails the gates is left untouched (Tier 2 may still log the line).
+
+# Every mangled spelling recorded by the Phase-1 scan, longest-first for the regex.
+_EXACT_DOMAIN_TOKENS = [
+    "NoveI[F]ire.net",
+    "NoveI(F)ire.net",
+    "novel[f]ire.net",
+    "novel()ire.net",
+    "novel-fire.net",
+    "novelfire.net",
+    "n0velfire.net",
+    "Nove1Fire.net",
+    "NoveIFire.net",
+    "novelfirenet",
+    "NoveIire.net",
+    "noelfire.net",
+    "novlfire.net",
+    "nvelfire.net",
+    "novelire.net",
+    "ovelfire.net",
+    "novelFre.net",
+    "NovlFre.net",
+    "velFire.net",
+    "ire.net",
+    "Fie.net",
+    "NiceNovel.com",
+    "NovelWell.com",
+    "NovelsToday.com",
+    "Libread.com",
+    "lightsnovel.com",
+    "lightsNovel ?om",  # mangled TLD, recorded verbatim in SM ch 2828
+    "andasnovel.com",
+    "raPdasNovel.com",
+    "randasnovel.com",
+    "All nnnnn full.com",  # letter-skeleton of the legacy "All ■■■■■ full.com" marker
+    "nnnnn full.com",
+    "full.com",
+]
+
+# Known pirate-mirror stems for the fuzzy matcher. cloudflare (error-page class,
+# detect-and-flag only), ko-fi/paypal/discord (support-block class, Tier 2), and
+# webnovel (the LEGITIMATE official site) are excluded by design.
+_DOMAIN_STEMS = (
+    "novelfire",
+    "freewebnovel",
+    "pandasnovel",
+    "nicenovel",
+    "novelwell",
+    "novelstoday",
+    "libread",
+    "lightsnovel",
+)
+
+# Stems the fuzzy tail-truncation rule must refuse: English words that are tails
+# (or near-tails) of the stems above, plus "webnovel" — the LEGITIMATE official
+# site, which is a literal tail of freewebnovel and must never be junk-matched.
+# Observed junk truncations of the same shape (ire.net, Fie.net) are caught by
+# the exact list instead.
+_ENGLISH_GUARD = frozenset(
+    "novel novels today day well read bread fire ire free web light lights "
+    "panda pandas nice lead dread tread webnovel".split()
+)
+
+_FOLD_MAP = str.maketrans({"0": "o", "1": "l", "3": "e", "I": "l"})
+_STRIP_CHARS = "()[]-"
+
+# Generic dotted candidate: a token glued to `.net`/`.com`. Left boundary bars a
+# preceding alphanumeric; the right lookahead bars a following lowercase/digit but
+# deliberately allows an uppercase letter (watermarks are glued to the next
+# sentence in the wild: "...novelfire.netShe smiled").
+_DOTTED_TOKEN_RE = re.compile(
+    r"(?<![A-Za-z0-9])([A-Za-z0-9()\[\]\-]{2,24})\.(net|com)(?![a-z0-9])"
+)
+
+_EXACT_TOKEN_RE = re.compile(
+    r"(?<![A-Za-z0-9])(?:"
+    + "|".join(re.escape(t) for t in sorted(_EXACT_DOMAIN_TOKENS, key=len, reverse=True))
+    + r")(?![a-z0-9])",
+    re.IGNORECASE,
+)
+
+
+def _fold_stem(stem: str) -> str:
+    """Fold homoglyph mangling for stem comparison only (never used for output)."""
+    for ch in _STRIP_CHARS:
+        stem = stem.replace(ch, "")
+    return stem.translate(_FOLD_MAP).lower()
+
+
+def _levenshtein_le(a: str, b: str, limit: int) -> bool:
+    """True if edit distance between short strings a and b is <= limit."""
+    if abs(len(a) - len(b)) > limit:
+        return False
+    prev = list(range(len(b) + 1))
+    for i, ca in enumerate(a, 1):
+        cur = [i]
+        best = i
+        for j, cb in enumerate(b, 1):
+            cur.append(min(prev[j] + 1, cur[-1] + 1, prev[j - 1] + (ca != cb)))
+            best = min(best, cur[-1])
+        if best > limit:
+            return False
+        prev = cur
+    return prev[-1] <= limit
+
+
+def _is_junk_domain_stem(raw_stem: str) -> bool:
+    """Fuzzy gate for a dotted candidate's stem (exact spellings are handled
+    separately by _EXACT_TOKEN_RE)."""
+    stem = _fold_stem(raw_stem)
+    if not stem:
+        return False
+    for known in _DOMAIN_STEMS:
+        if stem == known:
+            return True
+        # Bounded edit distance, scaled to the known stem's length; the candidate
+        # must not be drastically shorter than the stem it claims to be.
+        tol = 2 if len(known) >= 9 else 1
+        if len(stem) >= len(known) - 2 and _levenshtein_le(stem, known, tol):
+            return True
+        # Tail truncation (the source drops leading letters: "velFire.net"),
+        # refused outright for English-word stems.
+        if len(stem) >= 3 and stem not in _ENGLISH_GUARD:
+            for i in range(1, len(known) - 2):
+                tail = known[i:]
+                if stem == tail or (
+                    abs(len(stem) - len(tail)) <= 1 and _levenshtein_le(stem, tail, 1)
+                ):
+                    return True
+    return False
+
+
+def _clean_removal_seam(line: str, start: int, end: int) -> str:
+    """Remove line[start:end] with minimum-scope seam cleanup: collapse the
+    doubled space the removal leaves behind, and trim the line's outer edges.
+    Never touches any other character of the surrounding prose."""
+    left, right = line[:start], line[end:]
+    if left.endswith(" ") and right.startswith(" "):
+        right = right[1:]
+    return (left + right).strip()
+
+
+def _strip_domain_junk_line(line: str, repl_log) -> "Optional[str]":
+    """Apply the domain-watermark passes to one wrapped-stream line.
+
+    Returns the cleaned line, or None when the removal leaves the line empty
+    (the watermark was the whole line, so the line itself is dropped — the
+    splice was injected mid-paragraph and the wrap stream rejoins correctly).
+    """
+    while True:
+        m = _EXACT_TOKEN_RE.search(line)
+        if m is None:
+            m = _DOTTED_TOKEN_RE.search(line)
+            while m is not None and not _is_junk_domain_stem(m.group(1)):
+                m = _DOTTED_TOKEN_RE.search(line, m.end())
+            if m is None:
+                break
+        start, end = m.start(), m.end()
+        _record(repl_log, line[start:end], "junk_strip.domain", line[start:end])
+        line = _clean_removal_seam(line, start, end)
+    return line if line else None
+
+
 # --- Tier 2: heuristic promo lines (log-only by default) ---------------------
 _TIER2_PROMO_LINE_RE = re.compile(
     r"(read\s+(?:the\s+)?(?:latest|more|full)\s+chapter|"
@@ -110,6 +288,16 @@ def strip_junk(
         for m in regex.finditer(text):
             _record(repl_log, m.group(0), rule, m.group(0))
         text = regex.sub("", text)
+
+    # Inline domain watermarks (exact mangled spellings + structural fuzzy),
+    # processed per wrapped-stream line so minimum-span removal and the
+    # empty-line-drop convention are explicit.
+    domain_lines: list[str] = []
+    for line in text.split("\n"):
+        cleaned = _strip_domain_junk_line(line, repl_log)
+        if cleaned is not None:
+            domain_lines.append(cleaned)
+    text = "\n".join(domain_lines)
 
     # --- Tier 2 (heuristic lines) -------------------------------------------
     term_lowers = lexicon.term_set_lower if lexicon is not None else frozenset()
