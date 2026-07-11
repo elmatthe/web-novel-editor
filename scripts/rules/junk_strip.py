@@ -36,6 +36,7 @@ square-obfuscated markers are still intact and matchable. Runs on non-placeholde
 from __future__ import annotations
 
 import re
+import unicodedata
 from typing import TYPE_CHECKING, Optional
 
 if TYPE_CHECKING:
@@ -85,6 +86,29 @@ _SPACED_DOMAIN_PATTERNS = (
     (_PANDA_NOVEL_PROMO_RE, "junk_strip.promo"),
     (_SPACED_FREEWEBNOVEL_RE, "junk_strip.spaced_domain"),
 )
+
+# Homoglyph watermark class (confirmed in-corpus: SM ch 2151 — math-script
+# "freewebnovel.com" glued to a prose line end). Detection is NFKC-fold on a
+# throwaway COPY of the candidate run only; the document itself is never
+# NFKC-normalized (Stage 1 stays NFC — user guardrail). Runs are contiguous
+# math-alphanumeric / letterlike chars (with interior dots) that start and end
+# on a homoglyph char, so adjacent ASCII prose can never be swept into the run.
+_HG_RANGE = "\U0001d400-\U0001d7ff℀-⅏"
+_HOMOGLYPH_RUN_RE = re.compile(f"[{_HG_RANGE}](?:[{_HG_RANGE}.]*[{_HG_RANGE}])?")
+
+
+def _homoglyph_run_is_junk_domain(run: str) -> bool:
+    folded = "".join(
+        unicodedata.normalize("NFKC", ch) if not ch.isascii() else ch for ch in run
+    )
+    if _EXACT_TOKEN_RE.search(folded):
+        return True
+    m = _DOTTED_TOKEN_RE.search(folded)
+    while m is not None:
+        if _is_junk_domain_stem(m.group(1)):
+            return True
+        m = _DOTTED_TOKEN_RE.search(folded, m.end())
+    return False
 
 # --- Tier 1: inline domain watermarks (Phase-2 hardening) ---------------------
 # Evidence base: Phase-1 scans of the real The_Noble_Queen-v2 corpus (novelfire.net
@@ -336,6 +360,11 @@ def _find_junk_match(line: str) -> "tuple[Optional[re.Match], str]":
     m = _EXACT_TOKEN_RE.search(line)
     if m is not None:
         return m, "junk_strip.domain"
+    m = _HOMOGLYPH_RUN_RE.search(line)
+    while m is not None and not _homoglyph_run_is_junk_domain(m.group(0)):
+        m = _HOMOGLYPH_RUN_RE.search(line, m.end())
+    if m is not None:
+        return m, "junk_strip.homoglyph_domain"
     for regex, rule in _SPACED_DOMAIN_PATTERNS:
         m = regex.search(line)
         if m is not None:

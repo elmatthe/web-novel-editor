@@ -448,3 +448,43 @@ def test_spaced_letters_of_ordinary_words_survive():
     # Spelling out ordinary words with spaces (stylistic emphasis) is not junk.
     text = "He spelled it out: n o v e l. Then he grinned. F r e e, she said."
     assert strip(text) == text
+
+
+# =========================================================================
+# Task 4 — homoglyph domain watermark (detection-only NFKC; the document is
+# never NFKC-rewritten — guardrail)
+# =========================================================================
+
+# The one confirmed in-corpus homoglyph watermark (SM ch 2151): math-script
+# freewebnovel.com glued to the prose line end; NFKC folds it, NFC does not.
+HOMOGLYPH_WATERMARK = "\U0001d4bb\U0001d633\U0001d626\U0001d626\U0001d638ℯ\U0001d4b7\U0001d62f\U0001d630\U0001d463ℯ\U0001d459.\U0001d624\U0001d45c\U0001d62e"
+
+
+def test_homoglyph_domain_removed_prose_kept():
+    line = f"no longer access to his abilities.{HOMOGLYPH_WATERMARK}"
+    assert strip(line) == "no longer access to his abilities."
+
+
+def test_homoglyph_fold_is_detection_only_styled_text_survives():
+    # A styled char that does NOT fold to a junk domain must survive exactly:
+    # the fold happens on a throwaway copy, never on the document.
+    text = "The sign read \U0001d54f marks the spot, and \U0001d4ea\U0001d4eb\U0001d4ec stayed."
+    assert strip(text) == text
+
+
+def test_homoglyph_removal_logged_with_original_styled_run():
+    log = ReplacementLog()
+    strip(f"abilities.{HOMOGLYPH_WATERMARK}", repl_log=log)
+    assert len(log) == 1
+    assert log.entries[0].original == HOMOGLYPH_WATERMARK
+    assert log.entries[0].rule == "junk_strip.homoglyph_domain"
+
+
+def test_stage1_nfc_does_not_fold_homoglyphs():
+    # Pins the guardrail that Stage 1 stays NFC: if someone flips it to NFKC,
+    # this fails loudly (junk_strip's detection-only fold is the approved path).
+    from rules import unicode_cleanup
+
+    assert HOMOGLYPH_WATERMARK in unicode_cleanup.normalize_unicode(
+        f"prose {HOMOGLYPH_WATERMARK}"
+    )
