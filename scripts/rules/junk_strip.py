@@ -214,6 +214,91 @@ def _is_junk_domain_stem(raw_stem: str) -> bool:
     return False
 
 
+# Words seen in the injected template sentences ("Check latest chapters at ...",
+# "Newest update provded by ...", "crs r s ..."), including their letter-degraded
+# forms, folded via _FOLD_MAP. Only ever consumed LEFTWARD from a confirmed junk
+# domain token — these words alone never trigger anything.
+_TEMPLATE_VOCAB = frozenset(
+    """
+    google googl search check latest chapters chaptrs chapter at read full story
+    updates update are released by newest provded provided this ths content
+    orginally originally orignal original comes from for more vist visit new
+    published on follow
+    current novels novls novel fnd find the release official source is updated
+    pdated his discover dscover get available rightful rghtful go most all want
+    see please come do you th link to orign origin of information rsts rests nw
+    ovel s r n cr crs
+    """.split()
+)
+
+# Sentence-boundary characters for the leftward scan. The apostrophes are
+# boundaries only when NOT letter-flanked (contractions stay whole words).
+_BOUNDARY_CHARS = '.!?"…'
+_APOSTROPHES = "'’"
+_TRAILING_PUNCT = ".!?\"…,;:'’"
+
+_MAX_TEMPLATE_TOKENS = 12
+
+
+def _fold_word(word: str) -> str:
+    return word.translate(_FOLD_MAP).lower()
+
+
+def _last_boundary_index(token: str) -> int:
+    """Index of the last sentence-boundary char inside ``token``, or -1."""
+    for i in range(len(token) - 1, -1, -1):
+        c = token[i]
+        if c in _BOUNDARY_CHARS:
+            return i
+        if c in _APOSTROPHES and not (
+            0 < i < len(token) - 1 and token[i - 1].isalpha() and token[i + 1].isalpha()
+        ):
+            return i
+    return -1
+
+
+def _looks_mangled(word: str) -> bool:
+    """Visibly degraded token (digits / brackets), e.g. ``N0v3l.`` — the only
+    kind of punctuation-carrying word the template scan may consume."""
+    return any(c.isdigit() or c in "()[]" for c in word)
+
+
+def _expand_template_left(line: str, start: int) -> "tuple[int, int]":
+    """Walk left from a confirmed domain token over injected-template words.
+
+    Returns ``(new_start, consumed)``. The scan consumes contiguous template-
+    vocabulary words and stops at the first real-prose word or sentence
+    boundary, so legitimate prose is never included in the removal span. A
+    word carrying sentence punctuation stops the scan (it belongs to the real
+    preceding sentence) unless it is visibly mangled (``N0v3l.``); a glued
+    prose+template token (``where?The``) contributes only its template suffix.
+    """
+    new_start, consumed = start, 0
+    tokens = list(re.finditer(r"\S+", line[:start]))
+    for tok_m in reversed(tokens):
+        if consumed >= _MAX_TEMPLATE_TOKENS:
+            break
+        token = tok_m.group(0)
+        core = token.rstrip(_TRAILING_PUNCT)
+        trailing = token[len(core):]
+        if not core:
+            break
+        boundary = _last_boundary_index(core)
+        if boundary >= 0:
+            suffix = core[boundary + 1 :]
+            if suffix and _fold_word(suffix) in _TEMPLATE_VOCAB:
+                new_start = tok_m.start() + boundary + 1
+                consumed += 1
+            break
+        if _fold_word(core) not in _TEMPLATE_VOCAB:
+            break
+        if trailing and not _looks_mangled(core):
+            break
+        new_start = tok_m.start()
+        consumed += 1
+    return new_start, consumed
+
+
 def _clean_removal_seam(line: str, start: int, end: int) -> str:
     """Remove line[start:end] with minimum-scope seam cleanup: collapse the
     doubled space the removal leaves behind, and trim the line's outer edges.
@@ -239,7 +324,11 @@ def _strip_domain_junk_line(line: str, repl_log) -> "Optional[str]":
                 m = _DOTTED_TOKEN_RE.search(line, m.end())
             if m is None:
                 break
-        start, end = m.start(), m.end()
+        start, consumed = _expand_template_left(line, m.start())
+        end = m.end()
+        # A template sentence owns its final period ("... on Libread.com.").
+        if consumed and end < len(line) and line[end] == ".":
+            end += 1
         _record(repl_log, line[start:end], "junk_strip.domain", line[start:end])
         line = _clean_removal_seam(line, start, end)
     return line if line else None

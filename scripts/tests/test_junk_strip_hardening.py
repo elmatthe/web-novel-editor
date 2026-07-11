@@ -159,3 +159,239 @@ def test_domain_removals_are_logged():
     assert "noelfire.net" in entry.original
     assert entry.rule.startswith("junk_strip.")
     assert entry.category == "fingerprint"
+
+
+# =========================================================================
+# Task 2 — inline template+domain splice removal (minimum-span, leftward
+# template expansion anchored on a confirmed domain token)
+# =========================================================================
+
+# (junk_line, expected_cleaned_line) — every shape observed in the Phase-1
+# Noble Queen / Supreme Magus scans, as the shortest redacted real fragment.
+SPLICE_CASES = [
+    # template after prose, space-separated, domain at line end
+    (
+        "Her blonde companion nodded. Check latest chapters at novelfirenet",
+        "Her blonde companion nodded.",
+    ),
+    (
+        '"I\'ll help her," Noble smiled at Helie. Google search novelfirenet',
+        '"I\'ll help her," Noble smiled at Helie.',
+    ),
+    (
+        "flinch. Newest update provded by novelfirenet",
+        "flinch.",
+    ),
+    (
+        "Roan tapped his chin. Updates are released by novelfirenet",
+        "Roan tapped his chin.",
+    ),
+    (
+        "And fell right into her trap. Read full story at novelfirenet",
+        "And fell right into her trap.",
+    ),
+    (
+        "head, ready to make the sacrifice. For more chapters vist novelfirenet",
+        "head, ready to make the sacrifice.",
+    ),
+    (
+        "Seb turned to look at Noble-the real Noble. For more chapters vist novelfirenet",
+        "Seb turned to look at Noble-the real Noble.",
+    ),
+    (
+        "The palace's throne room. Fnd the newest release on novelfirenet",
+        "The palace's throne room.",
+    ),
+    (
+        "without her big brother. New chapters are published on novelfirenet",
+        "without her big brother.",
+    ),
+    (
+        "energy and taking to the sky. Nw ovel chaptrs are published on novelfirenet",
+        "energy and taking to the sky.",
+    ),
+    (
+        "Noble bit her lip. Get full chapters from ovelfire.net",
+        "Noble bit her lip.",
+    ),
+    (
+        "them fairies, but hostages. Dscover more novels at NoveIFire.net",
+        "them fairies, but hostages.",
+    ),
+    (
+        "swayed. This update s available on novlfire.net",
+        "swayed.",
+    ),
+    (
+        '"Mercy! Mercy!" The third man cried. Official source s novelfire.net',
+        '"Mercy! Mercy!" The third man cried.',
+    ),
+    (
+        "her forehead absentmindedly. Newest update provded by novelfire.net",
+        "her forehead absentmindedly.",
+    ),
+    (
+        "They looked at Mae. Nw ovel chaptrs are published on n0velfire.net",
+        "They looked at Mae.",
+    ),
+    (
+        "best use of their time. Follow current s on Nove1Fire.net",
+        "best use of their time.",
+    ),
+    # degraded letter-skeleton templates, still anchored on the domain token
+    (
+        'see you in the morning." crs r s novelfirenet',
+        'see you in the morning."',
+    ),
+    (
+        "days or weeks was happening before their eyes in seconds. crs r s novelfire.net",
+        "days or weeks was happening before their eyes in seconds.",
+    ),
+    (
+        '"Outrageousthat was outrageous." Flint crossed his arms. crs r s NoveIire.net',
+        '"Outrageousthat was outrageous." Flint crossed his arms.',
+    ),
+    (
+        "opening.r s crs novelfirenet",
+        "opening.",
+    ),
+    (
+        '"About you, Flint? Whynothing that I recall." r novelfirenet',
+        '"About you, Flint? Whynothing that I recall."',
+    ),
+    (
+        "which would color her perception of the glass's power.\"s cr s novelire.net",
+        "which would color her perception of the glass's power.\"",
+    ),
+    # template glued directly onto prose (no space after sentence punctuation)
+    (
+        "simply moved locations, but to where?The most update n0vels are published on novelfirenet",
+        "simply moved locations, but to where?",
+    ),
+    (
+        'back to camp."Read full story at novelfirenet',
+        'back to camp."',
+    ),
+    (
+        "work, won't it?\"Googl search novelfirenet",
+        "work, won't it?\"",
+    ),
+    (
+        'You nearly lost your life."For orignal chapters go to novelfirenet',
+        'You nearly lost your life."',
+    ),
+    (
+        'not to be entertained, but to be amazed!"Th link to the orign of this information rsts n novelfirenet',
+        'not to be entertained, but to be amazed!"',
+    ),
+    (
+        '"Cover me!" Noble told Helie. "I\'m going down."Fnd the newest release on novelfirenet',
+        '"Cover me!" Noble told Helie. "I\'m going down."',
+    ),
+    (
+        'please hold this right here?"Ths chapter is updated by novelfire.net',
+        'please hold this right here?"',
+    ),
+    (
+        "'The saying is The lady doth protest too much, methinks.'his chapter is pdated by novelfire.net",
+        "'The saying is The lady doth protest too much, methinks.'",
+    ),
+    (
+        "If only Flint hadn't died for them to make the discovery!Follow current novls on novel-fire.net",
+        "If only Flint hadn't died for them to make the discovery!",
+    ),
+    (
+        '"You have said more than enough, Titus. Speak no more."The rghtful source is novelFire.net',
+        '"You have said more than enough, Titus. Speak no more."',
+    ),
+    # two-token mangled domain: digit-mangled vocab word carries its own period
+    (
+        "fortress. The rghtful source is N0v3l. Fie.net",
+        "fortress.",
+    ),
+    (
+        "term that she had heard. Googl search novel()ire.net",
+        "term that she had heard.",
+    ),
+    (
+        "how to deal with the aftermath.'Google search nvelfire.net",
+        "how to deal with the aftermath.'",
+    ),
+    # Supreme Magus: domain at line START with legitimate prose following
+    (
+        'andasnovel.com "I don\'t even know how to turn this thing on." Friya pointed at the circle.',
+        '"I don\'t even know how to turn this thing on." Friya pointed at the circle.',
+    ),
+    (
+        'raPdasNovel.com "Fine. I forgive you only because at least this time" She said.',
+        '"Fine. I forgive you only because at least this time" She said.',
+    ),
+    # Supreme Magus: template+domain with trailing sentence period — consumed
+    (
+        '"That said, where\'s your amulet?" Follow current novels on Libread.com.',
+        '"That said, where\'s your amulet?"',
+    ),
+    (
+        "droves and then have the corpses join his ever-growing army. NiceNovel.com",
+        "droves and then have the corpses join his ever-growing army.",
+    ),
+    (
+        "meeting his equal had shown Morok how annoying he was. NovelWell.com",
+        "meeting his equal had shown Morok how annoying he was.",
+    ),
+    (
+        "Then, she left before they could reply. All nnnnn full.com",
+        "Then, she left before they could reply.",
+    ),
+    (
+        "heart had lessened. All nnnnn full.com",
+        "heart had lessened.",
+    ),
+    (
+        "'Did… you hear that?' Kelia stuttered lightsNovel ?om even in her mind.",
+        "'Did… you hear that?' Kelia stuttered even in her mind.",
+    ),
+]
+
+
+@pytest.mark.parametrize("junk_line,expected", SPLICE_CASES)
+def test_inline_splice_removed_minimum_span(junk_line, expected):
+    assert strip(junk_line) == expected
+
+
+def test_domain_alone_on_line_drops_line_without_fusing_paragraph_stream():
+    # The watermark was injected mid-paragraph in the wrapped single-\n stream,
+    # so dropping the emptied line rejoins the stream (documented convention).
+    text = "and the mirror shattered\nnovelfirenet\ninto a thousand pieces."
+    assert strip(text) == "and the mirror shattered\ninto a thousand pieces."
+
+
+def test_template_and_domain_alone_on_line_drops_line():
+    text = "first prose line\ncomes from novelfirenet\nlast prose line"
+    assert strip(text) == "first prose line\nlast prose line"
+
+
+def test_short_template_fragment_line_drops_line():
+    text = "held the door\nrelease on novelfire.net\nfor the queen"
+    assert strip(text) == "held the door\nfor the queen"
+
+
+def test_template_words_alone_without_domain_anchor_are_never_removed():
+    # The expansion is anchored on a confirmed domain token; template-vocabulary
+    # words in ordinary prose must never be touched on their own.
+    text = "Check the latest chapters for more story updates published this morning."
+    assert strip(text) == text
+
+
+def test_non_vocab_prose_word_stops_leftward_expansion():
+    # "lantern" is not template vocabulary: expansion must stop there even though
+    # "on" is vocabulary, preserving the prose words.
+    out = strip("She hung the lantern on novelfirenet")
+    assert out == "She hung the lantern"
+
+
+def test_plain_word_with_sentence_punctuation_stops_expansion():
+    # A plain (unmangled) vocabulary word carrying sentence punctuation belongs
+    # to the preceding real sentence — it must survive ("read." stays).
+    out = strip("She loved to read. Google search novelfirenet")
+    assert out == "She loved to read."
