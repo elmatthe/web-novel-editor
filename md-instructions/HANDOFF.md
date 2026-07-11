@@ -5,9 +5,10 @@ Phase-10 instruction drop (`Instructions_Phase10_JunkStrip_And_QA.md`) in progre
 branch `feature/junk-strip-hardening`, re-based per Phase 0.5 onto `origin/main @ 319f523`
 (v0.9.0 — the dispatch registry is real and merged; the earlier "registry missing" finding
 only reflected a stale local clone). Phase 0 (baseline), Phase 0.5 (branch reconciliation,
-user-confirmed base) and Phase 1 recon are done; Phase 1 addendum (scan of the two new
-user-added corpora, The_Noble_Queen-v2 + Supreme_Magus-v2) is the current step, then
-Phase 2 rule work. User decisions on record: commit the 10 pinned fixtures (Phase 2);
+user-confirmed base), Phase 1 recon + addendum, and **Phase 2 (junk-strip Tier 1
+hardening + two-layer test infrastructure + fixture commit) are done**; next is Phase 3
+(grammar/editorial QA pass). User decisions on record: 10 pinned fixtures committed
+(Phase 2 — done);
 author Noble Queen + Supreme Magus profiles in Phase 5b (NO profanity-uncensor map);
 Renegade Immortal / Reverend Insanity stay universal-fallback placeholders; re-track
 AI-WORKSPACE.md; Setup_and_Run-template.* are study copies only — Phase 9 builds the
@@ -19,13 +20,53 @@ single launcher per OS from them, then deletes them.
 
 | # | Severity | File | Description | Status | Found by |
 |---|----------|------|-------------|--------|----------|
-| 1 | Minor | .gitignore / test-files/ | The 10 pinned fixture PDFs are gitignored AND untracked (BRIEFING/.gitignore comment claim they're committed — predates Phase 9, confirmed in the v0.9.0 handoff below). A fresh clone silently skips all fixture-backed tests. | Approved fix: commit them in Phase 2 | Claude Code |
+| 1 | Minor | .gitignore / test-files/ | ~~The 10 pinned fixture PDFs are gitignored AND untracked~~ FIXED in Phase 2 (2026-07-10): ignore rule narrowed, the 10 PDFs committed with a `*.pdf binary` .gitattributes guard (staged blobs verified byte-identical to disk). | Fixed 2026-07-10 | Claude Code |
 | 2 | Minor | md-instructions/BRIEFING.md | ~~States v0.9.0 features exist that don't~~ RESOLVED by Phase 0.5: the registry/dropdown DO exist on origin/main @ 319f523; the local clone was behind (release-main @ v0.8.0). Not a doc bug. | Resolved 2026-07-06 | Claude Code |
 | 3 | Minor | .test-tmp/ | Pre-existing repo-root folder is ACL-locked (access denied to list/read even via icacls). Gitignored, left untouched; QA scratch lives in files/qa-tools/scratch/ instead. | Open | Claude Code |
 
 ---
 
 ## Work Log (newest first)
+
+- 2026-07-10 — **Phase 2 complete: junk-strip Tier 1 hardened against every Phase-1
+  defect class; two-layer test infrastructure built; 10 pinned fixtures committed.**
+  All in `scripts/rules/junk_strip.py` (no new engine modules), 8 sub-commits
+  (4b3d0a3…), verify gate PASS (285 passed, 1 skipped — the known pre-existing
+  "No usable bash found" launcher skip; baseline-at-merge was 114/16, the 16
+  fixture/tkinter skips now all RUN because the fixtures are committed and this
+  machine has tkinter). What Tier 1 now removes, all minimum-span and JSONL-logged:
+  (a) **domain-token matcher** — exact list of every recorded mangled spelling
+  (novelfire zoo incl. bracket forms, SM sites, `lightsNovel ?om`, `nnnnn full.com`)
+  plus a structural fuzzy matcher (fold 0/1/3/I, bounded Levenshtein scaled to stem
+  length, tail-truncation) gated by an English-word guard set; `webnovel.com`
+  (legit official site — literal tail of freewebnovel!) is guard-listed; zero-FP
+  suite over letter-sharing prose words committed as required. (b) **inline splice
+  removal** — leftward template-vocabulary expansion anchored on a confirmed domain
+  token; stops at real prose/sentence punctuation; handles glued `prose?Template`
+  boundaries, digit-mangled `N0v3l. Fie.net` two-token domains, degraded `crs r s`
+  skeletons WITH anchor; a line is dropped only when the removal itself empties it
+  (pre-existing blank lines preserved — latent bug found+fixed+pinned). (c) **spaced
+  domains** — freewebnovel spelled-out pattern incl. bracketed forms; panda promo
+  moved into the same per-line seam-cleanup pass. (d) **homoglyph domains** —
+  detection-only NFKC on a throwaway copy of math-alphanumeric runs; original
+  styled run removed; document NEVER NFKC-rewritten and Stage-1-stays-NFC pinned
+  by test. (e) **Cloudflare error-1015 pages** — `detect_error_page()` (>=2
+  independent signals), wired into BOTH pipelines as detect-and-flag
+  (gui warning + `integrity_flag` JSONL entry), never auto-stripped. (f) **Tier 2**
+  gains discord.gg/ko-fi.com/paypal.me/`AN:` tokens — still default-off; note the
+  pre-existing Tier-2 code only writes log entries when `enable_tier2=True`
+  (off = untouched, no records); pattern extension gives QA the hook. Corpus layer:
+  `local_corpus` marker + `--require-local-corpora` strict flag (mechanism tested
+  both ways); deterministic sample (59 recorded-dirty files + first/middle/last per
+  corpus): NQ 32/35 + SM 27/30 dirty-before-clean, **zero residual junk after**,
+  3/3 error pages flagged not stripped, clean SS sample byte no-op, ~6 s.
+  SS-output-equivalence holds (SS corpus clean → no SS text change; equivalence
+  tests green). Superpowers brainstorm→plan→TDD flow used (RED→GREEN per task);
+  sequential-thinking used for the fuzzy-matcher FP-guard design (it caught the
+  webnovel-tail FP before code did). Design/plan notes:
+  files/qa-tools/scratch/phase2-design.md + phase2-plan.md (gitignored). NOT done
+  here (later phases): EDITING-RULES/BRIEFING/CHANGELOG updates (Phase 10),
+  `test-files/` → `files/test-files/` move (Phase 8), Phase 3+ work. — Claude Code
 
 - 2026-07-06 — **Phase 1 addendum complete: the junk-strip defect is now reproducible.**
   Hashed (corpus-hashes-baseline-v2.txt, 7,979 SHA-256; SS subset byte-identical to the
@@ -79,6 +120,23 @@ single launcher per OS from them, then deletes them.
 ---
 
 ## Session Sync Log (newest first)
+
+### 2026-07-10 — HOME-PC — not pushed
+- Branch:  feature/junk-strip-hardening (Phase 2, 9 commits on top of ef3b7a2)
+- Changed: scripts/rules/junk_strip.py (Tier-1 hardening: domain matcher, splice
+           removal, spaced domains, homoglyph pass, error-page detection, Tier 2
+           tokens), scripts/pipelines/shadow_slave.py + lord_of_mysteries.py
+           (error-page flag wiring), scripts/conftest.py (local_corpus marker +
+           --require-local-corpora flag), .gitignore (test-files/ rule narrowed),
+           md-instructions/HANDOFF.md (this entry)
+- Added:   scripts/tests/test_junk_strip_hardening.py (committed fast layer),
+           scripts/tests/test_junk_strip_corpus.py (optional corpus layer),
+           .gitattributes (*.pdf binary), test-files/shadow_slave/*.pdf
+           (10 pinned fixtures, now tracked)
+- Local-only (untracked/gitignored by design): files/qa-tools/scratch/
+           phase2-design.md + phase2-plan.md, Setup_and_Run-template.*,
+           AI-WORKSPACE.md modification + kickoff-prompt deletion (pre-existing
+           working-tree state, untouched by Phase 2)
 
 ### 2026-07-06 — HOME-PC — not pushed
 - Branch:  feature/junk-strip-hardening recreated from origin/main @ 319f523;
