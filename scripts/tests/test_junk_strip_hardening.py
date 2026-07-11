@@ -562,3 +562,118 @@ def test_pipelines_do_not_flag_ordinary_chapters(pipeline_name):
         repl_log=log,
     )
     assert not [e for e in log.entries if e.rule == "junk_strip.error_page_flag"]
+
+
+# =========================================================================
+# Task 6 — Tier 2 support/donation blocks (log-only by default) + safety,
+# idempotence, and regression sweep
+# =========================================================================
+
+TIER2_SUPPORT_LINES = [
+    "AN: feel free to join the official discord at discord.gg/Z5T7CBD",
+    "(AN: If you're not reading this on WN, you're reading stolen content.)",
+    "Support the Author: ko-fi.com/somebody",
+    "Donate via paypal.me/somebody if you can.",
+]
+
+
+@pytest.mark.parametrize("line", TIER2_SUPPORT_LINES)
+def test_support_blocks_untouched_by_default_tier2_off(line):
+    # Guardrail: donation/support blocks are Tier 2 — never removed by default.
+    text = f"prose before\n{line}\nprose after"
+    assert strip(text) == text
+
+
+@pytest.mark.parametrize("line", TIER2_SUPPORT_LINES)
+def test_support_blocks_removed_when_tier2_enabled(line):
+    text = f"prose before\n{line}\nprose after"
+    out = strip(text, enable_tier2=True)
+    assert line not in out
+    assert "prose before" in out and "prose after" in out
+
+
+def test_prose_discord_and_donations_survive_even_with_tier2_on():
+    text = "seeds of discord had been planted among them."
+    assert strip(text, enable_tier2=True) == text
+
+
+def test_tier2_never_touches_line_with_protected_term():
+    from core.protected_lexicon import ProtectedLexicon
+
+    lex = ProtectedLexicon(terms=("Sunny",), term_set_lower=frozenset({"sunny"}))
+    line = "AN: Sunny fans, join discord.gg/xyz"
+    assert strip(line, lexicon=lex, enable_tier2=True) == line
+
+
+def test_placeholders_are_never_touched():
+    # Masked chapter lines / protected terms use __WE_ placeholders; the domain
+    # pass must remove only the junk token around them.
+    text = "__WE_P_0__ noelfire.net carried on __WE_CH_1__"
+    assert strip(text) == "__WE_P_0__ carried on __WE_CH_1__"
+
+
+def test_strip_junk_is_idempotent_with_no_new_log_entries():
+    dirty = (
+        "Her blonde companion nodded. Check latest chapters at novelfirenet\n"
+        "andasnovel.com \"I don't know.\" Friya pointed.\n"
+        f"no longer access to his abilities.{HOMOGLYPH_WATERMARK}\n"
+        "This chapter is updated by [ f r e e w e b n o v e l. c o m ]"
+    )
+    first = strip(dirty, repl_log=ReplacementLog())
+    second_log = ReplacementLog()
+    second = strip(first, repl_log=second_log)
+    assert second == first
+    assert len(second_log) == 0
+
+
+def test_full_universal_pipeline_is_idempotent_on_cleaned_text():
+    from core.protected_lexicon import ProtectedLexicon
+    from pipelines import lord_of_mysteries
+
+    dirty = (
+        "Chapter 12: The Mirror\n"
+        "The hall fell silent as the mirror shattered. Check latest chapters at novelfirenet\n"
+        "Nobody moved for a long moment, and the shards kept singing softly.\n"
+        "It was a quiet ending to a loud day, and everyone knew it."
+    )
+    lex = ProtectedLexicon()
+    once = lord_of_mysteries.run_pipeline(dirty, lex, repl_log=ReplacementLog())
+    log2 = ReplacementLog()
+    twice = lord_of_mysteries.run_pipeline(once, lex, repl_log=log2)
+    assert twice == once
+    assert not [e for e in log2.entries if e.rule.startswith("junk_strip.")]
+
+
+def test_no_we_placeholder_fragments_leak_into_log():
+    log = ReplacementLog()
+    strip("__WE_P_0__ noelfire.net done", repl_log=log)
+    for e in log.entries:
+        assert "__WE_" not in e.original and "__WE_" not in e.replacement
+
+
+def test_adversarial_long_line_completes_quickly():
+    import time
+
+    # Regex-safety guard: no catastrophic backtracking / quadratic blowup on a
+    # pathological line full of near-miss tokens and dots.
+    line = ("novel. " * 4000) + ("a.b " * 4000) + "x" * 20000
+    t0 = time.monotonic()
+    out = strip(line)
+    assert time.monotonic() - t0 < 5.0
+    assert out == line  # nothing here is junk
+
+
+def test_removal_before_punctuation_does_not_leave_stray_space():
+    out = strip("Kelia stuttered noelfire.net, then smiled.")
+    assert out == "Kelia stuttered, then smiled."
+
+
+def test_empty_and_whitespace_inputs_are_safe():
+    assert strip("") == ""
+    assert strip("\n\n") == "\n\n"
+    assert strip("   ") == "   "
+
+
+def test_numeric_slash_content_is_untouched():
+    text = "He scored 6/7 today, a 10/20 split."
+    assert strip(text) == text

@@ -351,6 +351,8 @@ def _clean_removal_seam(line: str, start: int, end: int) -> str:
     left, right = line[:start], line[end:]
     if left.endswith(" ") and right.startswith(" "):
         right = right[1:]
+    if left.endswith(" ") and right[:1] in ".,;:!?":
+        left = left[:-1]
     return (left + right).strip()
 
 
@@ -406,7 +408,10 @@ _TIER2_PROMO_LINE_RE = re.compile(
     r"(read\s+(?:the\s+)?(?:latest|more|full)\s+chapter|"
     r"visit\s+(?:us|our\s+site)|"
     r"support\s+(?:the|us\s+on)|"
-    r"translator'?s?\s+note|donat)",
+    r"translator'?s?\s+note|donat|"
+    # Phase-2 additions (SM evidence): author's-note / community support blocks.
+    # High-precision tokens only — "sow discord" prose can never match.
+    r"discord\.gg|ko-fi\.com|paypal\.me|\bAN:)",
     re.IGNORECASE,
 )
 
