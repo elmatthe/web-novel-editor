@@ -13,6 +13,10 @@ import re
 
 # Exactly two dots (not part of a longer ellipsis) -> one period.
 _DOUBLE_DOT_RE = re.compile(r"(?<!\.)\.\.(?!\.)")
+# A lone period directly after ? or ! is duplicate terminal punctuation
+# ("Cats?." -> "Cats?"). Guarded so "?..." (question + ellipsis, a real prose
+# style in this corpus) is never touched.
+_DUP_TERMINAL_RE = re.compile(r"([?!])\.(?!\.)")
 _DOUBLE_COMMA_RE = re.compile(r",,+")
 # Space after a comma when a letter follows directly (skips 1,000 -> digit follows).
 _COMMA_SPACE_RE = re.compile(r",(?=[A-Za-z])")
@@ -26,6 +30,7 @@ def repair_punctuation(text: str) -> str:
     """Apply only mechanical, unambiguous punctuation corrections."""
     text = _DOUBLE_COMMA_RE.sub(",", text)
     text = _DOUBLE_DOT_RE.sub(".", text)
+    text = _DUP_TERMINAL_RE.sub(r"\1", text)
     text = _COMMA_SPACE_RE.sub(", ", text)
     text = _SENTENCE_SPACE_RE.sub(r"\1 ", text)
     text = _SPACE_BEFORE_PUNCT_RE.sub(r"\1", text)

@@ -16,8 +16,9 @@ from __future__ import annotations
 import re
 
 # "a" before a vowel-letter word (excluding u-) should be "an".
-# Guard "one"/"once" (vowel letter, consonant "w" sound).
-_A_TO_AN_RE = re.compile(r"\b([Aa])\s+(?=(?!one\b|once\b)[aeio][a-z])")
+# Guard "one"/"once" (vowel letter, consonant "w" sound) and the eu-/ew- class
+# ("euphoria", "ewe", ... — all pronounced with a consonant "you" sound).
+_A_TO_AN_RE = re.compile(r"\b([Aa])\s+(?=(?!one\b|once\b|eu|ew)[aeio][a-z])")
 # "an" before a consonant-letter word (excluding h-) should be "a".
 _AN_TO_A_RE = re.compile(r"\b([Aa])n\s+(?=[bcdfgjklmnpqrstvwxyz][a-z])")
 

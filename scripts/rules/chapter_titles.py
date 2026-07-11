@@ -30,8 +30,9 @@ _TITLE_BODY_SPLIT_RE = re.compile(
 _MAX_TITLE_LEN = 120
 _LOG = logging.getLogger(__name__)
 
-# Post-normalization exact heading (for validation + dup detection).
-_HEADING_EXACT_RE = re.compile(r"^Chapter\s+[\d,]+:\s*.*?\.\s*$", re.IGNORECASE)
+# Post-normalization exact heading (for validation + dup detection). A title's
+# own terminal ? or ! is as valid an ending as the appended period.
+_HEADING_EXACT_RE = re.compile(r"^Chapter\s+[\d,]+:\s*.*?[.?!]\s*$", re.IGNORECASE)
 _HEADING_PARAGRAPH_RE = re.compile(r"^Chapter\s+([\d,]+):", re.IGNORECASE)
 
 
@@ -69,7 +70,10 @@ def normalize_chapter_titles(text: str) -> str:
             continue
         title_part, body_part = _split_title_body(rest)
         title_part = title_part.rstrip(" .")
-        out.append(f"Chapter {num_s}: {title_part}.")
+        # A title ending in its own terminal ?/! keeps it verbatim — appending a
+        # period would create the "?."/"!." duplicate form Stage 15 forbids.
+        terminal = "" if title_part.endswith(("?", "!")) else "."
+        out.append(f"Chapter {num_s}: {title_part}{terminal}")
         out.append("")
         if body_part:
             out.append(body_part)

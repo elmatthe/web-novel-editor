@@ -29,8 +29,8 @@ from reportlab.platypus import PageBreak, Paragraph, SimpleDocTemplate
 HEADING_COLOR = "#134252"
 MAX_HEADING_LENGTH = 500  # Allow long chapter titles, but cap runaway paragraphs.
 
-# "Chapter N: Title." on its own.
-CHAPTER_HEADING_EXACT_RE = re.compile(r"^Chapter\s+\d[\d,]*:\s*.*?\.\s*$", re.IGNORECASE)
+# "Chapter N: Title." on its own (a title's own terminal ? or ! also ends it).
+CHAPTER_HEADING_EXACT_RE = re.compile(r"^Chapter\s+\d[\d,]*:\s*.*?[.?!]\s*$", re.IGNORECASE)
 # Merged "Chapter N: Title" immediately followed by dialogue (a quote mark).
 CHAPTER_MERGED_QUOTE_RE = re.compile(
     r"^(Chapter\s+\d+:\s*[^\"'“‘\n]+)\s+([\"'“‘].*)", re.IGNORECASE
@@ -97,7 +97,7 @@ def build_pdf(text: str, output_path: str) -> None:
             merged = (CHAPTER_MERGED_QUOTE_RE.match(clean_text)
                       or CHAPTER_MERGED_CAPITAL_RE.match(clean_text))
             heading_part = merged.group(1).rstrip() if merged else ""
-            if not heading_part.endswith("."):
+            if not heading_part.endswith((".", "?", "!")):
                 heading_part += "."
             if merged and len(heading_part) <= MAX_HEADING_LENGTH:
                 # A genuine merged "heading + body": split them so the heading styles.

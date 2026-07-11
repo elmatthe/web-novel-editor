@@ -145,6 +145,25 @@ def test_normalize_title_keeps_part_suffix():
     assert out.split("\n")[0] == "Chapter 8: The Trial (Part 2)."
 
 
+def test_normalize_title_keeps_interrogative_or_exclamatory_terminal():
+    # Phase-3 QA finding (Noble Queen ch. 649): a "?"-terminated title must not
+    # gain a trailing period — "Cats?." is the duplicate-terminal form Stage 15
+    # and TTS criterion 5 forbid. The title's own ?/! already ends the heading.
+    out = chapter_titles.normalize_chapter_titles("Chapter 649: Did Someone Say Cats?")
+    assert out.split("\n")[0] == "Chapter 649: Did Someone Say Cats?"
+    out = chapter_titles.normalize_chapter_titles("chapter 3 Enough!")
+    assert out.split("\n")[0] == "Chapter 3: Enough!"
+    # An already-damaged "?." raw heading collapses to the bare "?" form.
+    out = chapter_titles.normalize_chapter_titles("Chapter 649: Did Someone Say Cats?.")
+    assert out.split("\n")[0] == "Chapter 649: Did Someone Say Cats?"
+
+
+def test_validate_headings_accepts_terminal_question_or_bang():
+    # ?- and !-terminated normalized headings are valid, not malformed.
+    assert chapter_titles.validate_headings("Chapter 649: Did Someone Say Cats?") == []
+    assert chapter_titles.validate_headings("Chapter 3: Enough!") == []
+
+
 def test_remove_duplicate_titles():
     src = "Chapter 5: A.\n\nbody one\n\nChapter 5: A.\n\nbody two"
     out = chapter_titles.remove_duplicate_chapter_titles_global(src)
@@ -172,6 +191,20 @@ def test_punctuation_preserves_ellipsis_and_numbers():
     assert "1,000" in punctuation.repair_punctuation("It cost 1,000 marks")
 
 
+def test_punctuation_collapses_duplicate_terminal_after_question_or_bang():
+    # Stage 15's documented "?!." -> "?!" collapse: a lone period directly after
+    # ? or ! is duplicate terminal punctuation (Phase-3 QA, Noble Queen ch. 649).
+    assert punctuation.repair_punctuation("Say Cats?.") == "Say Cats?"
+    assert punctuation.repair_punctuation("Enough!.") == "Enough!"
+
+
+def test_punctuation_preserves_question_ellipsis_style():
+    # Real Shadow Slave prose style (ch. 500 / ch. 1500): "lifetimes?..." and
+    # "right?..." are deliberate question-plus-ellipsis and must stay verbatim.
+    src = "years, lifetimes?... spent traversing"
+    assert punctuation.repair_punctuation(src) == src
+
+
 # --- grammar (unambiguous a/an only) ----------------------------------------
 def test_grammar_articles():
     assert grammar.repair_grammar("a explosion") == "an explosion"
@@ -181,6 +214,15 @@ def test_grammar_articles():
 def test_grammar_leaves_hard_cases():
     assert grammar.repair_grammar("a university") == "a university"
     assert grammar.repair_grammar("a one-time deal") == "a one-time deal"
+
+
+def test_grammar_leaves_consonant_sound_eu_ew_words():
+    # Phase-3 QA finding (Noble Queen ch. 621): "a euphoria" is correct English
+    # (eu- = "you" sound) — the a->an rule must not flip vowel-letter words with
+    # a consonant sound. eu-/ew- words are the whole class (euphoria, ewe, ...).
+    src = "a euphoria when a soldier finds their stride"
+    assert grammar.repair_grammar(src) == src
+    assert grammar.repair_grammar("a ewe") == "a ewe"
 
 
 # --- em_dash (mandatory removal) --------------------------------------------

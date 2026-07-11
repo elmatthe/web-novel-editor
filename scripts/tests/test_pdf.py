@@ -77,6 +77,43 @@ def test_builder_recognizes_comma_formatted_chapter_heading():
     assert builder._is_chapter_heading("Chapter 1,000: The End.") is True
 
 
+def test_builder_recognizes_question_or_bang_terminated_heading():
+    # Phase-3 QA: Stage 12 now keeps a title's own terminal ?/! (no appended
+    # period), so the builder must style those headings too (Noble Queen ch. 649).
+    assert builder._is_chapter_heading("Chapter 649: Did Someone Say Cats?") is True
+    assert builder._is_chapter_heading("Chapter 3: Enough!") is True
+
+
+def test_build_pdf_question_heading_styles_as_heading(tmp_path):
+    body = ("A look passed across the room, and for a long moment nobody there "
+            "was willing to be the first one to answer the question aloud.")
+    out = os.path.join(str(tmp_path), "q.pdf")
+    builder.build_pdf(f"Chapter 649: Did Someone Say Cats?\n\n{body}", out)
+    with pdfplumber.open(out) as pdf:
+        p0 = pdf.pages[0]
+        head = [c for c in p0.chars
+                if isinstance(c.get("non_stroking_color"), (tuple, list))
+                and len(c["non_stroking_color"]) == 3
+                and max(abs(a - b) for a, b in zip(c["non_stroking_color"], HEADING_RGB)) < 0.02]
+        assert head, "?-terminated heading was not styled as a heading"
+        assert "Helvetica" in head[0]["fontname"]
+        text = p0.extract_text()
+    assert "Cats?" in text
+    assert "Cats?." not in text
+
+
+def test_build_pdf_merged_question_heading_gains_no_period(tmp_path):
+    # The merged heading+dialogue split path must not append "." after ?/!.
+    # (No terminal period on the line, so it reaches the merged split — a
+    # period-terminated line is consumed whole by the exact-heading match.)
+    out = os.path.join(str(tmp_path), "mq.pdf")
+    builder.build_pdf('Chapter 5: What Now? "Run," she said and kept moving', out)
+    with pdfplumber.open(out) as pdf:
+        text = pdf.pages[0].extract_text()
+    assert "What Now?" in text
+    assert "What Now?." not in text
+
+
 def test_build_pdf_formatting(tmp_path):
     body = ("The traveller walked the ashen road as the gate dimmed behind him, and "
             "the cold wind carried the scent of old rain across the broken hills.")

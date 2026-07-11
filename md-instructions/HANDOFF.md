@@ -5,9 +5,10 @@ Phase-10 instruction drop (`Instructions_Phase10_JunkStrip_And_QA.md`) in progre
 branch `feature/junk-strip-hardening`, re-based per Phase 0.5 onto `origin/main @ 319f523`
 (v0.9.0 — the dispatch registry is real and merged; the earlier "registry missing" finding
 only reflected a stale local clone). Phase 0 (baseline), Phase 0.5 (branch reconciliation,
-user-confirmed base), Phase 1 recon + addendum, and **Phase 2 (junk-strip Tier 1
-hardening + two-layer test infrastructure + fixture commit) are done**; next is Phase 3
-(grammar/editorial QA pass). User decisions on record: 10 pinned fixtures committed
+user-confirmed base), Phase 1 recon + addendum, Phase 2 (junk-strip Tier 1
+hardening + two-layer test infrastructure + fixture commit), and **Phase 3
+(grammar/editorial QA pass) are done**; next is Phase 4 (TTS-readiness sweep).
+User decisions on record: 10 pinned fixtures committed
 (Phase 2 — done);
 author Noble Queen + Supreme Magus profiles in Phase 5b (NO profanity-uncensor map);
 Renegade Immortal / Reverend Insanity stay universal-fallback placeholders; re-track
@@ -27,6 +28,42 @@ single launcher per OS from them, then deletes them.
 ---
 
 ## Work Log (newest first)
+
+- 2026-07-11 — **Phase 3 complete: grammar/editorial QA pass over the real corpora;
+  2 genuine defects found, fixed conservatively, and pinned; everything else clean.**
+  Ran the FULL post-Phase-2 pipeline over the deterministic Phase-1 §8 sample —
+  73 files total: NQ 35 (32 recorded-dirty + first/middle/last, universal mode),
+  SM 30 (27 recorded-dirty + first/middle/last, error pages excluded as the flag
+  class, universal mode), SS 8 (v0.5.0 spread Ch. 1/500/1500/2500/3000 +
+  first/middle/last, Shadow Slave mode) — then swept output with the v0.5.0
+  programmatic garbage sweep plus stage-targeted scans (15/16/9/12/18) and a
+  pypdfium2 PNG visual pass on the two defect chapters. **Defect 1 (Stage 12/15,
+  NQ ch. 649):** a "?"-terminated title gained an appended period ("Did Someone Say
+  Cats?."), the exact duplicate-terminal form EDITING-RULES Stage 15 (`?!.`→`?!`)
+  and TTS criterion 5 forbid. Fixed at source — `normalize_chapter_titles` keeps a
+  title's own terminal ?/!; heading validation accepts `[.?!]`; `punctuation.py`
+  gained the documented guarded collapse `([?!])\.(?!\.)`. Knock-on found by the
+  render pass: `pdf/builder.py` had the same terminal-`.` assumption in its exact
+  heading regex + merged-heading path, so a "?"-heading silently rendered as body
+  text — both aligned to `[.?!]` (verified re-render: styled #134252 bold heading).
+  **Defect 2 (Stage 16, NQ ch. 621):** the a→an rule flipped correct "a euphoria"
+  to "an euphoria" — eu-/ew- words are vowel-letter/consonant-sound ("you"); added
+  `eu|ew` to the existing one/once lookahead guard. **Verified-legit style, NOT
+  changed:** SS "?..." question+ellipsis (ch. 500/1500) — the new collapse is
+  guarded against ellipses and a test pins the style verbatim. **Clean:** Stage 9
+  zero artifact shapes in output (aggressive passes stay omitted); Stage 12 all 73
+  raw headings are `Chapter N: <title>`, zero non-normalized after pipeline;
+  Stage 18 zero spaced dashes; garbage sweep zero hits (Phase-2 hardening holds on
+  the dirty NQ/SM files); SS sample output unaffected by the fixes (no `?.`/eu/`?`-
+  title occurrences in it) — SS-equivalence guarantee intact. **No ambiguous
+  flagged-but-not-fixed items** — both findings were clear-cut rule defects with
+  spec backing (sequential-thinking used for the Stage-12 resolution choice:
+  keep the title's own ?/! rather than append or substitute). TDD RED→GREEN per
+  defect; 8 new committed shortest-real-fragment tests (5 test_rules.py,
+  3 test_pdf.py). Suite 285→293 passed, 1 known bash skip; `verify.py` PASS.
+  Sample lists + full detail: files/qa-tools/scratch/phase3-findings.md +
+  phase3_qa_driver.py (gitignored). Docs (EDITING-RULES/CHANGELOG/BRIEFING)
+  intentionally untouched — Phase 10 per plan. — Claude Code
 
 - 2026-07-10 — **Phase 2 complete: junk-strip Tier 1 hardened against every Phase-1
   defect class; two-layer test infrastructure built; 10 pinned fixtures committed.**
@@ -120,6 +157,23 @@ single launcher per OS from them, then deletes them.
 ---
 
 ## Session Sync Log (newest first)
+
+### 2026-07-11 — HOME-PC — not pushed
+- Branch:  feature/junk-strip-hardening (Phase 3, 1 commit on top of 12a1891)
+- Changed: scripts/rules/chapter_titles.py (keep a title's own terminal ?/!;
+           validation accepts [.?!]), scripts/rules/punctuation.py (guarded
+           "?."/"!." duplicate-terminal collapse), scripts/rules/grammar.py
+           (eu/ew guard on the a→an rule), scripts/pdf/builder.py (heading
+           regex + merged-heading path accept ?/! terminals),
+           scripts/tests/test_rules.py (+5 Phase-3 regressions),
+           scripts/tests/test_pdf.py (+3 Phase-3 regressions),
+           md-instructions/HANDOFF.md (this entry)
+- Local-only (untracked/gitignored by design): files/qa-tools/scratch/
+           phase3-findings.md + phase3_qa_driver.py + phase3_render_check.py +
+           phase3-out/, plus the pre-existing working-tree state untouched by
+           Phase 3 (AI-WORKSPACE.md modification, kickoff-prompt deletion,
+           Setup_and_Run-template.*, decisions-template.md,
+           plan-1-gui-batch-overhaul.md)
 
 ### 2026-07-10 — HOME-PC — not pushed
 - Branch:  feature/junk-strip-hardening (Phase 2, 9 commits on top of ef3b7a2)
