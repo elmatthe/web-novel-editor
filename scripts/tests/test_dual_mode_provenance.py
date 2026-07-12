@@ -2,9 +2,12 @@
 
 Committed proof (per the Phase-5 plan) that goes beyond inspecting final text:
 
-  * The Noble Queen and Supreme Magus — the two real profile-less corpora — resolve to
-    the universal-only fallback, and they do so BECAUSE the registry says so:
-    registration is the deciding factor, not an accident of index-file contents.
+  * The intentionally-unauthored placeholder novels resolve to the universal-only
+    fallback, and they do so BECAUSE the registry says so: registration is the deciding
+    factor, not an accident of index-file contents. (Originally proven with The Noble
+    Queen / Supreme Magus; Phase 5b registered those two real profiles, so the fallback
+    proof now uses Renegade Immortal / Reverend Insanity — the two placeholders the user
+    decided stay unauthored.)
   * A bait string matching an `SS_SPECIAL_FIXES` entry is changed in Shadow Slave mode
     and left untouched in a profile-less run, exercised through the full `run_batch`
     seam (not just the pipeline function).
@@ -37,14 +40,15 @@ from pipelines import lord_of_mysteries, shadow_slave
 @pytest.mark.parametrize(
     "name, index_filename",
     [
-        ("The Noble Queen", "the-noble-queen.txt"),
-        ("Supreme Magus", "supreme-magus.txt"),
+        ("Renegade Immortal", "renegade-immortal.txt"),
+        ("Reverend Insanity", "reverend-insanity.txt"),
     ],
 )
-def test_noble_queen_and_supreme_magus_resolve_to_universal_fallback(
+def test_unauthored_placeholder_novels_resolve_to_universal_fallback(
     name: str, index_filename: str
 ) -> None:
-    """The two user-added corpora dispatch to universal-only until Phase 5b registers them."""
+    """The intentionally-unauthored placeholders dispatch to universal-only (their
+    study-examples indexes are comment-only, so Phase 5b left them unregistered)."""
     d = resolve_dispatch(name)
     assert d.has_profile is False
     assert d.run_pipeline is lord_of_mysteries.run_pipeline
@@ -144,7 +148,7 @@ def test_bait_string_changed_in_shadow_slave_mode_via_run_batch(tmp_path: Path) 
 
 
 def test_bait_string_untouched_in_universal_mode_via_run_batch(tmp_path: Path) -> None:
-    _, _, text, jsonl = _run(tmp_path, "The Noble Queen", "out_nq")
+    _, _, text, jsonl = _run(tmp_path, "Renegade Immortal", "out_ri")
     assert "Almanach" in text          # SS's forced fix did NOT run
     assert "carcassess" in text
     assert all(e.get("rule") != "special_fixes" for e in jsonl)
@@ -168,7 +172,7 @@ def test_ss_special_fix_code_not_called_in_universal_mode(
 
     monkeypatch.setattr(shadow_slave, "_apply_special_fixes", spy)
 
-    _run(tmp_path, "The Noble Queen", "out_spy_nq")
+    _run(tmp_path, "Renegade Immortal", "out_spy_ri")
     assert calls == []                 # universal-only run never touched SS fix code
 
     _run(tmp_path, "Shadow Slave", "out_spy_ss")
@@ -177,7 +181,7 @@ def test_ss_special_fix_code_not_called_in_universal_mode(
 
 # -- no __WE_ placeholder leaks in either mode --------------------------------------------
 
-@pytest.mark.parametrize("novel_name", ["Shadow Slave", "The Noble Queen"])
+@pytest.mark.parametrize("novel_name", ["Shadow Slave", "Renegade Immortal"])
 def test_no_placeholder_leaks_in_output_logs_or_jsonl(tmp_path: Path, novel_name) -> None:
     _, logs, text, jsonl = _run(tmp_path, novel_name, "out_leak")
     assert "__WE_" not in text
@@ -192,9 +196,9 @@ def test_run_summary_records_dispatch_metadata(tmp_path: Path) -> None:
     assert ss_summary["novel"] == "Shadow Slave"
     assert ss_summary["profile_applied"] is True
 
-    nq_summary, _, _, _ = _run(tmp_path, "The Noble Queen", "out_meta_nq")
-    assert nq_summary["novel"] == "The Noble Queen"
-    assert nq_summary["profile_applied"] is False
+    ri_summary, _, _, _ = _run(tmp_path, "Renegade Immortal", "out_meta_ri")
+    assert ri_summary["novel"] == "Renegade Immortal"
+    assert ri_summary["profile_applied"] is False
 
 
 def test_jsonl_first_line_is_run_metadata_header_in_both_modes(tmp_path: Path) -> None:
@@ -207,10 +211,10 @@ def test_jsonl_first_line_is_run_metadata_header_in_both_modes(tmp_path: Path) -
     # Replacement entries follow the header and are untouched by it.
     assert any(e.get("rule") == "special_fixes" for e in ss_jsonl[1:])
 
-    _, _, _, nq_jsonl = _run(tmp_path, "The Noble Queen", "out_hdr_nq")
-    header = nq_jsonl[0]
+    _, _, _, ri_jsonl = _run(tmp_path, "Renegade Immortal", "out_hdr_ri")
+    header = ri_jsonl[0]
     assert header["record"] == "run_metadata"
-    assert header["novel"] == "The Noble Queen"
+    assert header["novel"] == "Renegade Immortal"
     assert header["mode"] == "universal-only"
     assert header["pipeline"] == "pipelines.lord_of_mysteries"
 

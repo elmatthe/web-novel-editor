@@ -24,7 +24,8 @@ is **not** in the registry falls back cleanly to **universal-only** editing:
 So a profile-less novel (e.g. Lord of the Mysteries) gets universal grammar, unicode
 stripping, the mandatory em-dash sweep, etc., never crashes, and never picks up another
 novel's special-fixes. Promoting such a novel to a real profile later is one line here
-plus a profile package — no core refactor.
+plus a profile package — no core refactor (Phase 5b did exactly this for The Noble
+Queen and Supreme Magus).
 
 Note on the universal pipeline seam: the universal-only fallback intentionally reuses the
 Phase-7 `lord_of_mysteries` stub pipeline, which is universal-rules-only precisely because
@@ -41,8 +42,10 @@ from pathlib import Path
 from typing import Callable, Optional
 
 from core.edit_details import _norm_key
-from pipelines import lord_of_mysteries, shadow_slave
+from pipelines import lord_of_mysteries, shadow_slave, supreme_magus, the_noble_queen
 from profiles.shadow_slave.canonical_names import SS_CANONICAL_NAMES
+from profiles.supreme_magus.canonical_names import SM_CANONICAL_NAMES
+from profiles.the_noble_queen.canonical_names import NQ_CANONICAL_NAMES
 
 # files/novel-index/ lives two levels up from scripts/core/.
 NOVEL_INDEX_DIR = Path(__file__).resolve().parents[2] / "files" / "novel-index"
@@ -151,6 +154,20 @@ _REGISTRY: dict[str, NovelDispatch] = {
         run_pipeline=shadow_slave.run_pipeline,
         canonical_names=SS_CANONICAL_NAMES,
         index_filename="shadow-slave.txt",
+        has_profile=True,
+    ),
+    _norm_key("The Noble Queen"): NovelDispatch(
+        display_name="The Noble Queen",
+        run_pipeline=the_noble_queen.run_pipeline,
+        canonical_names=NQ_CANONICAL_NAMES,
+        index_filename="the-noble-queen.txt",
+        has_profile=True,
+    ),
+    _norm_key("Supreme Magus"): NovelDispatch(
+        display_name="Supreme Magus",
+        run_pipeline=supreme_magus.run_pipeline,
+        canonical_names=SM_CANONICAL_NAMES,
+        index_filename="supreme-magus.txt",
         has_profile=True,
     ),
 }

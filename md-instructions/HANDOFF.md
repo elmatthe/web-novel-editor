@@ -7,16 +7,25 @@ branch `feature/junk-strip-hardening`, re-based per Phase 0.5 onto `origin/main 
 only reflected a stale local clone). Phase 0 (baseline), Phase 0.5 (branch reconciliation,
 user-confirmed base), Phase 1 recon + addendum, Phase 2 (junk-strip Tier 1
 hardening + two-layer test infrastructure + fixture commit), **Phase 3
-(grammar/editorial QA pass), **Phase 4 (TTS-readiness sweep), and **Phase 5
-(dual-mode dispatch confirmed at the registry/provenance level) are done**;
-next is Phase 5b (author real Noble Queen + Supreme Magus profiles from
-files/study-examples/).
+(grammar/editorial QA pass), **Phase 4 (TTS-readiness sweep), **Phase 5
+(dual-mode dispatch confirmed at the registry/provenance level), and **Phase 5b
+(real Noble Queen + Supreme Magus profiles authored from files/study-examples/,
+registered and proven against the corpora) are done**; next is Phase 6
+(PDF-build alignment with web-novel-scraper, safety-first).
 User decisions on record: 10 pinned fixtures committed
 (Phase 2 — done);
-author Noble Queen + Supreme Magus profiles in Phase 5b (NO profanity-uncensor map);
+Noble Queen + Supreme Magus profiles authored in Phase 5b (NO profanity-uncensor map —
+honored, not ported);
 Renegade Immortal / Reverend Insanity stay universal-fallback placeholders; re-track
 AI-WORKSPACE.md; Setup_and_Run-template.* are study copies only — Phase 9 builds the
 single launcher per OS from them, then deletes them.
+Standing instruction (from 2026-07-12 through Phase 10): a running decisions ledger in
+gitignored scratch (files/qa-tools/scratch/decisions-ledger.md, ADR format) is appended
+at the end of every phase — Phases 0–5 are backfilled — and Phase 10's DECISIONS.md is a
+transcription of that ledger, not a reconstruction from memory.
+Carried-forward doc item for Phase 10: Phase-1/Phase-4 notes count 4 Supreme Magus
+Cloudflare error pages while the committed SM_ERROR_PAGES sample list records 3 —
+reconcile in the Phase-10 doc pass (bookkeeping only; all sampled pages flag correctly).
 
 ---
 
@@ -31,6 +40,51 @@ single launcher per OS from them, then deletes them.
 ---
 
 ## Work Log (newest first)
+
+- 2026-07-12 — **Phase 5b complete: real per-novel profiles authored for The Noble
+  Queen and Supreme Magus from files/study-examples/ — a pure data/porting exercise
+  on the validated seam; zero core/rules/pdf changes.** Both novels now dispatch to
+  their own registered profile (`novel_registry._REGISTRY` + 2 pipeline modules
+  mirroring shadow_slave.py stage-for-stage + 2 profile packages), with populated
+  indexes (`the-noble-queen.txt` 26 terms, `supreme-magus.txt` 594 terms — ported
+  programmatically with round-trip checks from the user's master indexes; SM master
+  confirmed a superset of all 4 _legacy lists; index ⊇ floor invariant pinned for
+  both) and edit-details docs (`The-Noble-Queen.md`, `Supreme-Magus.md`).
+  **NQ_SPECIAL_FIXES is empty by evidence** (the scrapers' only table is the
+  decorative-Unicode watermark class = universal junk-strip; no NQ-specific typo
+  exists). **SM_SPECIAL_FIXES = 16 proper-noun artifact keys** ported from the legacy
+  editor's PROPER_NOUN_ARTIFACTS/Ragnarok fixes and re-validated codepoint-exactly
+  against all 4,191 cached SM extractions; the Ragnarök family restores to the
+  authored "Ragnarök" (ö — ~185 intact corpus occurrences), NOT the legacy plain
+  "Ragnarok"; excluded per decision/evidence: the profanity-uncensor map (spec),
+  generic-word artifacts (`rnade` is a substring FP hazard — "Bernadette"; pinned by
+  test), possessive dupes (covered by substring replace). Universal-seam caveat
+  handled as the plan directs: LOTM is NOT being authored, so the trigger is unmet —
+  the fallback keeps reusing the LOTM stub, still pinned by
+  test_universal_fallback_applies_no_special_fixes (ledger #014). **Committed proof**
+  (new scripts/tests/test_novel_profiles.py, 27 tests incl. 2 corpus-marked):
+  dispatch/roster/floor/index/md-layering for both novels; SM fixes apply + are
+  logged in SM mode and in NO other mode (cross-novel isolation both directions);
+  censored `f*ck` passes through SM mode verbatim (uncensor exclusion pinned);
+  "Bernadette" survives; protected terms survive both new pipelines; no __WE_ leak
+  at 594-term scale; Renegade Immortal/Reverend Insanity still universal-only; SS
+  dispatch untouched. test_dual_mode_provenance.py re-pointed its universal-mode
+  exemplar The Noble Queen → Renegade Immortal (Phase 5 §2's anticipated swap —
+  deliberate, documented in docstrings). **Corpus proof** (scratch
+  phase5b_profile_proof.py over the Phase-1 cached extractions): all 113 SM files
+  containing any fix key come out with every key removed (116 special-fix events;
+  the digit-0 keys are normally pre-repaired by universal ocr_repair stage 9 —
+  documented backstop), pipeline idempotent on its own output (0 second-pass fixes,
+  byte-identical), NQ first/middle/last clean in profile mode, no leaks. ALL CHECKS
+  PASSED. SS-equivalence: shadow_slave.py and all rules/ untouched this phase; the
+  suite's fixture-backed + synthetic equivalence tests re-ran green. Suite 322→350
+  passed + 1 known bash skip; `python scripts/verify.py` PASS. Docs
+  (CHANGELOG/BRIEFING/EDITING-RULES/README/GUI) untouched — Phase 10 per plan.
+  Decisions ledger created at files/qa-tools/scratch/decisions-ledger.md (16 entries:
+  Phases 0–5 backfilled + this phase's #011–#016). Details:
+  files/qa-tools/scratch/phase5b-findings.md (+ phase5b_generate_profiles.py,
+  phase5b_profile_proof.py, phase5b-proof-report.txt, artifact scans; gitignored).
+  — Claude Code
 
 - 2026-07-11 — **Phase 5 complete: dual-mode dispatch confirmed at the
   registry/provenance level against the real corpora — the recovered v0.9.0
@@ -244,6 +298,35 @@ single launcher per OS from them, then deletes them.
 ---
 
 ## Session Sync Log (newest first)
+
+### 2026-07-12 — HOME-PC — not pushed (Phase 5b)
+- Branch:  feature/junk-strip-hardening (Phase 5b, 1 commit on top of 548ffbc)
+- Changed: scripts/core/novel_registry.py (NQ + SM registry entries, imports,
+           docstring note), files/novel-index/the-noble-queen.txt (26 terms)
+           + files/novel-index/supreme-magus.txt (594 terms) (both populated
+           from study-examples masters, header + section comments),
+           scripts/tests/test_dual_mode_provenance.py (universal-mode exemplar
+           The Noble Queen -> Renegade Immortal; fallback test re-parametrized
+           to the two intentionally-unauthored placeholders),
+           md-instructions/HANDOFF.md (this entry)
+- Added:   scripts/profiles/the_noble_queen/{__init__,canonical_names,
+           special_fixes}.py (26-term floor; empty fixes by evidence),
+           scripts/profiles/supreme_magus/{__init__,canonical_names,
+           special_fixes}.py (594-term floor; 16 proper-noun artifact fixes,
+           profanity map NOT ported),
+           scripts/pipelines/the_noble_queen.py + supreme_magus.py (mirror
+           shadow_slave.py stage-for-stage),
+           files/Novel-Edits-Details/The-Noble-Queen.md + Supreme-Magus.md,
+           scripts/tests/test_novel_profiles.py (27 Phase-5b tests, 2 of them
+           local_corpus-marked)
+- Local-only (untracked/gitignored by design): files/qa-tools/scratch/
+           decisions-ledger.md (NEW standing ledger, Phases 0-5 backfilled) +
+           phase5b-findings.md + phase5b_generate_profiles.py +
+           phase5b_profile_proof.py + phase5b-proof-report.txt +
+           phase5b_artifact_scan*.py, plus the pre-existing working-tree state
+           untouched by Phase 5b (AI-WORKSPACE.md modification, kickoff-prompt
+           deletion, Setup_and_Run-template.*, decisions-template.md,
+           plan-1-gui-batch-overhaul.md)
 
 ### 2026-07-11 — HOME-PC — not pushed (Phase 5)
 - Branch:  feature/junk-strip-hardening (Phase 5, 1 commit on top of 960792a)
