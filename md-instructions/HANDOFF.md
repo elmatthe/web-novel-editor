@@ -7,7 +7,8 @@ branch `feature/junk-strip-hardening`, re-based per Phase 0.5 onto `origin/main 
 only reflected a stale local clone). Phase 0 (baseline), Phase 0.5 (branch reconciliation,
 user-confirmed base), Phase 1 recon + addendum, Phase 2 (junk-strip Tier 1
 hardening + two-layer test infrastructure + fixture commit), and **Phase 3
-(grammar/editorial QA pass) are done**; next is Phase 4 (TTS-readiness sweep).
+(grammar/editorial QA pass), and **Phase 4 (TTS-readiness sweep) are done**;
+next is Phase 5 (confirm dual-mode behavior against the real corpora).
 User decisions on record: 10 pinned fixtures committed
 (Phase 2 — done);
 author Noble Queen + Supreme Magus profiles in Phase 5b (NO profanity-uncensor map);
@@ -28,6 +29,53 @@ single launcher per OS from them, then deletes them.
 ---
 
 ## Work Log (newest first)
+
+- 2026-07-11 — **Phase 4 complete: TTS-readiness sweep (target: Microsoft Edge
+  Neural); criteria re-verified at 100% corpus coverage and held, except one
+  genuine criterion-2 gap — a novelfire watermark class invisible to the
+  Phase-2 matcher — found, fixed conservatively in junk_strip, and pinned.**
+  Ran the FULL post-Phase-3 pipeline over ALL 7,979 Phase-1 cached raw
+  extractions (NQ 778 universal, SM 4,191 universal with the 4 error pages
+  correctly flagged+skipped, SS 3,000 + 10 pinned in Shadow Slave mode;
+  7,975 outputs, 0 pipeline errors) — full machine-scan coverage, a superset
+  of the Phase-1 §8 sample; no render pass needed (the fix has no
+  builder-visible surface). **§1 established garbage sweep: ZERO hits of any
+  class** (spaced dashes, squares/U+FFFD, __WE_ leaks, invisibles, ligatures,
+  double spaces, space-before-punct, word.Word fusions, control chars) —
+  criteria held. **§2 neural-TTS flags (sequential-thinking per call; all
+  flagged, NOT changed):** 810 asterisks = censored profanity/*emphasis*/
+  authored (*) footnotes (uncensoring is spec-excluded content alteration);
+  567 curly-single U+2018 = inner-thought style (by-design untouched) + 76
+  letter-tight apostrophe-misuse (don‘t/l‘m — typographically safe to
+  normalize but Edge Neural voices it correctly, so a future-rule candidate);
+  19 raw # (Rule #1/Orphanage #113/#TeamLith — authored, voiced as intended);
+  31 numeric ranges (betting odds 3-1/100-1 — spoken form not inferable);
+  SS ch 1735 "eta: ~37 minutes" = authored system-alert prose (SS corpus
+  confirmed still watermark-clean). **§3 the one genuine defect (fixed):**
+  21 NQ chapters carried novelfire splices in three shapes the Phase-2
+  matcher can't see — tilde-separated `novel~fire~net` (no dot, 5 ch),
+  hyphen+truncated-TLD `novel-fire.et` (ch 676), and CROSS-LINE splices
+  (template sentence ends one wrapped line, domain opens the next — the
+  "line-wrapped markers" case Phase 2 §5 deferred pending real evidence, now
+  evidenced). Fix all inside `scripts/rules/junk_strip.py` (no new modules,
+  FP bar not lowered): 2 exact domain tokens; `publshed`/`te` template vocab;
+  new `_TEMPLATE_EXCLUSIVE` set (misspelled tokens impossible in prose)
+  gating a cross-line continuation that trims the previous line's template
+  tail ONLY when anchored by confirmed column-0 junk AND containing an
+  exclusive token (prose tails like "...she wrote the novel" pinned
+  untouchable); trailing comma consumable only on exclusive tokens (ch
+  627/692 "r r crs," skeleton; "novel," pinned as prose). TDD RED→GREEN per
+  sub-shape; 18 new shortest-real-fragment tests in
+  test_junk_strip_hardening.py. **Zero-FP proof:** old-vs-new strip_junk
+  diffed over all 7,975 raw files → exactly the 21 NQ chapters changed,
+  every span manually reviewed (pure watermark removal, zero prose lost),
+  zero SM/SS/pinned changes → **SS-output-equivalence intact by direct
+  full-corpus proof**; final full-pipeline re-scan of all 778 NQ outputs =
+  0 residual. Suite 293→311 passed + 1 known bash skip (strict
+  --require-local-corpora mode); `verify.py` PASS. EDITING-RULES criteria/
+  Stage-1.5 evidence updates deferred to Phase 10 per plan; interim record:
+  files/qa-tools/scratch/phase4-findings.md (+ phase4_tts_sweep.py,
+  phase4_classify.py, phase4-sweep-report.txt, gitignored). — Claude Code
 
 - 2026-07-11 — **Phase 3 complete: grammar/editorial QA pass over the real corpora;
   2 genuine defects found, fixed conservatively, and pinned; everything else clean.**
@@ -157,6 +205,25 @@ single launcher per OS from them, then deletes them.
 ---
 
 ## Session Sync Log (newest first)
+
+### 2026-07-11 — HOME-PC — not pushed (Phase 4)
+- Branch:  feature/junk-strip-hardening (Phase 4, 1 commit on top of d43ca76)
+- Changed: scripts/rules/junk_strip.py (2 exact domain tokens
+           novel~fire~net / novel-fire.et; publshed/te template vocab;
+           _TEMPLATE_EXCLUSIVE set; cross-line template-tail continuation;
+           exclusive-token comma allowance),
+           scripts/tests/test_junk_strip_hardening.py (+18 Phase-4
+           regressions: tilde/truncated-TLD splices, cross-line splices,
+           prose-tail + comma FP guards, exclusive-subset invariant,
+           prose-tilde survival, log entry),
+           md-instructions/HANDOFF.md (this entry)
+- Local-only (untracked/gitignored by design): files/qa-tools/scratch/
+           phase4-findings.md + phase4_tts_sweep.py + phase4_classify.py +
+           phase4-sweep-report.txt + phase4-classify-report.txt, plus the
+           pre-existing working-tree state untouched by Phase 4
+           (AI-WORKSPACE.md modification, kickoff-prompt deletion,
+           Setup_and_Run-template.*, decisions-template.md,
+           plan-1-gui-batch-overhaul.md)
 
 ### 2026-07-11 — HOME-PC — not pushed
 - Branch:  feature/junk-strip-hardening (Phase 3, 1 commit on top of 12a1891)

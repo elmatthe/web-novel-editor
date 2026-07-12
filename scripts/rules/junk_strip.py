@@ -127,13 +127,18 @@ def _homoglyph_run_is_junk_domain(run: str) -> bool:
 #      are guarded so prose words followed by a TLD can never fuzzy-match.
 # Anything that fails the gates is left untouched (Tier 2 may still log the line).
 
-# Every mangled spelling recorded by the Phase-1 scan, longest-first for the regex.
+# Every mangled spelling recorded by the Phase-1 and Phase-4 scans, longest-first
+# for the regex. The Phase-4 TTS sweep added the two spellings that carry no
+# matchable ".net"/".com": tilde-separated "novel~fire~net" (NQ ch 620/646/663/
+# 689/718) and hyphen + truncated-TLD "novel-fire.et" (NQ ch 676).
 _EXACT_DOMAIN_TOKENS = [
     "NoveI[F]ire.net",
     "NoveI(F)ire.net",
     "novel[f]ire.net",
     "novel()ire.net",
+    "novel~fire~net",
     "novel-fire.net",
+    "novel-fire.et",
     "novelfire.net",
     "n0velfire.net",
     "Nove1Fire.net",
@@ -266,11 +271,24 @@ _TEMPLATE_VOCAB = frozenset(
     google googl search check latest chapters chaptrs chapter at read full story
     updates update are released by newest provded provided this ths content
     orginally originally orignal original comes from for more vist visit new
-    published on follow
+    published publshed on follow
     current novels novls novel fnd find the release official source is updated
     pdated his discover dscover get available rightful rghtful go most all want
-    see please come do you th link to orign origin of information rsts rests nw
-    ovel s r n cr crs
+    see please come do you th te link to orign origin of information rsts rests
+    nw ovel s r n cr crs
+    """.split()
+)
+
+# Template-vocabulary tokens that are degraded/misspelled forms impossible in
+# legitimate prose ("publshed", "novls", a stranded skeleton letter). The
+# cross-line continuation (Phase 4) only consumes a previous line's tail when
+# the consumed run contains at least one of these, so a prose tail made of
+# ordinary words that happen to be vocabulary ("...she wrote the novel") is
+# never touched. Must stay a subset of _TEMPLATE_VOCAB (pinned by test).
+_TEMPLATE_EXCLUSIVE = frozenset(
+    """
+    googl chaptrs provded ths orginally orignal vist fnd novls publshed pdated
+    dscover rghtful orign rsts nw ovel te th s r n cr crs
     """.split()
 )
 
@@ -337,7 +355,13 @@ def _expand_template_left(line: str, start: int) -> "tuple[int, int]":
             break
         if _fold_word(core) not in _TEMPLATE_VOCAB:
             break
-        if trailing and not _looks_mangled(core):
+        # A trailing comma is consumable only on a template-exclusive token
+        # ("crs," in the ch-627 skeleton) — ordinary comma-carrying prose
+        # words ("novel,") still stop the scan.
+        if trailing and not (
+            _looks_mangled(core)
+            or (trailing == "," and _fold_word(core) in _TEMPLATE_EXCLUSIVE)
+        ):
             break
         new_start = tok_m.start()
         consumed += 1
@@ -377,15 +401,21 @@ def _find_junk_match(line: str) -> "tuple[Optional[re.Match], str]":
     return m, "junk_strip.domain"
 
 
-def _strip_domain_junk_line(line: str, repl_log) -> "Optional[str]":
+def _strip_domain_junk_line(line: str, repl_log) -> "tuple[Optional[str], bool]":
     """Apply the domain-watermark passes to one wrapped-stream line.
 
-    Returns the cleaned line, or None when a removal leaves the line empty
-    (the watermark was the whole line, so the line itself is dropped — the
-    splice was injected mid-paragraph and the wrap stream rejoins correctly).
-    A line no removal touched is returned unchanged, even when blank.
+    Returns ``(cleaned, continues_left)``. ``cleaned`` is the cleaned line, or
+    None when a removal leaves the line empty (the watermark was the whole
+    line, so the line itself is dropped — the splice was injected
+    mid-paragraph and the wrap stream rejoins correctly). A line no removal
+    touched is returned unchanged, even when blank. ``continues_left`` is True
+    when a confirmed removal reached column 0 — the injected template sentence
+    may have spilled over from the end of the PREVIOUS wrapped line (Phase-4
+    evidence: NQ ch 620/623/637/679/680/695), which the caller resolves via
+    ``_consume_template_tail``.
     """
     changed = False
+    continues_left = False
     while True:
         m, rule = _find_junk_match(line)
         if m is None:
@@ -395,12 +425,41 @@ def _strip_domain_junk_line(line: str, repl_log) -> "Optional[str]":
         # A template sentence owns its final period ("... on Libread.com.").
         if consumed and end < len(line) and line[end] == ".":
             end += 1
+        if start == 0:
+            continues_left = True
         _record(repl_log, line[start:end], rule, line[start:end])
         line = _clean_removal_seam(line, start, end)
         changed = True
     if changed and not line:
-        return None
-    return line
+        return None, continues_left
+    return line, continues_left
+
+
+def _consume_template_tail(prev_line: str, repl_log) -> "Optional[str]":
+    """Cross-line splice continuation (Phase 4): trim an injected template
+    sentence's spillover from the END of the previous wrapped line, anchored
+    on the confirmed junk that began at column 0 of the line after it.
+
+    The trailing template-vocabulary run is consumed only when it contains at
+    least one template-exclusive token (``_TEMPLATE_EXCLUSIVE`` — degraded
+    forms impossible in prose), so an ordinary prose tail whose words happen
+    to be vocabulary ("...she wrote the novel") is never touched. Returns the
+    trimmed line, or None when the removal empties it (drop, same convention
+    as ``_strip_domain_junk_line``); returns ``prev_line`` unchanged when the
+    guard does not clear.
+    """
+    start, consumed = _expand_template_left(prev_line, len(prev_line))
+    if not consumed:
+        return prev_line
+    removed = prev_line[start:]
+    tokens = re.findall(r"\S+", removed)
+    if not any(
+        _fold_word(t.rstrip(_TRAILING_PUNCT)) in _TEMPLATE_EXCLUSIVE for t in tokens
+    ):
+        return prev_line
+    _record(repl_log, removed.strip(), "junk_strip.domain", removed.strip())
+    trimmed = _clean_removal_seam(prev_line, start, len(prev_line))
+    return trimmed if trimmed else None
 
 
 # --- Tier 2: heuristic promo lines (log-only by default) ---------------------
@@ -480,7 +539,13 @@ def strip_junk(
     # empty-line-drop convention are explicit.
     domain_lines: list[str] = []
     for line in text.split("\n"):
-        cleaned = _strip_domain_junk_line(line, repl_log)
+        cleaned, continues_left = _strip_domain_junk_line(line, repl_log)
+        if continues_left and domain_lines:
+            trimmed = _consume_template_tail(domain_lines[-1], repl_log)
+            if trimmed is None:
+                domain_lines.pop()
+            else:
+                domain_lines[-1] = trimmed
         if cleaned is not None:
             domain_lines.append(cleaned)
     text = "\n".join(domain_lines)

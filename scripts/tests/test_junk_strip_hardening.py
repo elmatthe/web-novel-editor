@@ -398,6 +398,149 @@ def test_plain_word_with_sentence_punctuation_stops_expansion():
 
 
 # =========================================================================
+# Phase 4 — TTS-sweep findings: tilde-separated / truncated-TLD spellings
+# =========================================================================
+
+# The Phase-4 full-output TTS sweep found two Noble Queen novelfire spellings
+# the Phase-2 matcher misses (they carry no matchable ".net"/".com"):
+# tilde-separated "novel~fire~net" (5 chapters) and hyphen + truncated-TLD
+# "novel-fire.et" (ch 676). Shortest real redacted fragments per case.
+
+PHASE4_SPLICE_CASES = [
+    (
+        "her loved ones. For orignal chapters go to novel~fire~net",
+        "her loved ones.",
+    ),
+    (
+        'the journey."Latest content publshed on novel~fire~net',
+        'the journey."',
+    ),
+    (
+        "The Elder Saint bowed her head. Dscover more novels at novel~fire~net",
+        "The Elder Saint bowed her head.",
+    ),
+    (
+        "it fell into the hands of an Other.'Official source s novel~fire~net",
+        "it fell into the hands of an Other.'",
+    ),
+    (
+        'as well."Th link to the orign of this information rsts n novel-fire.et',
+        'as well."',
+    ),
+]
+
+
+@pytest.mark.parametrize("junk_line,expected", PHASE4_SPLICE_CASES)
+def test_tilde_and_truncated_tld_splices_removed(junk_line, expected):
+    assert strip(junk_line) == expected
+
+
+def test_tilde_domain_whole_line_splice_drops_line():
+    # ch 620: the whole wrapped line is template+domain, so the line drops and
+    # the wrap stream rejoins. The degraded "Te" (a mangled "The") stranded at
+    # the END of the PREVIOUS line is consumed by the cross-line continuation.
+    text = ("would be so. Te\n"
+            "source of this content s novel~fire~net\n"
+            "Her will was absolutealmost.")
+    assert strip(text) == "would be so.\nHer will was absolutealmost."
+
+
+# --- Cross-line splices (Phase 4): the injected template sentence ends one
+# --- wrapped line and its domain token sits at the start of the NEXT line.
+# --- Real evidence: NQ ch 620/623/637/679/680/695. The continuation is
+# --- anchored (fires only when confirmed junk began at column 0) and requires
+# --- a template-exclusive misspelled token in the consumed run.
+
+CROSS_LINE_SPLICE_CASES = [
+    (
+        'I have mine."Latest content publshed on\nnovelfirenet\n"Fair enough." He smiled.',
+        'I have mine."\n"Fair enough." He smiled.',
+    ),
+    (
+        'It is time to head back."Follow current novls on\nnovelfirenet\nRoan pressed his heels.',
+        'It is time to head back."\nRoan pressed his heels.',
+    ),
+    (
+        'Flint clicked his tongue. Official source s\nnovelfire.net\n"I did not!" She shut her eyes.',
+        'Flint clicked his tongue.\n"I did not!" She shut her eyes.',
+    ),
+    (
+        "them on the Saint. Follow current novls on\nNoveI[F]ire.net\nSyrce tried to comfort her.",
+        "them on the Saint.\nSyrce tried to comfort her.",
+    ),
+    (
+        "it was hard to argue. Th link to the orign of this\ninformation rsts n novelfire.net\nThere wasn't much choice.",
+        "it was hard to argue.\nThere wasn't much choice.",
+    ),
+]
+
+
+@pytest.mark.parametrize("junk_text,expected", CROSS_LINE_SPLICE_CASES)
+def test_cross_line_splice_template_tail_removed(junk_text, expected):
+    assert strip(junk_text) == expected
+
+
+@pytest.mark.parametrize(
+    "text,expected",
+    [
+        # A prose tail made of ordinary words that HAPPEN to be template
+        # vocabulary ("the novel", "on") has no template-exclusive token —
+        # the continuation must never touch it.
+        (
+            "she wrote the novel\nnovelfirenet\nand smiled.",
+            "she wrote the novel\nand smiled.",
+        ),
+        (
+            "he pressed on\nnovelfirenet\nwithout looking back.",
+            "he pressed on\nwithout looking back.",
+        ),
+    ],
+)
+def test_cross_line_continuation_never_eats_ordinary_prose_tail(text, expected):
+    assert strip(text) == expected
+
+
+def test_cross_line_skeleton_with_interior_comma_removed():
+    # ch 627: letter-skeleton template "r r crs, s s" carries an interior
+    # comma; a comma is consumable ONLY on a template-exclusive token, so the
+    # whole skeleton tail goes while ordinary comma-carrying prose words stop
+    # the scan as before.
+    text = ("then arc into the ground around her. r r crs, s s\n"
+            "novelfirenet\n"
+            "She hissed.")
+    assert strip(text) == "then arc into the ground around her.\nShe hissed."
+
+
+def test_comma_on_ordinary_vocab_word_still_stops_expansion():
+    # "novel," is an ordinary word (not template-exclusive): the comma keeps
+    # it as prose even directly before a domain token.
+    out = strip("She loved the novel, novelfirenet")
+    assert out == "She loved the novel,"
+
+
+def test_template_exclusive_tokens_are_a_subset_of_the_vocabulary():
+    # The exclusive set gates the cross-line continuation; every entry must be
+    # a real template-vocabulary word or the gate could never fire on it.
+    assert junk_strip._TEMPLATE_EXCLUSIVE <= junk_strip._TEMPLATE_VOCAB
+
+
+def test_tilde_domain_removal_is_logged():
+    log = ReplacementLog()
+    strip("For orignal chapters go to novel~fire~net", repl_log=log)
+    assert any(
+        e.rule == "junk_strip.domain" and "novel~fire~net" in e.original
+        for e in log.entries
+    )
+
+
+def test_prose_tilde_survives():
+    # Shadow Slave ch 1735: an in-story system alert uses "~" as an authored
+    # approximation marker — legitimate prose, must never be junk-matched.
+    text = "gate activity detected IN your proximity\neta: ~37 minutes\nevacuate immediately!"
+    assert strip(text) == text
+
+
+# =========================================================================
 # Task 3 — spaced-out domains ("f r e e w e b n o v e l. c o m")
 # =========================================================================
 
