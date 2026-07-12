@@ -53,7 +53,9 @@ def run_batch(
         gui_log(message, level="info") — progress/diagnostic lines for the UI/log.
         progress(value:int)           — number of files completed so far (1..N).
 
-    Returns: {total, succeeded, failed, skipped, output_dir, outputs:[paths]}.
+    Returns: {total, succeeded, failed, skipped, output_dir, outputs:[paths],
+    novel, profile_applied} — the last two are the run's dispatch provenance (the
+    resolved display name and whether a real per-novel profile ran vs. universal-only).
     """
     log = gui_log or _noop
     tick = progress or _noop
@@ -97,6 +99,17 @@ def run_batch(
         f"{dispatch.display_name}.", "muted")
     pipe_log = (lambda m: log(m, "muted")) if gui_log else None
 
+    # Run-level dispatch provenance (Phase 5): recorded once per run and stamped onto
+    # every JSONL replacement log as a run_metadata header, so which novel/pipeline/mode
+    # produced an output is provable from the log itself, in both modes.
+    run_metadata = {
+        "selected": novel_name or "",
+        "novel": dispatch.display_name,
+        "mode": "novel-profile" if dispatch.has_profile else "universal-only",
+        "pipeline": dispatch.run_pipeline.__module__,
+        "protected_terms": len(lexicon.terms),
+    }
+
     for i, src in enumerate(pdf_paths, start=1):
         name = os.path.basename(src)
         try:
@@ -115,7 +128,9 @@ def run_batch(
                 continue
 
             # Run the selected novel's editorial pipeline (extract -> clean -> build).
-            repl_log = ReplacementLog() if write_replacement_log else None
+            repl_log = (
+                ReplacementLog(metadata=run_metadata) if write_replacement_log else None
+            )
             text = dispatch.run_pipeline(
                 text, lexicon, repl_log=repl_log, gui_log=pipe_log, dry_run=dry_run
             )
@@ -159,6 +174,8 @@ def run_batch(
         "skipped": skipped,
         "output_dir": output_dir,
         "outputs": outputs,
+        "novel": dispatch.display_name,
+        "profile_applied": dispatch.has_profile,
     }
     log(f"Batch complete: {succeeded} ok, {failed} failed, {skipped} skipped "
         f"of {total}.", "success" if failed == 0 else "warn")

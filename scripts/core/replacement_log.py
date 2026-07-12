@@ -36,9 +36,17 @@ class ReplacementEntry:
 
 @dataclass
 class ReplacementLog:
-    """Collects ReplacementEntry records for one file and writes them as JSONL."""
+    """Collects ReplacementEntry records for one file and writes them as JSONL.
+
+    `metadata`, when set, is run-level dispatch provenance (which novel/pipeline/mode
+    produced this log). It is written as a single `{"record": "run_metadata", ...}`
+    header line ahead of the entries — a run header, not a per-event field, so
+    individual replacement records keep their existing schema. It never counts toward
+    `len(log)`.
+    """
 
     entries: list[ReplacementEntry] = field(default_factory=list)
+    metadata: dict | None = None
 
     def record(
         self,
@@ -68,8 +76,18 @@ class ReplacementLog:
         )
 
     def write_jsonl(self, path: str) -> None:
-        """Serialize entries to a UTF-8 JSONL file (one record per line)."""
+        """Serialize entries to a UTF-8 JSONL file (one record per line).
+
+        When `metadata` is set, a `run_metadata` header record is written first so the
+        log carries its own dispatch provenance on disk.
+        """
         with open(path, "w", encoding="utf-8") as fh:
+            if self.metadata is not None:
+                fh.write(
+                    json.dumps({"record": "run_metadata", **self.metadata},
+                               ensure_ascii=False)
+                    + "\n"
+                )
             for e in self.entries:
                 fh.write(
                     json.dumps(

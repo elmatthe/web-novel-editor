@@ -6,9 +6,11 @@ branch `feature/junk-strip-hardening`, re-based per Phase 0.5 onto `origin/main 
 (v0.9.0 — the dispatch registry is real and merged; the earlier "registry missing" finding
 only reflected a stale local clone). Phase 0 (baseline), Phase 0.5 (branch reconciliation,
 user-confirmed base), Phase 1 recon + addendum, Phase 2 (junk-strip Tier 1
-hardening + two-layer test infrastructure + fixture commit), and **Phase 3
-(grammar/editorial QA pass), and **Phase 4 (TTS-readiness sweep) are done**;
-next is Phase 5 (confirm dual-mode behavior against the real corpora).
+hardening + two-layer test infrastructure + fixture commit), **Phase 3
+(grammar/editorial QA pass), **Phase 4 (TTS-readiness sweep), and **Phase 5
+(dual-mode dispatch confirmed at the registry/provenance level) are done**;
+next is Phase 5b (author real Noble Queen + Supreme Magus profiles from
+files/study-examples/).
 User decisions on record: 10 pinned fixtures committed
 (Phase 2 — done);
 author Noble Queen + Supreme Magus profiles in Phase 5b (NO profanity-uncensor map);
@@ -29,6 +31,43 @@ single launcher per OS from them, then deletes them.
 ---
 
 ## Work Log (newest first)
+
+- 2026-07-11 — **Phase 5 complete: dual-mode dispatch confirmed at the
+  registry/provenance level against the real corpora — the recovered v0.9.0
+  registry works as designed; NO rebuild or behavioral fix was needed.** The
+  one change is the plan-directed provenance gap fix: run-level dispatch
+  metadata was previously only transient GUI-log text, so `run_batch` now
+  returns `novel` + `profile_applied` in its summary and stamps every JSONL
+  replacement log with a `{"record": "run_metadata", ...}` header line
+  (selected/novel/mode/pipeline/protected_terms) via an optional
+  `ReplacementLog.metadata` field — a run header, per the plan, NOT a
+  per-event field; entry schema and `len()` unchanged, header omitted when
+  metadata is unset (backward-compatible, TDD RED→GREEN). **Committed proof**
+  (new `scripts/tests/test_dual_mode_provenance.py`, 11 tests): Noble Queen +
+  Supreme Magus resolve to the universal fallback (empty floor, own index);
+  registration — not index contents — is the deciding factor (a no-index name
+  still falls back; monkeypatch-registering "Re Monster" flips it to profile
+  with no index change); bait strings (`Almanach`/`carcassess`) changed in SS
+  mode and untouched in a "The Noble Queen" run through the FULL `run_batch`
+  seam on a synthesized PDF with JSONL provenance asserted both ways;
+  spy-level proof `shadow_slave._apply_special_fixes` is never *called* in a
+  universal-only run (and fires exactly once in SS mode); no `__WE_` leak in
+  output/logs/JSONL in either mode. **Corpus proof** (real `run_batch` runs,
+  deterministic Phase-1 §8 sample): NQ 35 as "The Noble Queen" and SM 33
+  (incl. the 3 recorded error pages) as "Supreme Magus" → universal-only
+  headers, 0 special_fixes entries, 0 protected terms, `strip_junk` over
+  every output a byte no-op (residual-junk proof), 3/3 error pages
+  integrity-flagged not stripped; SS 8 as "Shadow Slave" → novel-profile
+  header, protected probe terms never reduced. ALL CHECKS PASSED. One
+  existing test updated for the deliberate summary-contract change
+  (`test_robustness` empty-run exact-dict pin gains the 2 new keys). Flagged,
+  not acted on: Phase-1/4 notes say 4 SM error pages, the committed
+  `SM_ERROR_PAGES` sample list records 3 (all 3 flagged correctly) —
+  bookkeeping only, reconcile in Phase 10 if desired. Suite 311→322 passed +
+  1 known bash skip; `verify.py` PASS. Docs (CHANGELOG/BRIEFING) untouched —
+  Phase 10 per plan. Details: files/qa-tools/scratch/phase5-findings.md
+  (+ phase5_dual_mode_proof.py, phase5-proof-report.txt, phase5-out/,
+  gitignored). — Claude Code
 
 - 2026-07-11 — **Phase 4 complete: TTS-readiness sweep (target: Microsoft Edge
   Neural); criteria re-verified at 100% corpus coverage and held, except one
@@ -205,6 +244,28 @@ single launcher per OS from them, then deletes them.
 ---
 
 ## Session Sync Log (newest first)
+
+### 2026-07-11 — HOME-PC — not pushed (Phase 5)
+- Branch:  feature/junk-strip-hardening (Phase 5, 1 commit on top of 960792a)
+- Changed: scripts/core/replacement_log.py (optional run-level `metadata`
+           field; write_jsonl emits a run_metadata header line when set),
+           scripts/core/batch_runner.py (builds the run_metadata provenance
+           dict, stamps it onto each per-file ReplacementLog, summary gains
+           `novel` + `profile_applied`, docstring return contract updated),
+           scripts/tests/test_robustness.py (empty-run exact-summary pin
+           gains the 2 new provenance keys),
+           md-instructions/HANDOFF.md (this entry)
+- Added:   scripts/tests/test_dual_mode_provenance.py (11 Phase-5 tests:
+           NQ/SM universal fallback, registry-is-the-decider, run_batch-seam
+           bait-string provenance both modes, SS special-fix spy proof,
+           __WE_ leak guards, summary + JSONL run-metadata header,
+           header-optional backward compatibility)
+- Local-only (untracked/gitignored by design): files/qa-tools/scratch/
+           phase5_dual_mode_proof.py + phase5-findings.md +
+           phase5-proof-report.txt + phase5-out/, plus the pre-existing
+           working-tree state untouched by Phase 5 (AI-WORKSPACE.md
+           modification, kickoff-prompt deletion, Setup_and_Run-template.*,
+           decisions-template.md, plan-1-gui-batch-overhaul.md)
 
 ### 2026-07-11 — HOME-PC — not pushed (Phase 4)
 - Branch:  feature/junk-strip-hardening (Phase 4, 1 commit on top of d43ca76)

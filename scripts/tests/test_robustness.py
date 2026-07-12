@@ -165,4 +165,6 @@ def test_empty_file_list_returns_clean_summary(tmp_path):
     assert summary == {
         "total": 0, "succeeded": 0, "failed": 0, "skipped": 0,
         "output_dir": str(tmp_path / "out"), "outputs": [],
+        # Phase-5 dispatch provenance: no novel_name -> universal-only by design (#3).
+        "novel": "Universal", "profile_applied": False,
     }
