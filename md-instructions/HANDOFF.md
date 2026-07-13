@@ -39,8 +39,17 @@ paths all updated. **Runtime-data conflict RESOLVED (user chose Option B):**
 dev-only with no exceptions and a clean release ships only `scripts/` + launchers. Verify
 green (369); the release-ZIP proof was re-run with `files/` **entirely absent** and the app
 is fully functional. Ledger #023 supersedes #022. This relocation is the build-spec change
-the Phase-10 `DECISIONS.md` entry will formalize. Next is Phase 9 (single launcher per OS
-from templates) — no longer blocked.
+the Phase-10 `DECISIONS.md` entry will formalize.
+Phase 9 (single hardened launcher per OS) is now DONE: one `Setup_and_Run.bat` and one
+`Setup_and_Run.command` rebuilt from the study templates, targeting
+`scripts/Universal/main.py` — 4 numbered steps, self-healing venv, health-GATED idempotent
+install (lock + `pip check` + import smoke; venv interpreter preferred on repeat launch),
+consent-gated base-runtime install, Windows `pythonw` windowless launch with a `--check`
+console preflight. Editor behavioral choices deliberately KEPT over the template's:
+Python-version gate **blocks** (does not warn) below 3.10; floor stays 3.10 (from-scratch
+winget install still pulls 3.11). The untracked `Setup_and_Run-template.*` study copies were
+deleted (root now has exactly one launcher per OS). Verify green (381). **Next is Phase 10
+(docs & changelog).**
 Standing instruction (from 2026-07-12 through Phase 10): a running decisions ledger in
 gitignored scratch (files/qa-tools/scratch/decisions-ledger.md, ADR format) is appended
 at the end of every phase — Phases 0–5 are backfilled — and Phase 10's DECISIONS.md is a
@@ -62,6 +71,56 @@ reconcile in the Phase-10 doc pass (bookkeeping only; all sampled pages flag cor
 ---
 
 ## Work Log (newest first)
+
+- 2026-07-13 — **Phase 9 complete: one hardened `Setup_and_Run.bat` + one
+  `Setup_and_Run.command` rebuilt from the study templates, targeting the post-Phase-8
+  entry point `scripts/Universal/main.py`; the untracked `-template` study copies deleted.
+  Verify green (369→381).** No local `web-novel-scraper` clone exists on HOME-PC, so the
+  root `Setup_and_Run-template.*` (priority-1 reference, the AI-WORKSPACE scaffolder
+  sources) + the live launchers (priority-2) were the sources; the scraper was already
+  studied at commit `5127b384…` in Phases 6/7. **Built (both launchers):** 4 numbered
+  `[Step N of 4]` banners (Python/env check → venv → dependencies → preflight+launch; no
+  ffmpeg step — text/PDF tool); **self-healing venv** (detect missing `activate`, rebuild;
+  Windows ".venv still open → close windows / check Task Manager" guidance);
+  **health-GATED idempotent install** — skip only when ALL of {complete venv,
+  `.venv/requirements.lock` == `requirements.txt`, venv Python ≥3.10, `pip check` clean,
+  `import pdfplumber, reportlab` OK}; the lock is written ONLY after a successful install
+  AND validation; **venv interpreter preferred** on a healthy repeat launch (system Python
+  — `py -3`→`python` — searched only when the venv must be (re)built); consent-gated
+  winget (`Python.Python.3.11 --scope user`) / Homebrew base-runtime install; Windows
+  **`pythonw` windowless launch** with a `python`-fallback and a `--check` console
+  preflight (see below). **Deliberate NON-alignments with the template, noted so they're
+  not mistaken for oversights:** (a) the Python-version gate **BLOCKS** (does not
+  warn-and-continue like the template/scraper) below 3.10 — per CHANGELOG v0.6.1 M3 the app
+  uses 3.10 syntax; (b) the floor stays **3.10** even though a from-scratch install pulls
+  3.11; (c) the macOS `.command` has no `pythonw`, so it launches with `python` (console
+  visible) — windowless launch is Windows-only. **App-code touch (justified):** added a
+  `--check` flag to `scripts/Universal/main.py` that runs the real startup import chain
+  (tkinter → `gui.app`) and exits 0 without opening a window — the windowless-launch
+  startup-error mechanism Phase 9 §8 calls for, reusing `main.py`'s existing friendly
+  tkinter-missing message (ledger #025). **Verified:** (1) clean-room bootstrap in a temp
+  dir — fresh `venv` → `pip install` the pinned `requirements.txt` → `pip check` clean →
+  `import pdfplumber, reportlab` → `main.py --check` "Startup check passed" (exit 0); (2) a
+  **real `cmd.exe` run of the actual `.bat`** — first run reused the healthy venv, installed
+  + validated + wrote `.venv/requirements.lock`, preflight passed, launched the GUI
+  windowless via `pythonw`; a **repeat run** printed all 4 step banners in order and took
+  the idempotent **"Dependencies are already installed and healthy - skipping install"**
+  path, then launched windowless (detached `pythonw` killed after each run; `.venv` is
+  gitignored so the lock file is not tracked). **NOT executed end-to-end:** the macOS
+  `.command` — no macOS on HOME-PC — verified only by `bash -n` (passes), static structure,
+  and logic-parity with the proven `.bat`; **the user should double-click it on a Mac to
+  confirm.** **Tests (committed):** `files/tests/test_launchers.py` +12 (ordered numbered
+  steps; self-healing venv; block-not-warn on old Python; consent gate before base-runtime
+  install; health-checked idempotent install; preflight-before-windowless-launch;
+  subroutine-resolution parse check) — all static inspection, never touching the real
+  env; new `files/tests/test_main_check_flag.py` (2) pins the `--check` contract. The
+  Phase-6 M4 pip-fail guard, the 3.10-block strings, and the `bash -n` check are all still
+  asserted. `.gitattributes` (Phase 8) already enforces `*.bat eol=crlf` / `*.command
+  eol=lf`; the `.command` keeps mode `100755`; working-copy line endings confirmed (bat
+  CRLF, command LF). `python scripts/verify.py` → PASS (381 passed; was 369 — +14 launcher/
+  preflight tests). Decisions ledger appended #024 (launcher build + non-alignments) + #025
+  (`--check` preflight). Docs (BRIEFING/CHANGELOG/README/build-spec/EDITING-RULES) +
+  `DECISIONS.md` creation intentionally untouched — Phase 10 per plan. — Claude Code
 
 - 2026-07-13 — **Phase 8 follow-up: runtime-data conflict resolved by the user as Option B
   — `files/novel-index/` + `files/Novel-Edits-Details/` relocated to
@@ -469,6 +528,31 @@ reconcile in the Phase-10 doc pass (bookkeeping only; all sampled pages flag cor
 ---
 
 ## Session Sync Log (newest first)
+
+### 2026-07-13 — HOME-PC — not pushed (Phase 9: single hardened launcher per OS)
+- Branch:  feature/junk-strip-hardening (Phase 9, 1 commit on top of d0554ca)
+- Changed: Setup_and_Run.bat (rebuilt: 4 numbered steps, self-healing venv, health-gated
+           idempotent install, venv-first interpreter order, pythonw windowless launch +
+           --check preflight; blocking 3.10 gate kept), Setup_and_Run.command (same
+           structure in bash; python launch — no pythonw on macOS),
+           scripts/Universal/main.py (added `--check` startup preflight flag),
+           files/tests/test_launchers.py (+12 Phase-9 assertions; Phase-6 M4 + 3.10-block
+           + bash -n kept), md-instructions/HANDOFF.md (this entry + Work Log + Current
+           Focus)
+- Added:   files/tests/test_main_check_flag.py (2 tests pinning the --check contract)
+- Deleted: Setup_and_Run-template.bat, Setup_and_Run-template.command (untracked study
+           copies — removed with rm, never tracked; root now has one launcher per OS)
+- Result:  verify green (381, was 369). Line endings: bat CRLF / command LF (.gitattributes
+           enforces); .command mode 100755 preserved.
+- Verified directly: clean-room venv bootstrap + real cmd.exe .bat run (fresh-lock build
+           then idempotent skip, windowless pythonw launch). NOT run end-to-end: the macOS
+           .command (no macOS here) — bash -n + static + logic-parity only; user to confirm
+           on a Mac.
+- Local-only (untracked/gitignored by design): files/qa-tools/scratch/decisions-ledger.md
+           (appended #024 + #025), .venv/requirements.lock (created by the .bat run; inside
+           gitignored .venv), plus the pre-existing working-tree state untouched by Phase 9
+           (AI-WORKSPACE.md modification, kickoff-prompt deletion, decisions-template.md,
+           plan-1-gui-batch-overhaul.md, plan-2-ai-editor-integration.md)
 
 ### 2026-07-13 — HOME-PC — not pushed (Phase 8 follow-up: Option B relocation)
 - Branch:  feature/junk-strip-hardening (Phase 8 follow-up, 1 commit on top of a3fd87c)
