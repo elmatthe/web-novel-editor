@@ -25,9 +25,9 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Optional
 
-# files/Novel-Edits-Details/ lives two levels up from scripts/core/.
+# files/Novel-Edits-Details/ lives three levels up from scripts/Universal/core/.
 EDIT_DETAILS_DIR = (
-    Path(__file__).resolve().parents[2] / "files" / "Novel-Edits-Details"
+    Path(__file__).resolve().parents[3] / "files" / "Novel-Edits-Details"
 )
 UNIVERSAL_FILENAME = "UNIVERSAL.md"
 

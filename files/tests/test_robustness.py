@@ -26,7 +26,7 @@ import core.batch_runner as batch_runner
 from core.batch_runner import run_batch
 
 _REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-_FIXTURES = os.path.join(_REPO_ROOT, "test-files", "shadow_slave")
+_FIXTURES = os.path.join(_REPO_ROOT, "files", "test-files", "shadow_slave")
 
 
 # --- helpers: synthesize hostile inputs in tmp_path -------------------------
@@ -114,7 +114,7 @@ def test_bad_file_between_good_files_does_not_abort_batch(tmp_path):
     pytest.importorskip("pdfplumber")
     reals = _real_fixtures(2)
     if len(reals) < 2:
-        pytest.skip("need two real fixtures (test-files/shadow_slave)")
+        pytest.skip("need two real fixtures (files/test-files/shadow_slave)")
 
     sequence = [reals[0], _corrupt_pdf(tmp_path), reals[1]]
     out_dir = str(tmp_path / "out")
@@ -140,7 +140,7 @@ def test_output_write_failure_is_caught_per_file(tmp_path, monkeypatch):
     pytest.importorskip("pdfplumber")
     reals = _real_fixtures(2)
     if len(reals) < 2:
-        pytest.skip("need two real fixtures (test-files/shadow_slave)")
+        pytest.skip("need two real fixtures (files/test-files/shadow_slave)")
 
     def _deny(_text, _path):
         raise PermissionError("output folder is read-only")

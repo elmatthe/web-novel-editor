@@ -20,7 +20,7 @@ from pipelines import lord_of_mysteries
 from profiles.lord_of_mysteries.canonical_names import LOTM_CANONICAL_NAMES
 
 _REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-_FIXTURES = os.path.join(_REPO_ROOT, "test-files", "shadow_slave")
+_FIXTURES = os.path.join(_REPO_ROOT, "files", "test-files", "shadow_slave")
 _LOTM_INDEX = os.path.join(
     _REPO_ROOT, "files", "novel-index", "lord-of-the-mysteries.txt"
 )

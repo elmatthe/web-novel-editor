@@ -28,7 +28,7 @@ echo
 # ========================================
 PYTHON_VERSION="3.11"
 REQUIREMENTS="scripts/requirements.txt"
-MAIN_SCRIPT="scripts/main.py"
+MAIN_SCRIPT="scripts/Universal/main.py"
 
 # Install scope for the rare case Python must be installed from scratch.
 # Only asked if Python is genuinely missing - see below.
@@ -189,7 +189,7 @@ if [ -f "$MAIN_SCRIPT" ]; then
     python "$MAIN_SCRIPT"
 else
     echo "ERROR: Main script not found: $MAIN_SCRIPT"
-    echo "Please create scripts/main.py or update this file."
+    echo "Please create scripts/Universal/main.py or update this file."
     echo
 fi
 

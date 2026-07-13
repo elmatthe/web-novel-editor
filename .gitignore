@@ -27,11 +27,12 @@ files/qa-tools/scratch/
 # --- Local test fixtures (not part of the shipped product) ---
 # The 10 pinned Shadow Slave fixture PDFs ARE committed (Phase 2, user-approved
 # exception to "no corpus PDFs in git") so fixture-backed tests run in every
-# clone instead of silently skipping. Everything else under test-files/ stays
-# local-only.
-test-files/*
-!test-files/shadow_slave/
-!test-files/shadow_slave/**
+# clone instead of silently skipping. Everything else under files/test-files/
+# stays local-only. (Moved from repo-root test-files/ to files/test-files/ in
+# Phase 8.)
+files/test-files/*
+!files/test-files/shadow_slave/
+!files/test-files/shadow_slave/**
 
 # --- Reference-only prior work (not part of the shipped tool) ---
 files/study-examples/
@@ -42,5 +43,5 @@ Thumbs.db
 
 # --- Large test corpus (kept out of the repo to stay lean) ---
 # The full webscraped corpus (~3,000 PDFs, ~29 MB) is excluded. The pinned fixtures
-# the tests actually need live in test-files/shadow_slave/ and ARE committed.
+# the tests actually need live in files/test-files/shadow_slave/ and ARE committed.
 files/pdf-example-chapters/

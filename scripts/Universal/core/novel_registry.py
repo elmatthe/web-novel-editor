@@ -47,8 +47,8 @@ from profiles.shadow_slave.canonical_names import SS_CANONICAL_NAMES
 from profiles.supreme_magus.canonical_names import SM_CANONICAL_NAMES
 from profiles.the_noble_queen.canonical_names import NQ_CANONICAL_NAMES
 
-# files/novel-index/ lives two levels up from scripts/core/.
-NOVEL_INDEX_DIR = Path(__file__).resolve().parents[2] / "files" / "novel-index"
+# files/novel-index/ lives three levels up from scripts/Universal/core/.
+NOVEL_INDEX_DIR = Path(__file__).resolve().parents[3] / "files" / "novel-index"
 
 # The novel selected by default in the GUI dropdown.
 DEFAULT_NOVEL = "Shadow Slave"

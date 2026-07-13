@@ -17,7 +17,7 @@ import pytest
 from core.batch_runner import run_batch
 
 _REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-_FIXTURES = os.path.join(_REPO_ROOT, "test-files", "shadow_slave")
+_FIXTURES = os.path.join(_REPO_ROOT, "files", "test-files", "shadow_slave")
 
 
 def _fixture_pdfs(limit=3):
@@ -38,7 +38,7 @@ def _sha(path):
 def test_batch_round_trip(tmp_path):
     pdfs = _fixture_pdfs(3)
     if not pdfs:
-        pytest.skip("fixtures not present (test-files/shadow_slave)")
+        pytest.skip("fixtures not present (files/test-files/shadow_slave)")
 
     before = {p: (_sha(p), os.path.getmtime(p)) for p in pdfs}
     out_dir = str(tmp_path / "out")

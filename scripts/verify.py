@@ -20,7 +20,7 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 REQUIREMENTS = REPO_ROOT / "scripts" / "requirements.txt"
 CHANGELOG = REPO_ROOT / "md-instructions" / "CHANGELOG.md"
 BRIEFING = REPO_ROOT / "md-instructions" / "BRIEFING.md"
-TESTS_DIR = REPO_ROOT / "scripts" / "tests"
+TESTS_DIR = REPO_ROOT / "files" / "tests"
 
 _VERSION_RE = re.compile(r"v?(\d+\.\d+(?:\.\d+)?)")
 

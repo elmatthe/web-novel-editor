@@ -24,7 +24,7 @@ echo.
 :: ========================================
 set "PYTHON_VERSION=3.11"
 set "REQUIREMENTS=scripts\requirements.txt"
-set "MAIN_SCRIPT=scripts\main.py"
+set "MAIN_SCRIPT=scripts\Universal\main.py"
 
 :: Install scope for the rare case Python must be installed from scratch.
 :: This is ONLY asked if Python is genuinely missing - see below.
@@ -144,7 +144,7 @@ if exist "%MAIN_SCRIPT%" (
     python "%MAIN_SCRIPT%"
 ) else (
     echo   ERROR: Main script not found: %MAIN_SCRIPT%
-    echo   Please create scripts\main.py or update this setup file.
+    echo   Please create scripts\Universal\main.py or update this setup file.
     echo.
     pause
     exit /b 1

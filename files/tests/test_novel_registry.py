@@ -33,7 +33,7 @@ from pipelines import lord_of_mysteries, shadow_slave
 from profiles.shadow_slave.canonical_names import SS_CANONICAL_NAMES
 
 _REPO_ROOT = Path(__file__).resolve().parents[2]
-_FIXTURES = _REPO_ROOT / "test-files" / "shadow_slave"
+_FIXTURES = _REPO_ROOT / "files" / "test-files" / "shadow_slave"
 
 
 def _first_fixture() -> str | None:

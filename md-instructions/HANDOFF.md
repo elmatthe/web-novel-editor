@@ -27,8 +27,18 @@ Phase 7 (GUI consistency with web-novel-scraper) is now DONE: terminology/layout
 alignment ONLY (paired "Web Novel Editor" naming, log moved to the bottom, "Advanced
 Options" grouping) with the editor's ttk design system fully preserved; NO Stop
 button / no cancellation (no safe seam — deferred), editor's daemon-thread lifecycle
-kept (scraper threading NOT ported). Next is Phase 8 (repo/scripts-folder cross-platform
-reorganization) — NOT started this session.
+kept (scraper threading NOT ported).
+Phase 8 (repo/scripts-folder cross-platform reorganization) is now DONE **except one
+deferred item awaiting the user's decision**: all program code moved under
+`scripts/Universal/` (git mv, history preserved), `scripts/tests/` → `files/tests/`,
+repo-root `test-files/` → `files/test-files/`, `scripts/Windows|MacOS/` added as `.gitkeep`
+placeholders, resolver depth + conftest + verify + launcher + `.gitattributes`/`.gitignore`
+paths all updated, verify green post-move (369). **Blocked/deferred (do NOT resolve
+unilaterally):** the two runtime-required data folders `files/novel-index/` +
+`files/Novel-Edits-Details/` were NOT relocated — `build-spec.md` (~L87–89) deliberately
+places them under `files/` while `AI-WORKSPACE.md` says `files/` is dev-only; this genuine
+spec conflict is escalated to the user with options (see the Phase-8 summary + ledger #022).
+Next is Phase 9 (single launcher per OS from templates), pending the user's novel-index call.
 Standing instruction (from 2026-07-12 through Phase 10): a running decisions ledger in
 gitignored scratch (files/qa-tools/scratch/decisions-ledger.md, ADR format) is appended
 at the end of every phase — Phases 0–5 are backfilled — and Phase 10's DECISIONS.md is a
@@ -50,6 +60,46 @@ reconcile in the Phase-10 doc pass (bookkeeping only; all sampled pages flag cor
 ---
 
 ## Work Log (newest first)
+
+- 2026-07-13 — **Phase 8 complete (except one escalated decision): repo reorganized to
+  `AI-WORKSPACE.md`'s cross-platform layout — a mechanical structural pass, all via
+  `git mv` so history follows; verify green post-move (369, unchanged from the
+  pre-move baseline).** Audit-first (findings in
+  `files/qa-tools/scratch/phase8-audit-findings.md`): grep confirmed only *runtime*
+  OS-branching (`utils/file_utils.open_in_file_manager`), no OS-exclusive modules, so
+  everything moves under `scripts/Universal/`. **Moves:** every package (`core gui pdf
+  pipelines profiles rules utils`) + `main.py` → `scripts/Universal/`; `verify.py` +
+  `requirements.txt` stay at `scripts/` root; `scripts/Windows/` + `scripts/MacOS/` added
+  as `.gitkeep` placeholders (*structurally prepared only — NOT macOS-supported*);
+  `scripts/tests/` → `files/tests/`; repo-root `test-files/` → `files/test-files/` (10
+  pinned fixtures kept tracked, `.gitignore` negation rules repointed). **Path fixes the
+  move touched:** runtime resolvers `novel_registry.py`/`edit_details.py`
+  `parents[2]`→`parents[3]` (still reach repo-root `files/…` from the deeper
+  `scripts/Universal/core/`); `verify.py` `TESTS_DIR` `scripts/tests`→`files/tests`; the
+  moved `conftest.py` now bootstraps `scripts/Universal/` onto `sys.path` (mirrors the
+  scraper's `files/tests/conftest.py`) **while preserving** the editor's `local_corpus`
+  marker + `--require-local-corpora` flag; test fixture-path literals
+  `test-files`→`files/test-files` (the `_REPO_ROOT` 3×dirname/`parents[2]` computations
+  stay valid — both `scripts/tests/` and `files/tests/` are 2 dirs below root); launchers'
+  `MAIN_SCRIPT` → `scripts/Universal/main.py`; `.gitattributes` gains the scraper's
+  launcher line-ending rules (`*.bat`/`*.cmd`→CRLF, `*.command`→LF), preserving `*.pdf
+  binary`. Import mechanism unchanged (top-level package imports; `main.py` needed no edit).
+  **Verified from multiple angles (Phase 8 §9):** verify/pytest from the repo root (369),
+  from an arbitrary different cwd, and from a spaced-path cwd (369 each); runtime-resolver
+  smoke (novel-index + edit-details resolve and exist); **release-ZIP simulation** — with
+  the entire *dev-only* `files/` tree absent (tests/test-files/test-logs/pdf-example-chapters/
+  study-examples/qa-tools) the app still loads novel selection (roster 8, SS first),
+  protected-term index (352 SS terms), and edit-details, **provided** `files/novel-index` +
+  `files/Novel-Edits-Details` ship; launchers point at the new entry point + `bash -n` OK;
+  no shipped-tree (`scripts/Universal/`) import of anything under `files/tests`/`files/test-files`.
+  **DEFERRED — escalated to the user (do NOT resolve unilaterally):** `files/novel-index/`
+  + `files/Novel-Edits-Details/` are runtime-required but `build-spec.md` (~L87–89)
+  deliberately places them under `files/` while `AI-WORKSPACE.md` says `files/` is dev-only.
+  Left where they are this phase; options presented in the Phase-8 summary. `.claude/` left
+  as-is; `.codex/` absent, not created (per-machine gitignored agent config, out of a
+  mechanical-move scope). Docs (BRIEFING/CHANGELOG/README/build-spec) + `DECISIONS.md`
+  creation are Phase 10 per plan — intentionally untouched. Decisions ledger appended #021
+  (reorg approach) + #022 (runtime-data escalation). — Claude Code
 
 - 2026-07-13 — **Phase 7 complete: GUI visual/structural consistency with
   `web-novel-scraper` — terminology/layout/workflow alignment ONLY, the editor's
@@ -399,6 +449,32 @@ reconcile in the Phase-10 doc pass (bookkeeping only; all sampled pages flag cor
 ---
 
 ## Session Sync Log (newest first)
+
+### 2026-07-13 — HOME-PC — not pushed (Phase 8)
+- Branch:  feature/junk-strip-hardening (Phase 8, 1 commit on top of 2d2affd)
+- Moved (git mv — history preserved):
+           scripts/{core,gui,pdf,pipelines,profiles,rules,utils}/ + scripts/main.py
+           -> scripts/Universal/... ; scripts/tests/ -> files/tests/ ;
+           scripts/conftest.py -> files/tests/conftest.py (rewritten) ;
+           test-files/ -> files/test-files/ (10 pinned SS fixtures, kept tracked)
+- Added:   scripts/Windows/.gitkeep, scripts/MacOS/.gitkeep (structural placeholders)
+- Changed: scripts/Universal/core/novel_registry.py + edit_details.py (parents[2]->[3]);
+           scripts/Universal/main.py (docstring path); scripts/verify.py (TESTS_DIR);
+           files/tests/conftest.py (sys.path -> scripts/Universal + preserved
+           local_corpus marker/flag); files/tests/{test_batch,test_multi_novel,
+           test_pipeline,test_protection,test_robustness,test_novel_registry}.py
+           (fixture path -> files/test-files); Setup_and_Run.bat + .command
+           (MAIN_SCRIPT -> scripts/Universal/main.py + error text); .gitattributes
+           (launcher eol rules); .gitignore (test-files -> files/test-files rules);
+           md-instructions/HANDOFF.md (this entry + Work Log + Current Focus)
+- Local-only (untracked/gitignored by design): files/qa-tools/scratch/
+           decisions-ledger.md (appended #021 + #022) + phase8-audit-findings.md,
+           plus the pre-existing working-tree state untouched by Phase 8
+           (AI-WORKSPACE.md modification, kickoff-prompt deletion,
+           Setup_and_Run-template.*, decisions-template.md, plan-1-gui-batch-overhaul.md,
+           plan-2-ai-editor-integration.md)
+- DEFERRED (user decision): files/novel-index/ + files/Novel-Edits-Details/ NOT relocated
+           (build-spec vs AI-WORKSPACE conflict) — see Work Log + ledger #022
 
 ### 2026-07-13 — HOME-PC — not pushed (Phase 7)
 - Branch:  feature/junk-strip-hardening (Phase 7, 1 commit on top of ecef31d)

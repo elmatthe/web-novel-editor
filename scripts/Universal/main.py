@@ -1,7 +1,7 @@
 """Webnovel Editor — application entry point.
 
 Launched by the startup scripts (`Setup_and_Run.bat` / `Setup_and_Run.command`)
-via `python scripts/main.py`. Opens the Tkinter GUI (Phase 2).
+via `python scripts/Universal/main.py`. Opens the Tkinter GUI (Phase 2).
 """
 
 from __future__ import annotations
