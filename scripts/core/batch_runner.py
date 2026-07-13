@@ -21,7 +21,7 @@ from core.edit_details import load_edit_details
 from core.novel_registry import NOVEL_INDEX_DIR, resolve_dispatch
 from core.protected_lexicon import load_protected_lexicon
 from core.replacement_log import ReplacementLog
-from pdf.builder import build_pdf
+from pdf.builder import build_pdf, detect_heading_only_pages
 from pdf.extractor import extract_text_from_pdf, is_low_confidence
 from utils.file_utils import debug_text_path, unique_output_path
 
@@ -145,6 +145,26 @@ def run_batch(
             build_pdf(text, out_path)
             outputs.append(out_path)
             log(f"  [{i}/{total}] Wrote: {os.path.basename(out_path)}", "success")
+
+            # Phase 6 (detection-only, never deletes): a heading-only page can
+            # only arise from multi-chapter input (the pipeline puts \f before
+            # each later heading), so single-chapter builds — today's normal
+            # case — skip the post-build scan entirely.
+            if len([p for p in text.split("\f") if p.strip()]) >= 2:
+                flagged_pages = detect_heading_only_pages(out_path)
+                if flagged_pages:
+                    pages_str = ", ".join(str(p) for p in flagged_pages)
+                    log(f"        ⚠ heading-only page(s) {pages_str} in "
+                        f"{os.path.basename(out_path)} — preserved (review: "
+                        f"title-only chapter or upstream data loss)", "warn")
+                    if repl_log is not None:
+                        repl_log.record(
+                            f"heading-only page(s): {pages_str}",
+                            "[FLAGGED: heading-only page(s) preserved - review]",
+                            "pdf.heading_only_page_flag",
+                            "integrity_flag",
+                            os.path.basename(out_path),
+                        )
 
             if repl_log is not None:
                 jsonl = os.path.splitext(out_path)[0] + "_replacements.jsonl"

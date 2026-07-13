@@ -14,12 +14,20 @@ Formatting:
 The builder is structural only: deciding what is a heading is layout formatting, not an
 editorial rule, so it lives here and runs even in Phase 3 where the rule pipeline is a
 no-op pass-through.
+
+Phase 6 (scraper alignment, safety-first): headings carry `keepWithNext` so a chapter
+heading can never be stranded alone at the bottom of a page (orphan prevention at
+layout time), and `detect_heading_only_pages()` reports heading-only pages for review.
+Detection is LOG-ONLY — unlike the scraper's `remove_single_heading_pages()`, nothing
+here ever deletes a page: "this page contains only a heading" is not positive proof
+the page is an erroneous orphan (a legitimate title-only chapter looks identical).
 """
 
 from __future__ import annotations
 
 import re
 
+import pdfplumber
 from reportlab.lib.enums import TA_JUSTIFY, TA_LEFT
 from reportlab.lib.pagesizes import letter
 from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
@@ -39,6 +47,11 @@ CHAPTER_MERGED_QUOTE_RE = re.compile(
 CHAPTER_MERGED_CAPITAL_RE = re.compile(
     r"^(Chapter\s+\d+:\s*.+?)\s+([A-Z][^.]+\.\s+.*)", re.IGNORECASE
 )
+# Heading-only page detection (Phase 6, log-only). Looser than the exact heading
+# match on purpose: terminal punctuation optional, so a flag is never missed on a
+# heading a rendering quirk left unterminated. Over-flagging costs a log line;
+# nothing is ever deleted based on this.
+HEADING_ONLY_PAGE_RE = re.compile(r"^Chapter\s+\d[\d,]*:\s*.*?[.?!]?\s*$", re.IGNORECASE)
 
 
 def _escape_html(text: str) -> str:
@@ -70,6 +83,9 @@ def build_pdf(text: str, output_path: str) -> None:
         "ChapterHeading", parent=styles["Heading2"], fontName="Helvetica-Bold",
         fontSize=14, leading=18, spaceBefore=18, spaceAfter=12,
         textColor=HEADING_COLOR, alignment=TA_LEFT,
+        # Phase 6 orphan prevention: keep the heading on the same page as the
+        # start of whatever follows it, so it can't be stranded at a page bottom.
+        keepWithNext=1,
     )
 
     doc = SimpleDocTemplate(
@@ -116,3 +132,23 @@ def build_pdf(text: str, output_path: str) -> None:
         story.append(Paragraph("(no extractable text)", body_style))
 
     doc.build(story)
+
+
+def detect_heading_only_pages(pdf_path: str) -> list[int]:
+    """Return the 1-based page numbers whose only content is one heading line.
+
+    Detection-only (Phase 6): the caller may warn/log, but the page is NEVER
+    removed — a heading-only page is either a legitimate title-only chapter or
+    upstream data loss, and neither may be silently deleted. Mirrors the page
+    scan of the scraper's `remove_single_heading_pages()` without its rewrite.
+    """
+    flagged: list[int] = []
+    with pdfplumber.open(str(pdf_path)) as pdf:
+        for page_no, page in enumerate(pdf.pages, start=1):
+            text = (page.extract_text() or "").strip()
+            if not text:
+                continue
+            lines = [ln.strip() for ln in text.splitlines() if ln.strip()]
+            if len(lines) == 1 and HEADING_ONLY_PAGE_RE.match(lines[0]):
+                flagged.append(page_no)
+    return flagged

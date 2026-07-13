@@ -121,3 +121,75 @@ def test_batch_missing_file_is_skipped(tmp_path):
     assert summary["skipped"] == 1
     assert summary["failed"] == 0
     assert summary["succeeded"] == 0
+
+
+# --- Phase 6: heading-only page detection wiring (log-only, never deletes) ---
+_P6_BODY = ("The traveller walked the ashen road as the gate dimmed behind him, "
+            "and the cold wind carried the scent of old rain across the broken "
+            "hills while the caravan waited for the light to fade over the pass.")
+
+
+def _make_source_pdf(path, text):
+    from pdf.builder import build_pdf
+    build_pdf(text, str(path))
+    return str(path)
+
+
+def test_batch_flags_heading_only_page_without_deleting_it(tmp_path):
+    # A multi-chapter source whose chapter 2 has no body: the pipeline re-inserts
+    # \f before each later heading, so the output legitimately contains a
+    # heading-only page. Phase 6 behavior: detect + warn + JSONL integrity_flag,
+    # and NEVER delete the page (no positive proof it is an erroneous orphan).
+    src = _make_source_pdf(
+        tmp_path / "multi.pdf",
+        f"Chapter 1: The Long Walk.\n\n{_P6_BODY}\n\f"
+        "Chapter 2: Missing.\n\f"
+        f"Chapter 3: The Return.\n\n{_P6_BODY}",
+    )
+    out_dir = str(tmp_path / "out")
+    logs = []
+    summary = run_batch(
+        [src], out_dir, write_replacement_log=True,
+        gui_log=lambda m, level="info": logs.append((level, m)),
+    )
+    assert summary["succeeded"] == 1
+
+    # The heading-only page is still in the output (detection never deletes).
+    with pdfplumber.open(summary["outputs"][0]) as pdf:
+        page_texts = [(pg.extract_text() or "").strip() for pg in pdf.pages]
+    heading_only = [t for t in page_texts if t.startswith("Chapter 2: Missing")]
+    assert heading_only, "the heading-only chapter page was removed or lost"
+
+    # GUI warning was emitted.
+    assert any("heading-only" in m.lower() for _lvl, m in logs)
+
+    # JSONL carries the integrity_flag record.
+    import json
+    jsonl = os.path.splitext(summary["outputs"][0])[0] + "_replacements.jsonl"
+    with open(jsonl, encoding="utf-8") as fh:
+        records = [json.loads(line) for line in fh]
+    flags = [r for r in records
+             if r.get("rule") == "pdf.heading_only_page_flag"
+             and r.get("category") == "integrity_flag"]
+    assert flags, "no heading-only integrity_flag record in the JSONL log"
+
+
+def test_batch_single_chapter_skips_detection(tmp_path, monkeypatch):
+    # Today's normal case (single-chapter input, no \f in the edited text) must
+    # not pay for a post-build detection pass — the detector isn't even called.
+    import core.batch_runner as batch_runner_mod
+    calls = []
+
+    def spy(path):
+        calls.append(path)
+        return []
+
+    monkeypatch.setattr(batch_runner_mod, "detect_heading_only_pages", spy)
+    src = _make_source_pdf(
+        tmp_path / "single.pdf",
+        f"Chapter 1: The Long Walk.\n\n{_P6_BODY}",
+    )
+    out_dir = str(tmp_path / "out")
+    summary = run_batch([src], out_dir, gui_log=lambda *a, **k: None)
+    assert summary["succeeded"] == 1
+    assert calls == [], "detector ran on a single-chapter build"

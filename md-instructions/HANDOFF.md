@@ -19,6 +19,11 @@ honored, not ported);
 Renegade Immortal / Reverend Insanity stay universal-fallback placeholders; re-track
 AI-WORKSPACE.md; Setup_and_Run-template.* are study copies only — Phase 9 builds the
 single launcher per OS from them, then deletes them.
+Phase 6 (PDF-build alignment, safety-first) is now DONE: orphan-page handling is
+prevention (`keepWithNext`) + detection-only logging, automatic deletion DEFERRED (the
+defect is not reproducible — all 7,979 cached extractions are single-chapter); no `pypdf`
+added; PDF typography confirmed already aligned with the scraper. Next is Phase 7 (GUI
+consistency with web-novel-scraper) — NOT started this session.
 Standing instruction (from 2026-07-12 through Phase 10): a running decisions ledger in
 gitignored scratch (files/qa-tools/scratch/decisions-ledger.md, ADR format) is appended
 at the end of every phase — Phases 0–5 are backfilled — and Phase 10's DECISIONS.md is a
@@ -40,6 +45,56 @@ reconcile in the Phase-10 doc pass (bookkeeping only; all sampled pages flag cor
 ---
 
 ## Work Log (newest first)
+
+- 2026-07-12 — **Phase 6 complete: PDF-build alignment with `web-novel-scraper`,
+  safety-first — orphan-page handling is prevention + detection-only, automatic
+  deletion DEFERRED because the defect is not reproducible from real data; no
+  `pypdf` added; typography confirmed already aligned.** Did the plan-required
+  reproducibility check BEFORE any build change: same-code double-build of the 10
+  pinned fixtures is byte-DIFFERENT (0/10 — ReportLab embeds CreationDate/ModDate)
+  but semantically IDENTICAL (10/10 text/page-count/dims), establishing semantic
+  comparison as the sound equivalence basis (Phase 6 §12). **Reproducibility of the
+  orphan defect:** a 100%-coverage scan of ALL 7,979 Phase-1 cached extractions
+  (`phase6_orphan_scan.py`) found **zero** multi-chapter/combined documents (every
+  file has exactly one chapter-heading-shaped line; the single 0-heading file, SM
+  ch. 3362, is a filename-underscore artifact and is still single-chapter) and
+  **zero** heading-only files — so the scraper's `remove_single_heading_pages()`
+  scenario cannot arise from either local corpus. Deletion is therefore correctly
+  **deferred**, not built against a hypothetical. **Typography** confirmed by reading
+  `scripts/pdf/builder.py` and the scraper's
+  `scripts/Universal/webnovel_scraper/pdf_builder.py` (@ scraper commit
+  `5127b384f48d1496bab4a34af79264ced97a98b5`) side by side: identical Times-Roman
+  11/15pt justified body, Helvetica-Bold 14/18pt #134252 headings, 0.5" margins, `\f`
+  page breaks, same heading regexes — no change made (the editor's `[.?!]` terminal
+  and lossless over-long-heading fallback are deliberate prior-phase improvements,
+  kept). **What changed (all in existing `pdf/builder.py` + `core/batch_runner.py` —
+  no new modules):** (a) `keepWithNext=1` on the chapter-heading `ParagraphStyle` so a
+  heading can never be stranded alone at a page bottom — a synthetic RED probe found
+  stranding at filler counts 18 and 37 with the old builder, both now prevented;
+  (b) new `pdf.builder.detect_heading_only_pages()` (uses the already-present
+  `pdfplumber`, returns 1-based page numbers, **never deletes**); (c) `batch_runner`
+  calls the detector **only** for multi-chapter builds (≥2 `\f` segments — today's
+  single-chapter case skips it, proven by a spy test) and on a hit emits a GUI warning
+  + a JSONL `integrity_flag` record (`rule="pdf.heading_only_page_flag"`) while keeping
+  the page. **SS/output equivalence proven:** `phase6_equivalence_proof.py` rebuilt all
+  10 fixtures with the post-change builder and semantically matched them against the
+  pre-change capture — 10/10 identical text, page count, AND dimensions (`keepWithNext`
+  is a structural no-op when the heading is already page-1 top, which every real
+  single-chapter input is). **Tests (committed):** +13 in `test_pdf.py`
+  (stranding-prevention parametrized over filler 17/18/19/36/37/38; single-heading-only
+  document preserved as 1 page = zero-page guard; multi-chapter empty-body chapter
+  builds; trailing heading-only chapter builds — `keepWithNext` on the last flowable;
+  extremely-long heading still lossless; 3 detector tests) and +2 in `test_batch.py`
+  (heading-only page flagged-not-deleted with JSONL `integrity_flag` asserted; single
+  chapter skips detection via a monkeypatch spy). Phase 6 §7–9 (metadata/atomicity/
+  file-lock tests) are **N/A** — no rewrite path implemented, so they're skipped by
+  construction. `python scripts/verify.py` → PASS; suite 350→365 passed + 1 known bash
+  skip (no new skips). Decisions ledger appended #017 (orphan handling) + #018 (no
+  `pypdf`). Docs (EDITING-RULES/BRIEFING/CHANGELOG deferred-feature note) intentionally
+  untouched — Phase 10 per plan. Scratch: `phase6-orphan-scan-report.txt`,
+  `phase6-repro-report.txt`, `phase6-equivalence-report.txt` +
+  `phase6_orphan_scan.py`/`phase6_repro_check.py`/`phase6_red_experiment.py`/
+  `phase6_equivalence_proof.py` (all gitignored). — Claude Code
 
 - 2026-07-12 — **Phase 5b complete: real per-novel profiles authored for The Noble
   Queen and Supreme Magus from files/study-examples/ — a pure data/porting exercise
@@ -298,6 +353,26 @@ reconcile in the Phase-10 doc pass (bookkeeping only; all sampled pages flag cor
 ---
 
 ## Session Sync Log (newest first)
+
+### 2026-07-12 — HOME-PC — not pushed (Phase 6)
+- Branch:  feature/junk-strip-hardening (Phase 6, 1 commit on top of fa7481d)
+- Changed: scripts/pdf/builder.py (keepWithNext=1 on chapter-heading style;
+           new detect_heading_only_pages(); pdfplumber import + module docstring
+           note; HEADING_ONLY_PAGE_RE), scripts/core/batch_runner.py (import
+           detect_heading_only_pages; multi-chapter-only post-build detection
+           pass → GUI warn + JSONL integrity_flag, never deletes),
+           scripts/tests/test_pdf.py (+13 Phase-6 tests), scripts/tests/test_batch.py
+           (+2 Phase-6 tests), md-instructions/HANDOFF.md (this entry + Work Log)
+- Added:   (none — no new modules, no new dependency; pypdf deliberately NOT added)
+- Local-only (untracked/gitignored by design): files/qa-tools/scratch/
+           decisions-ledger.md (appended #017 + #018) + phase6_orphan_scan.py +
+           phase6-orphan-scan-report.txt + phase6_repro_check.py +
+           phase6-repro-report.txt + phase6_red_experiment.py +
+           phase6_equivalence_proof.py + phase6-equivalence-report.txt +
+           phase6-out/, plus the pre-existing working-tree state untouched by
+           Phase 6 (AI-WORKSPACE.md modification, kickoff-prompt deletion,
+           Setup_and_Run-template.*, decisions-template.md,
+           plan-1-gui-batch-overhaul.md, plan-2-ai-editor-integration.md)
 
 ### 2026-07-12 — HOME-PC — not pushed (Phase 5b)
 - Branch:  feature/junk-strip-hardening (Phase 5b, 1 commit on top of 548ffbc)

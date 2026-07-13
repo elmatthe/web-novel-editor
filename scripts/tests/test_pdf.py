@@ -163,3 +163,112 @@ def test_build_pdf_empty_is_safe(tmp_path):
     out = os.path.join(str(tmp_path), "empty.pdf")
     builder.build_pdf("", out)              # must not raise / must produce a file
     assert os.path.exists(out)
+
+
+# --- Phase 6: orphan-heading prevention (keepWithNext) -----------------------
+_P6_FILLER = ("The traveller walked the ashen road as the gate dimmed behind him, "
+              "and the cold wind carried the scent of old rain across the broken "
+              "hills while the caravan waited.")
+_P6_HEADING = "Chapter 2: The Hidden Door."
+_P6_BODY = ("Beyond the door the stair fell away into the dark, and she counted "
+            "the steps aloud until the number stopped meaning anything at all.")
+
+
+@pytest.mark.parametrize("n_filler", [17, 18, 19, 36, 37, 38])
+def test_heading_never_stranded_alone_at_page_bottom(tmp_path, n_filler):
+    # Phase 6 prevention: a mid-page-group heading must never be the last text
+    # on a page while its body starts the next page (keepWithNext binds the
+    # heading to its first body paragraph). Filler counts 18 and 37 reproduced
+    # the stranding with the pre-Phase-6 builder; neighbours pin stability.
+    text = "\n\n".join([_P6_FILLER] * n_filler + [_P6_HEADING, _P6_BODY])
+    out = os.path.join(str(tmp_path), f"strand{n_filler}.pdf")
+    builder.build_pdf(text, out)
+    with pdfplumber.open(out) as pdf:
+        for i, page in enumerate(pdf.pages):
+            ptxt = (page.extract_text() or "").strip()
+            if "The Hidden Door" in ptxt:
+                stranded = (ptxt.endswith(_P6_HEADING)
+                            and "counted" not in ptxt
+                            and i + 1 < len(pdf.pages))
+                assert not stranded, (
+                    f"heading stranded alone at bottom of page {i + 1} "
+                    f"with {n_filler} filler paragraphs")
+        # The document must still contain both heading and body.
+        all_text = "\n".join((p.extract_text() or "") for p in pdf.pages)
+    assert "The Hidden Door" in all_text and "counted" in all_text
+
+
+def test_single_heading_only_document_is_preserved(tmp_path):
+    # Phase 6 zero-page guard: a document whose entire content is one heading
+    # must build to exactly one page with the heading intact — never deleted,
+    # never a zero-page PDF (a legitimate title-only chapter looks like this).
+    out = os.path.join(str(tmp_path), "only.pdf")
+    builder.build_pdf("Chapter 12: Silence.", out)
+    with pdfplumber.open(out) as pdf:
+        assert len(pdf.pages) == 1
+        assert "Chapter 12: Silence" in (pdf.pages[0].extract_text() or "")
+
+
+def test_multi_chapter_with_empty_body_chapter_builds_and_keeps_page(tmp_path):
+    # A \f-separated chapter with no body (heading-only page group) must build
+    # without error and keep its heading page (keepWithNext on a heading that
+    # is followed by a PageBreak / ends the story must not break layout).
+    body = _P6_FILLER
+    text = (f"Chapter 1: The Long Walk.\n\n{body}\n\f"
+            "Chapter 2: Missing.\n\f"
+            f"Chapter 3: The Return.\n\n{body}")
+    out = os.path.join(str(tmp_path), "emptybody.pdf")
+    builder.build_pdf(text, out)
+    with pdfplumber.open(out) as pdf:
+        assert len(pdf.pages) == 3
+        assert "Missing" in (pdf.pages[1].extract_text() or "")
+
+
+def test_trailing_heading_only_chapter_builds(tmp_path):
+    # keepWithNext on the very last flowable of the story must not raise.
+    text = f"Chapter 1: The Long Walk.\n\n{_P6_FILLER}\n\fChapter 2: The End."
+    out = os.path.join(str(tmp_path), "trailing.pdf")
+    builder.build_pdf(text, out)
+    with pdfplumber.open(out) as pdf:
+        assert len(pdf.pages) == 2
+        assert "The End" in (pdf.pages[1].extract_text() or "")
+
+
+def test_extremely_long_heading_still_renders_lossless(tmp_path):
+    # >MAX_HEADING_LENGTH heading-shaped text is body-classified (existing
+    # lossless fallback) and must survive keepWithNext unchanged.
+    long_title = "Chapter 9: " + ("Endless Title " * 40).strip() + "."
+    assert len(long_title) > builder.MAX_HEADING_LENGTH
+    out = os.path.join(str(tmp_path), "long.pdf")
+    builder.build_pdf(long_title, out)
+    with pdfplumber.open(out) as pdf:
+        all_text = " ".join((p.extract_text() or "") for p in pdf.pages)
+    assert "Endless Title" in all_text
+
+
+# --- Phase 6: heading-only page detection (log-only, never deletes) ----------
+def test_detect_heading_only_pages_flags_only_heading_pages(tmp_path):
+    body = _P6_FILLER
+    text = (f"Chapter 1: The Long Walk.\n\n{body}\n\f"
+            "Chapter 2: Missing.\n\f"
+            f"Chapter 3: The Return.\n\n{body}")
+    out = os.path.join(str(tmp_path), "detect.pdf")
+    builder.build_pdf(text, out)
+    assert builder.detect_heading_only_pages(out) == [2]   # 1-based page numbers
+    with pdfplumber.open(out) as pdf:                       # detection never deletes
+        assert len(pdf.pages) == 3
+
+
+def test_detect_heading_only_pages_clean_document_is_empty(tmp_path):
+    text = f"Chapter 1: The Long Walk.\n\n{_P6_FILLER}\n\fChapter 2: Back.\n\n{_P6_BODY}"
+    out = os.path.join(str(tmp_path), "clean.pdf")
+    builder.build_pdf(text, out)
+    assert builder.detect_heading_only_pages(out) == []
+
+
+def test_detect_heading_only_pages_ignores_non_heading_single_line(tmp_path):
+    # A page whose single line is NOT heading-shaped is not flagged.
+    text = f"Chapter 1: The Long Walk.\n\n{_P6_FILLER}\n\fA lone closing sentence."
+    out = os.path.join(str(tmp_path), "nonheading.pdf")
+    builder.build_pdf(text, out)
+    assert builder.detect_heading_only_pages(out) == []
