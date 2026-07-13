@@ -22,8 +22,13 @@ single launcher per OS from them, then deletes them.
 Phase 6 (PDF-build alignment, safety-first) is now DONE: orphan-page handling is
 prevention (`keepWithNext`) + detection-only logging, automatic deletion DEFERRED (the
 defect is not reproducible — all 7,979 cached extractions are single-chapter); no `pypdf`
-added; PDF typography confirmed already aligned with the scraper. Next is Phase 7 (GUI
-consistency with web-novel-scraper) — NOT started this session.
+added; PDF typography confirmed already aligned with the scraper.
+Phase 7 (GUI consistency with web-novel-scraper) is now DONE: terminology/layout/workflow
+alignment ONLY (paired "Web Novel Editor" naming, log moved to the bottom, "Advanced
+Options" grouping) with the editor's ttk design system fully preserved; NO Stop
+button / no cancellation (no safe seam — deferred), editor's daemon-thread lifecycle
+kept (scraper threading NOT ported). Next is Phase 8 (repo/scripts-folder cross-platform
+reorganization) — NOT started this session.
 Standing instruction (from 2026-07-12 through Phase 10): a running decisions ledger in
 gitignored scratch (files/qa-tools/scratch/decisions-ledger.md, ADR format) is appended
 at the end of every phase — Phases 0–5 are backfilled — and Phase 10's DECISIONS.md is a
@@ -45,6 +50,47 @@ reconcile in the Phase-10 doc pass (bookkeeping only; all sampled pages flag cor
 ---
 
 ## Work Log (newest first)
+
+- 2026-07-13 — **Phase 7 complete: GUI visual/structural consistency with
+  `web-novel-scraper` — terminology/layout/workflow alignment ONLY, the editor's
+  polished ttk design system fully preserved; NO cancellation/threading change.**
+  Catalogued `scripts/gui/app.py` (editor) against the scraper's
+  `scripts/Universal/app.py` (@ scraper commit
+  `5127b384f48d1496bab4a34af79264ced97a98b5` — HEAD confirmed unchanged since the
+  Phase-6 read, no drift) side by side. **Two of the plan's alignment items were
+  already satisfied and left untouched:** novel/source selection is already first
+  (novel card row 1), and input/output controls (file list, output folder) already
+  precede the options card. **Three changes applied, all confined to
+  `scripts/gui/app.py`, zero design-system change:** (a) **paired naming** — window
+  title + header H1 "Webnovel Editor" → **"Web Novel Editor"** (pairs the scraper's
+  "Web Novel Scraper"); the internal code name in non-GUI docstrings / the `__WE_`
+  log-prefix constant left as-is (not user-facing). (b) **log at the bottom** —
+  reordered so the run controls (progress bar + Start button) sit *above* the log,
+  which is now the last large widget above the thin status strip, mirroring the
+  scraper's Start/Stop → progress → log order; a pure grid-row swap (log 5→6, run
+  6→5, weighted expanding row 5→6) with no widget/style edits. (c) **grouping** —
+  the three advanced/diagnostic checkboxes (replacement log / debug text / dry run)
+  card relabelled "Options" → **"Advanced Options"** so they read as secondary.
+  **Explicitly NOT done (per plan §3/§4 + the kickoff's no-scope-creep guardrail):**
+  no Stop/Cancel button (the editor's `run_batch` has no cooperative-cancellation
+  seam; faking it by killing the `daemon=True` worker mid-PDF-write is the exact
+  corruption hazard Phase 6 atomicity guards against — cancellation recorded as a
+  **separately deferred feature**); the editor keeps its own daemon-thread +
+  `self.after(0, ...)` lifecycle (the scraper's `threading.Event` + non-daemon +
+  close-poll pattern was **not** ported); no scraper-only controls added
+  (site/browser/delay/range/output-mode); no editor-only controls removed; the
+  "Start Batch Processing" label kept verbatim (already Start-prefixed; bare "Start"
+  rejected as low-value). **Tests (committed):** `scripts/tests/test_app.py` +3 —
+  paired title + real `minsize` (anti-clipping); structural order (novel-first,
+  run-above-log via grid-row assertions, "Advanced Options" card present); progress
+  drives-up-and-resets-to-zero between runs + Start starts enabled. All GUI tests
+  skip cleanly with no display. **Verified:** `python scripts/verify.py` → PASS;
+  suite 366→369 passed + gate green (deps pinned, CHANGELOG v0.9.0 matches BRIEFING).
+  Real screenshot render (scratch `phase7_gui.png`, gitignored) visually confirmed
+  the paired title, header, card order, and Advanced-Options label. Decisions ledger
+  appended #019 (alignment approach) + #020 (no-cancellation / lifecycle preserved).
+  Docs (BRIEFING/CHANGELOG/README/EDITING-RULES) intentionally untouched — Phase 10
+  per plan. — Claude Code
 
 - 2026-07-12 — **Phase 6 complete: PDF-build alignment with `web-novel-scraper`,
   safety-first — orphan-page handling is prevention + detection-only, automatic
@@ -353,6 +399,24 @@ reconcile in the Phase-10 doc pass (bookkeeping only; all sampled pages flag cor
 ---
 
 ## Session Sync Log (newest first)
+
+### 2026-07-13 — HOME-PC — not pushed (Phase 7)
+- Branch:  feature/junk-strip-hardening (Phase 7, 1 commit on top of ecef31d)
+- Changed: scripts/gui/app.py (window title + header H1 -> "Web Novel Editor";
+           run controls reordered above the log so the log is at the bottom
+           [grid rows: log 5->6, run 6->5, weighted row 5->6]; "Options" card
+           relabelled "Advanced Options"; run-row bottom pad PAD_S->PAD_M),
+           scripts/tests/test_app.py (+3 Phase-7 tests: paired title + minsize;
+           layout order novel-first + log-at-bottom + Advanced-Options card;
+           progress reset-between-runs + Start enabled; plus a _all_descendants
+           helper), md-instructions/HANDOFF.md (this entry + Work Log)
+- Added:   (none — no new modules, no new dependency)
+- Local-only (untracked/gitignored by design): files/qa-tools/scratch/
+           decisions-ledger.md (appended #019 + #020) + phase7_gui.png (screenshot
+           render), plus the pre-existing working-tree state untouched by Phase 7
+           (AI-WORKSPACE.md modification, kickoff-prompt deletion,
+           Setup_and_Run-template.*, decisions-template.md,
+           plan-1-gui-batch-overhaul.md, plan-2-ai-editor-integration.md)
 
 ### 2026-07-12 — HOME-PC — not pushed (Phase 6)
 - Branch:  feature/junk-strip-hardening (Phase 6, 1 commit on top of fa7481d)

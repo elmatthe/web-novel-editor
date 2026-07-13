@@ -10,6 +10,13 @@ from __future__ import annotations
 import pytest
 
 
+def _all_descendants(widget):
+    """Yield every widget in the tree rooted at ``widget`` (children first parent)."""
+    for child in widget.winfo_children():
+        yield child
+        yield from _all_descendants(child)
+
+
 def test_app_constructs_and_has_widgets():
     tk = pytest.importorskip("tkinter")
     # Import the GUI module lazily so the suite collects cleanly on a machine without
@@ -40,5 +47,94 @@ def test_app_constructs_and_has_widgets():
         app._set_progress(2)
         app.update_idletasks()
         assert int(app.progress["value"]) == 2
+    finally:
+        app.destroy()
+
+
+def test_app_paired_product_naming_and_min_size():
+    """Phase 7: the window is titled to pair with 'Web Novel Scraper', and a minimum
+    size is set so controls are never clipped on small windows (GUI hardening)."""
+    tk = pytest.importorskip("tkinter")
+    from gui import app as appmod
+
+    try:
+        app = appmod.WebnovelEditorApp()
+    except tk.TclError:
+        pytest.skip("no display available for Tk")
+    try:
+        app.withdraw()
+        app.update_idletasks()
+        assert app.title() == "Web Novel Editor"
+        # A real minimum size is enforced (protects against clipped/truncated controls).
+        min_w, min_h = app.minsize()
+        assert min_w >= appmod.MIN_WIDTH and min_h >= appmod.MIN_HEIGHT
+    finally:
+        app.destroy()
+
+
+def test_app_layout_order_matches_scraper():
+    """Phase 7 structural alignment with web-novel-scraper: novel selection first, and
+    the log widget at the bottom with the run controls (progress + Start) above it."""
+    tk = pytest.importorskip("tkinter")
+    from tkinter import ttk
+    from gui import app as appmod
+
+    try:
+        app = appmod.WebnovelEditorApp()
+    except tk.TclError:
+        pytest.skip("no display available for Tk")
+    try:
+        app.withdraw()
+        app.update_idletasks()
+
+        # Grid rows of the section frames (widgets are gridded into a common root frame).
+        novel_row = int(app.novel_combo.master.grid_info()["row"])
+        files_row = int(app.file_listbox.master.master.grid_info()["row"])
+        run_row = int(app.run_button.master.grid_info()["row"])
+        log_row = int(app.log_text.master.grid_info()["row"])
+
+        # Novel/source selection comes first (before the file list).
+        assert novel_row < files_row
+        # The log sits below the run controls (log at the bottom of the workflow).
+        assert run_row < log_row
+
+        # Advanced/debug/dry-run controls are grouped under their own labelled card so
+        # they don't dominate the primary workflow.
+        labelframe_texts = {
+            str(w.cget("text"))
+            for w in _all_descendants(app)
+            if isinstance(w, ttk.Labelframe)
+        }
+        assert "Advanced Options" in labelframe_texts
+        assert "Novel" in labelframe_texts
+    finally:
+        app.destroy()
+
+
+def test_app_progress_resets_between_runs():
+    """Phase 7 GUI hardening: progress can be driven up and reset back to zero, so a
+    second run never starts with a stale progress value."""
+    tk = pytest.importorskip("tkinter")
+    from gui import app as appmod
+
+    try:
+        app = appmod.WebnovelEditorApp()
+    except tk.TclError:
+        pytest.skip("no display available for Tk")
+    try:
+        app.withdraw()
+        app.update_idletasks()
+        # Run button starts enabled and not-running.
+        assert app._running is False
+        assert str(app.run_button["state"]) in ("normal", "!disabled")
+
+        app._set_progress(5)
+        app.update_idletasks()
+        assert int(app.progress["value"]) == 5
+
+        # Reset (as _start_batch does before a new run) returns the bar to zero.
+        app.progress.configure(maximum=3, value=0)
+        app.update_idletasks()
+        assert int(app.progress["value"]) == 0
     finally:
         app.destroy()

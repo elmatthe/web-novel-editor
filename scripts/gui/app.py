@@ -60,7 +60,9 @@ class WebnovelEditorApp(tk.Tk):
 
     def __init__(self) -> None:
         super().__init__()
-        self.title("Webnovel Editor")
+        # Paired product-family naming with the sibling web-novel-scraper
+        # ("Web Novel Scraper"); the two apps read as one family (Phase 7).
+        self.title("Web Novel Editor")
         self.minsize(MIN_WIDTH, MIN_HEIGHT)
         self.geometry(f"{MIN_WIDTH}x{MIN_HEIGHT}")
         self.configure(bg=WINDOW_BG)
@@ -154,16 +156,18 @@ class WebnovelEditorApp(tk.Tk):
         root = ttk.Frame(self, style="TFrame", padding=PAD_M)
         root.pack(fill="both", expand=True)
         root.columnconfigure(0, weight=1)
-        # The log row expands; everything else is fixed height.
-        root.rowconfigure(5, weight=1)
+        # The log row expands; everything else is fixed height. The log sits at the
+        # bottom (above only the thin status strip), with the run controls above it —
+        # mirroring the sibling web-novel-scraper's layout (Phase 7).
+        root.rowconfigure(6, weight=1)
 
         self._build_header(root, row=0)
         self._build_novel_panel(root, row=1)
         self._build_file_panel(root, row=2)
         self._build_output_panel(root, row=3)
         self._build_options_panel(root, row=4)
-        self._build_log_panel(root, row=5)
-        self._build_run_row(root, row=6)
+        self._build_run_row(root, row=5)
+        self._build_log_panel(root, row=6)
         self._build_status_bar(root, row=7)
 
         self._refresh_status()
@@ -172,7 +176,7 @@ class WebnovelEditorApp(tk.Tk):
     def _build_header(self, parent: ttk.Frame, row: int) -> None:
         header = ttk.Frame(parent, style="Header.TFrame")
         header.grid(row=row, column=0, sticky="ew", pady=(0, PAD_M))
-        ttk.Label(header, text="Webnovel Editor", style="Title.TLabel").pack(anchor="w")
+        ttk.Label(header, text="Web Novel Editor", style="Title.TLabel").pack(anchor="w")
         ttk.Label(
             header,
             text="Batch-clean webscraped chapter PDFs into TTS-ready documents.",
@@ -255,7 +259,7 @@ class WebnovelEditorApp(tk.Tk):
                    command=self._choose_output).grid(row=0, column=1, sticky="e")
 
     def _build_options_panel(self, parent: ttk.Frame, row: int) -> None:
-        frame = ttk.Labelframe(parent, text="Options", style="Card.TLabelframe",
+        frame = ttk.Labelframe(parent, text="Advanced Options", style="Card.TLabelframe",
                                padding=PAD_M)
         frame.grid(row=row, column=0, sticky="ew", pady=(0, PAD_M))
 
@@ -304,7 +308,7 @@ class WebnovelEditorApp(tk.Tk):
 
     def _build_run_row(self, parent: ttk.Frame, row: int) -> None:
         bar = ttk.Frame(parent, style="TFrame")
-        bar.grid(row=row, column=0, sticky="ew", pady=(0, PAD_S))
+        bar.grid(row=row, column=0, sticky="ew", pady=(0, PAD_M))
         bar.columnconfigure(0, weight=1)
 
         self.progress = ttk.Progressbar(bar, mode="determinate",
