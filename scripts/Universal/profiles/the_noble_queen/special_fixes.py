@@ -13,7 +13,7 @@ forced edits and found none to port:
     novel-specific misspelling to force-correct.
 
 The profile's substance is its protected-term data (`canonical_names.py` +
-`files/novel-index/the-noble-queen.txt`). Add entries here only with the same
+`scripts/Universal/resources/novel-index/the-noble-queen.txt`). Add entries here only with the same
 corpus evidence standard used for `profiles/shadow_slave/special_fixes.py`.
 """
 

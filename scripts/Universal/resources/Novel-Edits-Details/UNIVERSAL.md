@@ -69,5 +69,5 @@ never alter a real name:
 
 Every run also loads a protected-term lexicon so names are never corrupted by the repair
 passes. The universal floor is each novel's built-in canonical-name set merged with the
-user-maintained list in `files/novel-index/<novel>.txt`. A missing or empty index falls
+user-maintained list in `scripts/Universal/resources/novel-index/<novel>.txt`. A missing or empty index falls
 back to the built-in floor without error.

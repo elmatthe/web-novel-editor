@@ -28,7 +28,7 @@ from profiles.shadow_slave.canonical_names import SS_CANONICAL_NAMES
 
 _REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 _FIXTURES = os.path.join(_REPO_ROOT, "files", "test-files", "shadow_slave")
-_INDEX = os.path.join(_REPO_ROOT, "files", "novel-index", "shadow-slave.txt")
+_INDEX = os.path.join(_REPO_ROOT, "scripts", "Universal", "resources", "novel-index", "shadow-slave.txt")
 
 
 def _first_fixture():

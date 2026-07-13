@@ -28,17 +28,19 @@ alignment ONLY (paired "Web Novel Editor" naming, log moved to the bottom, "Adva
 Options" grouping) with the editor's ttk design system fully preserved; NO Stop
 button / no cancellation (no safe seam — deferred), editor's daemon-thread lifecycle
 kept (scraper threading NOT ported).
-Phase 8 (repo/scripts-folder cross-platform reorganization) is now DONE **except one
-deferred item awaiting the user's decision**: all program code moved under
+Phase 8 (repo/scripts-folder cross-platform reorganization) is now DONE, **including the
+runtime-data decision the user resolved as Option B**: all program code moved under
 `scripts/Universal/` (git mv, history preserved), `scripts/tests/` → `files/tests/`,
 repo-root `test-files/` → `files/test-files/`, `scripts/Windows|MacOS/` added as `.gitkeep`
-placeholders, resolver depth + conftest + verify + launcher + `.gitattributes`/`.gitignore`
-paths all updated, verify green post-move (369). **Blocked/deferred (do NOT resolve
-unilaterally):** the two runtime-required data folders `files/novel-index/` +
-`files/Novel-Edits-Details/` were NOT relocated — `build-spec.md` (~L87–89) deliberately
-places them under `files/` while `AI-WORKSPACE.md` says `files/` is dev-only; this genuine
-spec conflict is escalated to the user with options (see the Phase-8 summary + ledger #022).
-Next is Phase 9 (single launcher per OS from templates), pending the user's novel-index call.
+placeholders; resolver depth + conftest + verify + launcher + `.gitattributes`/`.gitignore`
+paths all updated. **Runtime-data conflict RESOLVED (user chose Option B):**
+`files/novel-index/` + `files/Novel-Edits-Details/` were relocated to
+`scripts/Universal/resources/{novel-index,Novel-Edits-Details}/`, so `files/` is now purely
+dev-only with no exceptions and a clean release ships only `scripts/` + launchers. Verify
+green (369); the release-ZIP proof was re-run with `files/` **entirely absent** and the app
+is fully functional. Ledger #023 supersedes #022. This relocation is the build-spec change
+the Phase-10 `DECISIONS.md` entry will formalize. Next is Phase 9 (single launcher per OS
+from templates) — no longer blocked.
 Standing instruction (from 2026-07-12 through Phase 10): a running decisions ledger in
 gitignored scratch (files/qa-tools/scratch/decisions-ledger.md, ADR format) is appended
 at the end of every phase — Phases 0–5 are backfilled — and Phase 10's DECISIONS.md is a
@@ -60,6 +62,24 @@ reconcile in the Phase-10 doc pass (bookkeeping only; all sampled pages flag cor
 ---
 
 ## Work Log (newest first)
+
+- 2026-07-13 — **Phase 8 follow-up: runtime-data conflict resolved by the user as Option B
+  — `files/novel-index/` + `files/Novel-Edits-Details/` relocated to
+  `scripts/Universal/resources/`; `files/` is now purely dev-only. Verify green (369);
+  release-ZIP proof re-run with `files/` ENTIRELY absent.** Both dirs moved via `git mv`
+  (history preserved) into `scripts/Universal/resources/{novel-index,Novel-Edits-Details}/`.
+  Runtime resolvers repointed: `novel_registry.NOVEL_INDEX_DIR` +
+  `edit_details.EDIT_DETAILS_DIR` from `parents[3]/"files"/…` to `parents[1]/"resources"/…`.
+  Updated 3 test path literals (`test_multi_novel`, `test_pipeline`, `test_protection`) and
+  every concrete-path mention in shipped code comments/docstrings + the shipped edit-details
+  `.md` resources (they now point at `scripts/Universal/resources/novel-index/…`). No
+  packaging manifest exists (distribution is the launcher), so nothing else to update.
+  **Verified:** `python scripts/verify.py` → PASS (369, unchanged); release-ZIP simulation
+  with **no `files/` dir at all** → roster 8 (SS first), SS profile + 352 protected terms,
+  edit-details layered, universal fallback intact — app fully functional shipping only
+  `scripts/` + launchers. Decisions ledger #023 (Supersedes #022). Narrative docs
+  (BRIEFING/CHANGELOG/README/build-spec) still Phase 10 per plan — this is the build-spec
+  change that Phase 10's DECISIONS.md will formalize. — Claude Code
 
 - 2026-07-13 — **Phase 8 complete (except one escalated decision): repo reorganized to
   `AI-WORKSPACE.md`'s cross-platform layout — a mechanical structural pass, all via
@@ -449,6 +469,26 @@ reconcile in the Phase-10 doc pass (bookkeeping only; all sampled pages flag cor
 ---
 
 ## Session Sync Log (newest first)
+
+### 2026-07-13 — HOME-PC — not pushed (Phase 8 follow-up: Option B relocation)
+- Branch:  feature/junk-strip-hardening (Phase 8 follow-up, 1 commit on top of a3fd87c)
+- Moved (git mv — history preserved):
+           files/novel-index/ -> scripts/Universal/resources/novel-index/ ;
+           files/Novel-Edits-Details/ -> scripts/Universal/resources/Novel-Edits-Details/
+- Changed: scripts/Universal/core/novel_registry.py + edit_details.py (resolvers
+           parents[3]/"files" -> parents[1]/"resources"; adjacent comments);
+           concrete-path docstrings/comments across scripts/Universal/*.py; the shipped
+           edit-details .md resources (files/novel-index -> scripts/Universal/resources/
+           novel-index); files/tests/{test_multi_novel,test_pipeline,test_protection}.py
+           (index path literals); md-instructions/HANDOFF.md (this entry + Work Log +
+           Current Focus)
+- Added:   (none — no new modules/deps)
+- Result:  files/ now tracks only dev-only content (tests/, test-files/); no runtime data
+           under files/. Release-ZIP proof passes with files/ entirely absent.
+- Local-only (untracked/gitignored by design): files/qa-tools/scratch/decisions-ledger.md
+           (appended #023, marked #022 Superseded), plus the pre-existing working-tree state
+           untouched (AI-WORKSPACE.md mod, kickoff-prompt deletion, Setup_and_Run-template.*,
+           decisions-template.md, plan-1/plan-2)
 
 ### 2026-07-13 — HOME-PC — not pushed (Phase 8)
 - Branch:  feature/junk-strip-hardening (Phase 8, 1 commit on top of 2d2affd)

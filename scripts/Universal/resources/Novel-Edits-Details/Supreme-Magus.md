@@ -56,13 +56,13 @@ The Supreme Magus protected-term list is the built-in canonical names
 (`SM_CANONICAL_NAMES`, 594 terms ported from the user's master index — the
 richest of the novel indexes, a confirmed superset of all four `_legacy/`
 lists) merged with the user-maintained index at
-`files/novel-index/supreme-magus.txt`. Main cast (`Lith`, `Solus`, `Kamila`,
+`scripts/Universal/resources/novel-index/supreme-magus.txt`. Main cast (`Lith`, `Solus`, `Kamila`,
 `Phloria`, …), the full noble/military/academy rosters, places, factions, and
 creature races are masked before the letter-mutating passes so they are never
 altered, split, or dropped.
 
 To protect a new Supreme Magus term, add it to
-`files/novel-index/supreme-magus.txt` (one term per line). No code change is
+`scripts/Universal/resources/novel-index/supreme-magus.txt` (one term per line). No code change is
 needed.
 
 ---

@@ -192,7 +192,7 @@ class WebnovelEditorApp(tk.Tk):
         ttk.Label(frame, text="Editing profile:", style="Panel.TLabel").grid(
             row=0, column=0, sticky="w", padx=(0, PAD_S))
 
-        # Roster derived from files/novel-index/ (one entry per index file). The selection
+        # Roster derived from scripts/Universal/resources/novel-index/ (one entry per index file). The selection
         # drives run_batch's novel_name -> pipeline dispatch (universal-only fallback for
         # novels without a real profile).
         roster = available_novels()

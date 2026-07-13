@@ -1,7 +1,7 @@
 """Per-novel edit-details loader (universal base + optional novel-specific layer).
 
 The Webnovel Editor keeps its human-readable editing rules as markdown in
-`files/Novel-Edits-Details/`:
+`scripts/Universal/resources/Novel-Edits-Details/`:
 
   * `UNIVERSAL.md`        — the baseline editor rules, always loaded and applied as the
                             base for every novel.
@@ -25,9 +25,10 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Optional
 
-# files/Novel-Edits-Details/ lives three levels up from scripts/Universal/core/.
+# Shipped runtime data: scripts/Universal/resources/Novel-Edits-Details/ (one dir up
+# from scripts/Universal/core/). Lives under the shipped scripts/ tree, not dev-only files/.
 EDIT_DETAILS_DIR = (
-    Path(__file__).resolve().parents[3] / "files" / "Novel-Edits-Details"
+    Path(__file__).resolve().parents[1] / "resources" / "Novel-Edits-Details"
 )
 UNIVERSAL_FILENAME = "UNIVERSAL.md"
 

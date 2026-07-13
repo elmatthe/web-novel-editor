@@ -3,7 +3,7 @@
 Ported in Phase 5b from the user's hand-curated master index at
 files/study-examples/noble_queen_master_index.txt (26 unique terms; the _legacy/ lists
 are confirmed subsets). This is the always-loaded built-in set;
-`files/novel-index/the-noble-queen.txt` adds user-maintained terms on top of it
+`scripts/Universal/resources/novel-index/the-noble-queen.txt` adds user-maintained terms on top of it
 (and must remain a superset of this floor).
 """
 

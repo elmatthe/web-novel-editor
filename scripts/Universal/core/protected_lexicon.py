@@ -6,7 +6,7 @@ Adapted from `_load_terms_from_file()`, `load_protected_lexicon()`,
 prefixes use `WE` (Webnovel Editor) instead of the study example's `SM` to avoid any
 collision if both code paths ever touch the same text.
 
-Loads user-maintained terms from `files/novel-index/<novel>.txt`, merges them with the
+Loads user-maintained terms from `scripts/Universal/resources/novel-index/<novel>.txt`, merges them with the
 profile's built-in canonical names, and masks them with `__WE_P_NNNNN__` placeholders so
 repair passes cannot corrupt them. Chapter heading lines mask as `__WE_CH_NNNNN__`.
 """

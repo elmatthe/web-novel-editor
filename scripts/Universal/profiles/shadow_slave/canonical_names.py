@@ -1,7 +1,7 @@
 """Shadow Slave canonical names — the built-in protected-name floor.
 
 Seeded verbatim from the build spec's Canonical Name Normalization section. This is
-the always-loaded built-in set; `files/novel-index/shadow-slave.txt` adds user-
+the always-loaded built-in set; `scripts/Universal/resources/novel-index/shadow-slave.txt` adds user-
 maintained terms on top of it (merged in Phase 5 via load_protected_lexicon). The
 name-normalization rule that consumes this set is finalized in Phase 4.
 """

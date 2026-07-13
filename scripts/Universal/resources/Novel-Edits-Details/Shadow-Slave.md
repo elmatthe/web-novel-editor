@@ -34,11 +34,11 @@ still masked so they can never touch a real name. Kept in sync with
 
 The Shadow Slave protected-term list is the built-in canonical names
 (`SS_CANONICAL_NAMES`) merged with the user-maintained index at
-`files/novel-index/shadow-slave.txt`. These names — main cast (`Sunny`, `Nephis`,
+`scripts/Universal/resources/novel-index/shadow-slave.txt`. These names — main cast (`Sunny`, `Nephis`,
 `Cassie`, `Kai`, …), factions, locations, and unique terminology — are masked before the
 letter-mutating passes so they are never altered, split, or dropped.
 
-To protect a new Shadow Slave term, add it to `files/novel-index/shadow-slave.txt`
+To protect a new Shadow Slave term, add it to `scripts/Universal/resources/novel-index/shadow-slave.txt`
 (one term per line). No code change is needed.
 
 ---

@@ -10,7 +10,7 @@ names and forced substitutions is a future data exercise once that corpus is in 
 canonical-name floor is empty (`LOTM_CANONICAL_NAMES`) and there are no forced
 substitutions (`LOTM_SPECIAL_FIXES`), so this pipeline applies only the universal,
 novel-agnostic rules. Protected terms a user adds to
-`files/novel-index/lord-of-the-mysteries.txt` are still masked and survive untouched,
+`scripts/Universal/resources/novel-index/lord-of-the-mysteries.txt` are still masked and survive untouched,
 exactly as in the Shadow Slave pipeline.
 
 The signature matches the profile interface contract from the build spec:

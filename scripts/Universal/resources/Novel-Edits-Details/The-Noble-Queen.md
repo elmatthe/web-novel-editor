@@ -29,14 +29,14 @@ by evidence, not by omission.
 
 The Noble Queen protected-term list is the built-in canonical names
 (`NQ_CANONICAL_NAMES`, 26 terms ported from the user's master index) merged with
-the user-maintained index at `files/novel-index/the-noble-queen.txt`. These —
+the user-maintained index at `scripts/Universal/resources/novel-index/the-noble-queen.txt`. These —
 `Queen Bee`, `Noble Queen`, `Mongrel`, `Lady Morgan`, the Dreamscape/Aspect
 terminology, and the Shadow Slave parent-series canon terms the fanfic reuses —
 are masked before the letter-mutating passes so they are never altered, split,
 or dropped.
 
 To protect a new Noble Queen term, add it to
-`files/novel-index/the-noble-queen.txt` (one term per line). No code change is
+`scripts/Universal/resources/novel-index/the-noble-queen.txt` (one term per line). No code change is
 needed.
 
 ---
