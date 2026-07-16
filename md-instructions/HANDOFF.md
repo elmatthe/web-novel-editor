@@ -48,15 +48,23 @@ consent-gated base-runtime install, Windows `pythonw` windowless launch with a `
 console preflight. Editor behavioral choices deliberately KEPT over the template's:
 Python-version gate **blocks** (does not warn) below 3.10; floor stays 3.10 (from-scratch
 winget install still pulls 3.11). The untracked `Setup_and_Run-template.*` study copies were
-deleted (root now has exactly one launcher per OS). Verify green (381). **Next is Phase 10
-(docs & changelog).**
-Standing instruction (from 2026-07-12 through Phase 10): a running decisions ledger in
-gitignored scratch (files/qa-tools/scratch/decisions-ledger.md, ADR format) is appended
-at the end of every phase — Phases 0–5 are backfilled — and Phase 10's DECISIONS.md is a
-transcription of that ledger, not a reconstruction from memory.
-Carried-forward doc item for Phase 10: Phase-1/Phase-4 notes count 4 Supreme Magus
-Cloudflare error pages while the committed SM_ERROR_PAGES sample list records 3 —
-reconcile in the Phase-10 doc pass (bookkeeping only; all sampled pages flag correctly).
+deleted (root now has exactly one launcher per OS). Verify green (381).
+Phase 10 (docs & changelog) is now DONE: all four permanent docs + README + build-spec +
+EDITING-RULES + UNIVERSAL.md updated to v0.10.0; the new `md-instructions/DECISIONS.md` was
+created from `decisions-template.md` and transcribed from the running ledger (27 entries).
+Version confirmed **v0.10.0** (minor bump, not patch — ledger #026 / DECISIONS #026).
+**Next is Phase 11 (final verify & wrap-up) — NOT started this session per the kickoff's
+single-phase scope.** Phase 11 will delete the instruction drop, re-run the corpus hash
+compare, and do the final verify before any merge; the branch stays local-only (not pushed)
+for the user's doc review.
+Standing instruction (2026-07-12 through Phase 10): the running decisions ledger in gitignored
+scratch (files/qa-tools/scratch/decisions-ledger.md, ADR format) was appended at the end of
+every phase; Phase 10's DECISIONS.md is a transcription of that ledger (not a reconstruction).
+RECONCILED in Phase 10: the Supreme Magus Cloudflare error-page count — the Phase-1 recon
+estimate of 4 (3 named + an unconfirmed "+1 more") is superseded by the committed/detected
+truth of **3** (SM_ERROR_PAGES = Ch. 1423/1424/1427; Phase-5 run flagged 3/3). Docs fixed to
+3; code unchanged (it was already correct). See DECISIONS #027. Historical Work Log entries
+below that say "4" are append-only history, left as written.
 
 ---
 
@@ -71,6 +79,47 @@ reconcile in the Phase-10 doc pass (bookkeeping only; all sampled pages flag cor
 ---
 
 ## Work Log (newest first)
+
+- 2026-07-16 — **Phase 10 complete: docs & changelog pass for the whole junk-strip-hardening
+  plan (v0.10.0); DECISIONS.md created; SM error-page count reconciled to 3; committed local
+  only (NOT pushed — user reviewing docs before origin).** Version confirmed **v0.10.0** (minor
+  bump, not a patch v0.9.1 — the plan bundles new profiles + junk/PDF/GUI changes + a full repo
+  reorg; ledger #026). **Files updated:** (a) **`md-instructions/DECISIONS.md`** — NEW fourth
+  permanent doc, created from `decisions-template.md` and **transcribed** from the running
+  gitignored ledger (`files/qa-tools/scratch/decisions-ledger.md`) — all 27 entries (#001–#027),
+  newest on top, reasoning preserved verbatim, not a from-memory rewrite. (b)
+  **`CHANGELOG.md`** — new `## v0.10.0` top entry covering Phases 0.5–9 (registry reuse, junk
+  hardening, Phase-3 QA, Phase-4 TTS sweep, **Noble Queen + Supreme Magus profiles**, Phase-6
+  PDF prevention/detection with **no `pypdf` and deletion deferred**, Phase-7 GUI rename +
+  no-Stop, Phase-8 reorg + Option-B relocation, Phase-9 launcher **blocking 3.10 gate**
+  non-alignment, fixture commit, docs). (c) **`BRIEFING.md`** — bumped to v0.10.0; new "Current
+  State" block; repo/git, packaging (path-resolution note → `scripts/Universal/resources/` via
+  `parents[1]`), Deferred Features (orphan-page prevention/detection + deletion deferred, no
+  pypdf; Stop deferred; universal-seam caveat), "What Is Working" (three corpora folded in as
+  **local QA evidence**, macOS launcher verified), "What Is Broken", and "Next Steps" all
+  updated; historical phase sections left as history. (d) **`EDITING-RULES.md`** — Stage 1.5
+  rewritten from PLACEHOLDER to IMPLEMENTED with the **real per-corpus evidence base** (SS
+  clean / NQ novelfire / SM multi-site + homoglyph + spaced + **3 Cloudflare error pages**);
+  intro + Stage-13 paths → `scripts/Universal/...`; new PDF orphan-page-handling section; TTS
+  criteria annotated with the Phase-4 re-verification + Edge-Neural target + flagged-not-changed
+  classes. (e) **`build-spec.md`** — the Phase-1 "novel-index lives under `files/`" reconciliation
+  box **superseded** by the Phase-8/Option-B reality (code under `scripts/Universal/`, runtime
+  data under `scripts/Universal/resources/`, `files/` dev-only); concrete `files/novel-index/…`
+  path references + the Novel-Index folder-layout + "how to add a novel" list repointed. (f)
+  **`scripts/Universal/resources/Novel-Edits-Details/UNIVERSAL.md`** — added the "Basic Edit
+  Mode" naming note. (g) **`README.md`** — title → "Web Novel Editor"; three profiles + Basic
+  Edit Mode; entry point `scripts/Universal/main.py`; 4-step launcher; **macOS
+  `Setup_and_Run.command` verified 2026-07-16** (real clean-room bootstrap + Finder
+  double-click — closes the item Phase 9 left open on macOS-less HOME-PC); corpora described as
+  local QA evidence; Status → v0.10.0. (h) **`files/qa-tools/scratch/decisions-ledger.md`** —
+  appended #026 (version) + #027 (SM error-page reconciliation). **SM error-page resolution:**
+  code is source of truth — real count is **3** (SM_ERROR_PAGES = 1423/1424/1427; Phase-5 run
+  3/3), the Phase-1 recon "+1 more" was never confirmed; docs fixed to 3, **no code change**
+  (DECISIONS #027). **Verify:** `python scripts/verify.py` → PASS (CHANGELOG v0.10.0 matches
+  BRIEFING; deps pinned; suite green — corpus-backed tests skip only where the gitignored local
+  corpora are absent, a visible skip never counted as a pass). **NOT done (Phase 11, per the
+  single-phase kickoff scope):** deleting the instruction drop, the final corpus-hash compare,
+  the post-delete final verify, and any merge/push — the branch is **local-only**. — Claude Code
 
 - 2026-07-13 — **Phase 9 complete: one hardened `Setup_and_Run.bat` + one
   `Setup_and_Run.command` rebuilt from the study templates, targeting the post-Phase-8
@@ -528,6 +577,38 @@ reconcile in the Phase-10 doc pass (bookkeeping only; all sampled pages flag cor
 ---
 
 ## Session Sync Log (newest first)
+
+### 2026-07-16 — HOME-PC — not pushed (Phase 10: docs & changelog, v0.10.0)
+- Branch:  feature/junk-strip-hardening (Phase 10, 1 commit on top of 639ec5e)
+- Added:   md-instructions/DECISIONS.md (NEW permanent doc — transcribed from the running
+           ledger, 27 entries #001–#027, newest on top)
+- Changed: md-instructions/CHANGELOG.md (new ## v0.10.0 top entry),
+           md-instructions/BRIEFING.md (v0.10.0 current-state; repo/git, packaging,
+           deferred-features, what-is-working, what-is-broken, next-steps updated; paths →
+           scripts/Universal/ + scripts/Universal/resources/),
+           md-instructions/EDITING-RULES.md (Stage 1.5 real evidence base; PDF orphan-page
+           section; TTS re-verification note; intro/Stage-13 paths → scripts/Universal/...),
+           md-instructions/build-spec.md (Phase-1 files/ placement box SUPERSEDED by Option B;
+           novel-index path refs → scripts/Universal/resources/novel-index/; folder-layout +
+           add-a-novel list),
+           scripts/Universal/resources/Novel-Edits-Details/UNIVERSAL.md (Basic Edit Mode note),
+           README.md (title → "Web Novel Editor"; three profiles + Basic Edit Mode; entry point
+           scripts/Universal/main.py; macOS launcher verified 2026-07-16; Status → v0.10.0),
+           md-instructions/handoff.md (this entry + Work Log + Current Focus; SM error-page
+           item reconciled to 3)
+- Version: v0.9.0 → v0.10.0 (CHANGELOG top == BRIEFING == README; verify gate satisfied)
+- Reconciled: SM Cloudflare error-page count → 3 (code = truth; SM_ERROR_PAGES unchanged); no
+           source code changed this phase (docs-only)
+- Result:  python scripts/verify.py → PASS. No corpus PDF / extracted text / scratch staged.
+- Local-only (untracked/gitignored by design): files/qa-tools/scratch/decisions-ledger.md
+           (appended #026 + #027), plus the pre-existing working-tree state untouched by
+           Phase 10 (AI-WORKSPACE.md modification, kickoff-prompt deletion, Map-Repo-Structure.bat,
+           decisions-template.md, plan-1-gui-batch-overhaul.md, plan-2-ai-editor-integration.md)
+- NOT done (Phase 11): instruction-drop deletion, final corpus-hash compare, post-delete final
+           verify, merge/push — branch left local-only for the user's doc review.
+- Note:    the on-disk handoff file is tracked as `HANDOFF.md` (uppercase); git core.ignorecase
+           is true, so editing "handoff.md" edits the same physical file — no rename, no
+           duplicate created.
 
 ### 2026-07-13 — HOME-PC — not pushed (Phase 9: single hardened launcher per OS)
 - Branch:  feature/junk-strip-hardening (Phase 9, 1 commit on top of d0554ca)

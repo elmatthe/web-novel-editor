@@ -1,30 +1,46 @@
 # Webnovel Editor — Project Briefing
 
-## Version: v0.9.0
+## Version: v0.10.0
 
 ## Last Updated
-2026-06-24 — Phase 9: novel-selection dropdown + dispatch registry
+2026-07-16 — v0.10.0: junk-strip hardening, new profiles (Noble Queen + Supreme Magus),
+PDF/GUI alignment, cross-platform repo reorg, launcher rebuild, docs pass (Phase 10)
 
-## Current Phase
-Phase 9 (Novel-Selection Dropdown + Dispatch Registry) complete. The GUI now has a labelled,
-read-only **novel dropdown** (`ttk.Combobox`, defaults to "Shadow Slave") populated from
-`files/novel-index/*.txt` — one entry per index file, placeholders included so the full
-roster is visible. The selection drives `run_batch`'s `novel_name`, which now dispatches
-through a **single registry** (`scripts/core/novel_registry.py`): a registered novel
-(Shadow Slave) runs its real profile pipeline; **any other novel** (unknown, placeholder-
-only, empty, or None) falls back to **universal-only** editing via the `lord_of_mysteries`
-stub (universal rules, no novel-specific substitutions) with an empty floor + that novel's
-own index. Per the user's decision, `run_batch`'s `novel_name` default changed from "Shadow
-Slave" to **universal-only** (the GUI always passes the selected novel explicitly). Logging
-records the selected novel and whether a novel-specific layer applied or it fell back.
-**This promotes the prior "v2 deferred" novel-profile dropdown into v1** — but as a UI +
-dispatch layer only; Shadow Slave is still the only real editorial profile, and its output
-is byte-for-byte unchanged. Covered by `scripts/tests/test_novel_registry.py`.
+## Current State (v0.10.0)
+The "junk-strip-hardening" plan (Phases 0–10) is complete. Headlines:
+- **Two new real per-novel profiles: Supreme Magus and The Noble Queen** (Phase 5b), joining
+  Shadow Slave. Each is selectable in the dropdown, applies only its own edits, and does not
+  change Shadow Slave's output. Every other novel runs **Basic Edit Mode** (universal-only).
+- **Junk-strip Tier 1 hardened** (Phases 1–4) against real fingerprint classes found in the
+  Noble Queen / Supreme Magus corpora (mangled/spaced/homoglyph/inline-spliced scraper
+  domains; Cloudflare error pages are detect-and-flag, never stripped).
+- **Editorial QA fixes** (Phase 3: chapter-title terminal `?`/`!`; grammar `eu`/`ew` guard) and
+  a **TTS-readiness re-verification** (Phase 4, Edge Neural target) that held.
+- **PDF-build alignment** (Phase 6): orphan heading-only-page **prevention** (`keepWithNext`) +
+  **detection-only** logging; automatic deletion deferred; no `pypdf` added.
+- **GUI consistency** (Phase 7): renamed to **"Web Novel Editor"**, log at the bottom,
+  "Advanced Options" grouping; design system preserved; no Stop button (deferred).
+- **Cross-platform repo reorganization** (Phase 8): all code under `scripts/Universal/`; tests →
+  `files/tests/`; fixtures → `files/test-files/`; **runtime data (novel-index +
+  Novel-Edits-Details) relocated to `scripts/Universal/resources/`** so `files/` is dev-only
+  (Option B).
+- **One hardened launcher per OS** (Phase 9): `scripts/Universal/main.py` entry point,
+  self-healing venv, health-gated idempotent install, blocking 3.10 gate.
+- **New `DECISIONS.md`** permanent doc (append-only ADR log, 27 entries).
 
-This builds directly on Phase 8's edit-details markdown layer: the dropdown selection feeds
-both the pipeline dispatch (registry) and the `UNIVERSAL.md` + `<Novel-Name>.md` markdown
-resolution (`edit_details.py`), which stay consistent (Shadow Slave → profile + markdown;
-everyone else → universal-only + universal markdown).
+The dispatch registry (`novel_registry.py`) and the edit-details markdown layer
+(`edit_details.py`, `UNIVERSAL.md` + `<Novel-Name>.md`) from v0.9.0/v0.8.0 are reused
+unchanged; v0.10.0 layers new profiles + hardening on top. The dropdown is populated from
+`scripts/Universal/resources/novel-index/*.txt`.
+
+## Prior: v0.9.0 (Phase 9 — Novel-Selection Dropdown + Dispatch Registry)
+The GUI gained a labelled, read-only **novel dropdown** (`ttk.Combobox`, defaults to "Shadow
+Slave") populated from the novel-index roster. The selection drives `run_batch`'s `novel_name`,
+which dispatches through a **single registry** (`novel_registry.py`): a registered novel runs
+its real profile pipeline; any other novel falls back to **universal-only** editing. Logging
+records the selected novel and which layer applied. (Registry + dropdown reused as-is in
+v0.10.0; Supreme Magus and The Noble Queen are now registered real profiles alongside Shadow
+Slave.) Covered by `test_novel_registry.py`.
 
 ## Phase 8 (prior)
 Phase 8 (Per-Novel Edit-Details System) complete. Added `files/Novel-Edits-Details/` with a
@@ -83,39 +99,54 @@ A local desktop (Tkinter) tool that batch-cleans messy webscraped webnovel chapt
 clean, **TTS-ready** PDFs for listening as audiobooks (Kokoro / Microsoft TTS). It extracts
 text, runs a deterministic rule-based editorial pipeline (no AI rewriting), and writes
 `EDITED_<name>.pdf` to a user-chosen folder. Originals are never modified. First novel:
-Shadow Slave; multi-novel by design. Tech stack: Python 3.10+ (built on 3.12.10), Tkinter,
-pdfplumber, reportlab, pytest. (PyPDF2 was removed in Phase 6 — see Deferred Features.)
+Shadow Slave (plus Supreme Magus and The Noble Queen as of v0.10.0); multi-novel by design.
+Tech stack: Python 3.10+ (built on 3.12.10), Tkinter, pdfplumber, reportlab, pytest.
+(`PyPDF2`/`pypdf` is intentionally NOT a dependency — see Deferred Features.)
 
 ## Repo / Git State
-- Under git. Phase commits chain on feature branches: `main` (`5b4ec2c`, Phase 1) →
-  `phase-2-gui-shell` → `phase-3-pdf-io` → `phase-4-rule-pipeline` (`24e2771`) →
-  `phase-5-novel-index` (`feeea9c`). Phase 6 work is on branch **`phase-6-hardening`**.
-- The 29 MB corpus (`files/pdf-example-chapters/`) is **gitignored**; the 10 pinned fixtures
-  in `test-files/shadow_slave/` are committed. `test-logs/` is gitignored (QA render outputs
-  + the temp `_qa_render.py` driver live there; not shipped).
+- Under git. Current work is on branch **`feature/junk-strip-hardening`** (the v0.10.0
+  junk-strip-hardening plan, Phases 0–10). The registry work was reused from `origin/main`
+  (v0.9.0) rather than rebuilt; the pre-reconcile WIP is archived as
+  `archive/junk-strip-hardening-pre-0.5`.
+- **Layout (post Phase-8 reorg):** all program code under `scripts/Universal/`; shipped
+  runtime data under `scripts/Universal/resources/{novel-index,Novel-Edits-Details}/`;
+  `scripts/requirements.txt` + `scripts/verify.py` at the `scripts/` root;
+  `scripts/Windows/` + `scripts/MacOS/` are `.gitkeep` structural placeholders. `files/` is
+  now **dev-only**: `files/tests/` (pytest suite), `files/test-files/shadow_slave/` (the 10
+  committed pinned fixtures), and the gitignored `pdf-example-chapters/` corpora,
+  `study-examples/`, `test-logs/`, and `qa-tools/` scratch.
 
-## Packaging Decision (Phase 6 — RESOLVED, do not revisit by accident)
+## Packaging Decision (RESOLVED, do not revisit by accident)
 - **Distribution = the double-click launcher (`Setup_and_Run.bat` / `.command`). NO frozen
   PyInstaller exe for v1.** The launcher already gives a non-technical user "downloaded zip
   → running GUI" with nothing installed system-wide except Python-if-missing. A frozen exe
   would *add* risk, not remove it: unsigned one-file PyInstaller binaries trip Defender/
   SmartScreen (and WatchGuard on the locked-down work machine) harder than a `.bat`;
-  `sys._MEIPASS` path resolution would break the `files/novel-index/` lookup
-  (`batch_runner` resolves it via `Path(__file__).parents[2]`); and reportlab + pdfminer.six
-  ship data files PyInstaller misses without explicit `--collect-data`. A frozen exe is a
-  *possible future option only* — if revisited, those three issues must be solved first.
+  `sys._MEIPASS` path resolution would break the shipped-resource lookups (the novel roster,
+  protected-term indexes, and edit-details resolve from `scripts/Universal/resources/` via
+  `Path(__file__).parents[1] / "resources"`); and reportlab + pdfminer.six ship data files
+  PyInstaller misses without explicit `--collect-data`. A frozen exe is a *possible future
+  option only* — if revisited, those three issues must be solved first.
 
 ## Deferred Features (intentional "not yet" — not forgotten)
-- **Orphan single-heading-page removal (spec step 3k).** Not implemented: current inputs are
-  single-chapter PDFs with no inter-chapter `\f`, so no orphan page is produced. **`PyPDF2`
-  was removed from `requirements.txt` in Phase 6 because nothing imports it** — it (or the
-  maintained `pypdf`) must be **re-added and pinned** when this feature is built. Noted in
-  `scripts/requirements.txt` too.
-- **Tier 2 junk-strip** is built but log-only (gated off for this clean corpus).
-- **Real per-novel editorial profiles beyond Shadow Slave.** The Phase-9 dropdown + registry
-  now ship in v1 (UI + dispatch only); authoring a 2nd novel's real profile (canonical
-  names + special-fixes + index terms + a `<Novel-Name>.md`) is the remaining data exercise.
-  Until then every non-Shadow-Slave novel runs universal-only by design.
+- **Automatic orphan heading-only-page deletion.** As of v0.10.0 (Phase 6) the builder does
+  **prevention** (`keepWithNext=1` so a heading can't be stranded at a page bottom) and
+  **detection-only** logging (`detect_heading_only_pages()` on multi-chapter builds → GUI
+  warning + JSONL `integrity_flag`, never deletes). **Automatic deletion stays deferred** — no
+  safe positive "this page is a genuine orphan" invariant exists, and the defect is not
+  reproducible (all inputs are single-chapter). No PDF-rewrite path exists, so **`pypdf` is not
+  a dependency**; it would be re-added + pinned only if deletion is ever built. (DECISIONS.md
+  #017/#018.)
+- **Cooperative Stop/Cancel in the GUI** (Phase 7): deferred — `run_batch` has no safe
+  cancellation seam; killing a worker mid-PDF-write risks a corrupt output. (DECISIONS.md #020.)
+- **Tier 2 junk-strip** is built but log-only / default-off (heuristic promo lines).
+- **Real per-novel profiles beyond the three shipped** (Shadow Slave, Supreme Magus, The Noble
+  Queen). Renegade Immortal / Reverend Insanity and other dataless novels remain universal-only
+  (Basic Edit Mode) placeholders; authoring another real profile is a data/porting exercise on
+  the validated seam. **Universal-seam caveat:** the universal-only fallback still reuses the
+  `lord_of_mysteries` stub (empty special-fixes); if a real LOTM profile is ever authored, the
+  fallback must get its own dedicated neutral pipeline first (pinned by test). (DECISIONS.md
+  #009/#014.)
 
 ## What Was Just Built or Changed (Phase 6)
 - **Bug hunt across every module — no Critical bugs.** Robustness against bad input
@@ -166,23 +197,29 @@ pdfplumber, reportlab, pytest. (PyPDF2 was removed in Phase 6 — see Deferred F
   Phase-1 assertions in `test_scaffold.py` updated.
 
 ## What Is Working (how tested)
-- **`python scripts/verify.py` → PASS:** 86 tests pass and 1 skips on this machine (the
-  bash syntax test runs because bash is present; it skips only on a machine with an unusable
-  WSL shim), all deps are pinned, and CHANGELOG v0.7.0 matches BRIEFING.
-- **Protected-term preservation proven across all 10 real fixtures:** every protected term
-  present in a source chapter survives the full pipeline with its count not reduced. The
-  spec's acceptance scenario passes both directions (unprotected `Half/Blood` → rewritten by
-  the slash rule; the same term added to an index file → preserved verbatim).
-- **All 8 novel-index files load without error:** `shadow-slave.txt` → 352 terms; the 7
-  empty placeholders → the 87-term built-in floor (clean fallback).
-- **Full pipeline proven on real fixtures:** on Ch.1 the heading is isolated as its own
-  paragraph, 89 natural paragraphs are reconstructed from the single-`\n` wrap stream,
-  `Sunny` is preserved 21× through the whole pipeline, and no spaced em-dash remains. On
-  Ch.3000 (the mixed-quote outlier) all 27 curly doubles become straight and are logged.
-- **Real 2-file batch:** EDITED PDFs + debug `.txt` + JSONL written; clean Ch.1 yields an
-  empty (0-entry) log, Ch.3000 yields the quote-normalize entry; originals byte-for-byte
-  untouched (sha256).
-- Phases 1-3 still green: scaffold wiring (updated), GUI, extractor/builder round-trip.
+- **`python scripts/verify.py` → PASS (v0.10.0):** the committed suite is green (CHANGELOG
+  v0.10.0 matches BRIEFING, all deps pinned). Corpus-backed tests skip only where the
+  gitignored local corpora are absent — an explicit, visible skip, never counted as a pass.
+- **Local QA evidence (gitignored corpora, HOME-PC).** The junk-strip hardening + QA + TTS +
+  dual-mode work was proven against three real corpora under
+  `files/pdf-example-chapters/`: `webscraped_shadow_slave/` (3,000 PDFs, clean source),
+  `The_Noble_Queen-v2/` (778 PDFs, novelfire watermarks), and `Supreme_Magus-v2/` (4,191 PDFs,
+  multi-site watermarks + 3 Cloudflare error pages). These are **local evidence only** — not
+  fixtures guaranteed to exist in a clone. The committed guarantees ride on the 10 pinned
+  Shadow Slave fixtures + synthetic-text tests.
+- **Protected-term preservation proven across all 10 committed fixtures:** every protected term
+  present in a source chapter survives the full pipeline with its count not reduced; the
+  index-term-shields-a-rule acceptance test passes both directions.
+- **Dual-mode dispatch proven at the registry/provenance level:** Shadow Slave / Supreme Magus /
+  The Noble Queen resolve to their real profiles and apply only their own edits; every other
+  novel resolves to the universal-only fallback (Basic Edit Mode) — proven by spy/bait-string
+  tests, not just by inspecting output. No `__WE_` placeholder leaks in either mode.
+- **Junk-strip hardening proven zero-false-positive** over letter-sharing prose + a full
+  old-vs-new corpus diff (exactly the watermark chapters changed, every span manually reviewed).
+- **Shadow Slave output equivalence intact:** pinned by both a corpus-free synthetic-text test
+  and the fixture-backed tests; originals are never modified (sha256).
+- **macOS launcher verified 2026-07-16:** real macOS clean-room bootstrap + a real Finder
+  double-click (closing the item Phase 9 left open — HOME-PC has no macOS).
 
 ## Skills Pulled / Used
 Six skills in `.claude/skills/`: spec-to-repo, spec-driven-workflow, tdd-guide,
@@ -203,9 +240,10 @@ dependency-auditor, changelog-generator, ship-gate. Plus `.codex/skills/ui-desig
 - `ocr_repair` deliberately omits the study example's aggressive `?→fi` / `l→I` / in-word
   `slash→r` passes (they would corrupt this clean corpus). If a future source genuinely needs
   ligature-`?` recovery, add it gated behind a per-source flag — do not enable globally.
-- Orphan single-heading-page removal (spec step 3k, PyPDF2) is **not** implemented: these are
-  single-chapter PDFs with one heading and no inter-chapter `\f`, so no orphan page is
-  produced. Revisit if multi-chapter inputs are ever batched into one PDF.
+- Orphan heading-only-page **prevention** (`keepWithNext`) and **detection-only** logging are
+  implemented (Phase 6); **automatic deletion is deferred** (no safe invariant; not reproducible
+  — all inputs are single-chapter). No `pypdf` dependency. See Deferred Features / DECISIONS.md
+  #017.
 
 ## Phase 4 Reconnaissance — RESOLVED (kept for the record)
 Inspecting the real extracted fixtures this session refined the prior recon:
@@ -248,16 +286,17 @@ Inspecting the real extracted fixtures this session refined the prior recon:
 - Docs: `md-instructions/CHANGELOG.md`, `md-instructions/BRIEFING.md`.
 
 ## Next Steps
-- **Phase 7 architecture validation is done** (stub pipeline + seam proof). The remaining
-  multi-novel work is a **data exercise**: build the real Lord of the Mysteries (or another
-  novel's) editorial profile by populating `profiles/<novel>/canonical_names.py` +
-  `special_fixes.py` and `files/novel-index/<novel>.txt`, then flesh out its pipeline. No core
-  refactor expected — the universal rules and the `run_pipeline` contract already hold.
-- **GUI novel-profile dropdown — DONE (Phase 9, now v1).** The selector + novel→pipeline
-  registry (`novel_registry.py`) ship in v1; the batch runner dispatches to the chosen
-  novel's `run_pipeline` (universal-only fallback for profile-less novels). Supersedes the
-  prior "v2 deferred" note. Remaining work is authoring real per-novel profiles (data only).
-- If/when **orphan single-heading-page removal** is built, re-add `PyPDF2` (or `pypdf`) to
-  requirements (see Deferred Features).
-- `files/study-examples/` ports are complete and confirmed reference-only (no runtime import);
-  it can be deleted whenever the user is satisfied.
+- **v0.10.0 is complete and committed on `feature/junk-strip-hardening` (local only — not
+  pushed; awaiting the user's review before it hits origin).** The instruction drop
+  (`Instructions_Phase10_JunkStrip_And_QA.md`) is Phase 11's to delete + final-verify + the
+  user's end-of-plan sign-off before any merge to `main`.
+- **Authoring more real per-novel profiles** is a data/porting exercise on the validated seam:
+  populate `scripts/Universal/profiles/<novel>/canonical_names.py` + `special_fixes.py` and
+  `scripts/Universal/resources/novel-index/<novel>.txt`, add a `<Novel-Name>.md`, register in
+  `novel_registry.py`. **If Lord of the Mysteries is ever authored, give the universal-only
+  fallback its own dedicated pipeline first** (it currently reuses the LOTM stub — DECISIONS.md
+  #009/#014).
+- If/when **automatic orphan heading-only-page deletion** is built, add + pin `pypdf` and
+  establish a safe positive orphan invariant first (see Deferred Features / DECISIONS.md #017).
+- `files/study-examples/` ports are complete and reference-only (no runtime import); it can be
+  deleted whenever the user is satisfied.

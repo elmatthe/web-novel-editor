@@ -8,6 +8,13 @@ edits that are *unique* to that novel, layered on top of these.
 > This file is the shared base for all novels. Keep it novel-agnostic — anything that only
 > applies to one novel belongs in that novel's own `<Novel-Name>.md`, not here.
 
+**Terminology — "Basic Edit Mode."** The always-on universal baseline described here is what
+the app calls **Basic Edit Mode**: the editing every novel gets whether or not it has a
+profile. A novel with no matching profile (unknown, or an empty-placeholder index) runs Basic
+Edit Mode *only* — universal cleanup, no character-name protection and no forced novel-specific
+fixes. Selecting a profiled novel (Shadow Slave, Supreme Magus, The Noble Queen) layers that
+novel's specific edits on top.
+
 ---
 
 ## How this layering works
