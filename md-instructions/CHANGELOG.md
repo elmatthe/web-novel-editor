@@ -1,5 +1,135 @@
 # Webnovel Editor — Changelog
 
+## v0.10.0 — 2026-07-16 — Junk-Strip Hardening, Editorial QA, New Per-Novel Profiles, PDF/GUI Alignment, Repo Reorg & Launcher Rebuild
+
+A large multi-phase release (the "junk-strip-hardening" plan, Phases 0–10) bundling
+user-visible junk-removal changes, editorial QA fixes, two new real per-novel profiles,
+PDF-build and GUI alignment with the sibling `web-novel-scraper`, a full cross-platform repo
+reorganization, and a rebuilt launcher per OS. The Shadow Slave editorial output is unchanged;
+the branch reused the already-shipped v0.9.0 dispatch registry rather than rebuilding it.
+Design reasoning for every non-obvious choice below is recorded in the new
+`md-instructions/DECISIONS.md`.
+
+### Branch/registry reconciliation (Phase 0.5)
+- The v0.9.0 novel → pipeline dispatch registry was **reused** (recovered from `origin/main`),
+  not rebuilt. `feature/junk-strip-hardening` was recreated from that base; the pre-reconcile
+  WIP is preserved as `archive/junk-strip-hardening-pre-0.5`. (DECISIONS.md #002.)
+
+### Added — two new real per-novel profiles (Phase 5b)
+- **Supreme Magus** — `profiles/supreme_magus/` (594-term canonical floor; **16 proper-noun
+  artifact special-fixes**), `pipelines/supreme_magus.py`, populated
+  `resources/novel-index/supreme-magus.txt`, and `resources/Novel-Edits-Details/Supreme-Magus.md`.
+  The Ragnarök family restores to the authored **"Ragnarök" (ö)**. The legacy editor's
+  **profanity-uncensor map was deliberately NOT ported** (spec-excluded content alteration), and
+  generic-word artifacts were excluded (e.g. `rnade` is a substring FP hazard inside
+  "Bernadette"). (DECISIONS.md #013.)
+- **The Noble Queen** — `profiles/the_noble_queen/` (26-term floor; **empty special-fixes by
+  evidence** — a protection-only profile), `pipelines/the_noble_queen.py`, populated
+  `resources/novel-index/the-noble-queen.txt`, and `resources/Novel-Edits-Details/The-Noble-Queen.md`.
+  (DECISIONS.md #012.)
+- **Renegade Immortal, Reverend Insanity** (and dataless placeholders) intentionally remain
+  **universal-only fallbacks** — their study-examples indexes are comment-only headers with zero
+  real terms. Selecting any profile-less novel runs **Basic Edit Mode** only.
+- Both new profiles apply their own edits in their own mode and **not** in any other mode
+  (cross-novel isolation proven both directions); **Shadow Slave output is unchanged** by their
+  addition. Each new novel is a data/porting drop on the existing validated seam — no
+  core/rules/pdf engine changes.
+
+### Changed / Fixed — junk-strip hardening (Phases 1–2, 4)
+- `rules/junk_strip.py` Tier 1 hardened against real fingerprint classes found by 100%-coverage
+  scans of the Noble Queen (778 PDFs) and Supreme Magus (4,191 PDFs) corpora: a **two-layer
+  domain matcher** (exact list of every recorded mangled spelling + a structural fuzzy layer
+  gated by an English-word guard, `webnovel.com` guard-listed); **minimum-span inline removal**
+  (excise only the confirmed junk span, preserve adjacent prose); spaced-out and
+  black-square-obfuscated domains; **detection-only NFKC** for homoglyph domains (the document is
+  never NFKC-rewritten — Stage 1 stays NFC); and **cross-line splice** handling (Phase 4).
+  (DECISIONS.md #003/#004/#006.)
+- **Cloudflare error-1015 pages** (whole-file, chapter text missing) are **detected and flagged**
+  (GUI warning + JSONL `integrity_flag`), **never auto-stripped** — the fix is a re-scrape.
+  Supreme Magus has **3** such pages (Ch. 1423/1424/1427). (DECISIONS.md #005/#027.)
+- Every junk removal is logged to the JSONL `ReplacementLog` (`rule="junk_strip"`); a committed
+  zero-false-positive test suite + optional `@pytest.mark.local_corpus` corpus tests (with a
+  `--require-local-corpora` strict mode) guard the patterns.
+
+### Fixed — editorial QA (Phase 3)
+- Chapter titles keep their own terminal `?`/`!` and no longer gain a duplicate trailing period
+  (`punctuation.py` guarded `?.`/`!.` collapse; `chapter_titles.py` + `pdf/builder.py` heading
+  regex accept `[.?!]`).
+- Grammar `a`→`an` rule gained an `eu`/`ew` guard (vowel-letter/consonant-sound), so
+  "a euphoria" is left correct.
+
+### Verified — TTS-readiness sweep (Phase 4)
+- The "TTS-Readiness Criteria" were re-verified at 100% coverage against the new corpora and
+  **held** (target engine: Microsoft Edge Neural); the one genuine gap was the novelfire
+  watermark class above (fixed in Stage 1.5). Other candidate patterns (`*` emphasis, raw `#`,
+  numeric-range dashes) were **flagged, not changed** — recorded as possible future rules.
+
+### Changed — PDF build alignment (Phase 6, safety-first)
+- Confirmed the editor's PDF typography already matches `web-novel-scraper` (read side by side)
+  — no typography change.
+- **Orphan heading-only page:** added **prevention** (`keepWithNext=1` on the heading style, so a
+  heading can't be stranded at a page bottom) and **detection-only** logging
+  (`detect_heading_only_pages()` via `pdfplumber`, run only on multi-chapter builds → GUI warning
+  + JSONL `integrity_flag`, never deletes). **Automatic page deletion is DEFERRED** (no safe
+  invariant; defect not reproducible from real data — all inputs are single-chapter). **`pypdf`
+  was NOT added** (no rewrite path). (DECISIONS.md #017/#018.)
+
+### Changed — GUI consistency with `web-novel-scraper` (Phase 7)
+- Window title + header renamed **"Webnovel Editor" → "Web Novel Editor"** (pairs "Web Novel
+  Scraper"); run controls moved **above** the log (log now at the bottom); the three
+  diagnostic checkboxes card relabelled **"Options" → "Advanced Options."** The editor's
+  `#134252`/`clam` ttk design system is fully preserved.
+- **No Stop/Cancel button and no threading change** — the editor's `run_batch` has no safe
+  cooperative-cancellation seam, so cancellation is recorded as a **separately deferred feature**
+  (faking it by killing a worker mid-PDF-write is the corruption hazard Phase 6 guards against).
+  (DECISIONS.md #019/#020.)
+
+### Changed — cross-platform repo reorganization (Phase 8)
+- All program code moved under **`scripts/Universal/`** (via `git mv`, history preserved);
+  `scripts/Windows/` + `scripts/MacOS/` are `.gitkeep` **structural placeholders only** (no
+  OS-exclusive code — *prepared*, not "macOS supported"). Entry point is now
+  `scripts/Universal/main.py`.
+- Pytest suite moved `scripts/tests/` → **`files/tests/`**; the 10 pinned Shadow Slave fixtures
+  moved repo-root `test-files/` → **`files/test-files/`** (kept tracked).
+- **Runtime-data relocation (Option B, user-chosen):** `novel-index/` and `Novel-Edits-Details/`
+  moved from `files/` to **`scripts/Universal/resources/`**, so `files/` is now purely dev-only
+  and a clean release ships only `scripts/` + launchers. Proven by a release-ZIP simulation with
+  `files/` entirely absent (novel selection, protected-term loading, edit-details loading all
+  work). (DECISIONS.md #021/#023.) `build-spec.md` updated to this reality.
+
+### Changed — launcher rebuild (Phase 9)
+- One hardened `Setup_and_Run.bat` + one `Setup_and_Run.command` rebuilt from the study
+  templates (then the `-template` copies deleted): 4 numbered steps, self-healing venv,
+  **health-gated idempotent install** (lock + `pip check` + import smoke), venv-first interpreter
+  order, consent-gated base-runtime install, Windows `pythonw` windowless launch with a
+  `--check` console preflight (a tiny tested flag added to `main.py`).
+- **Deliberate non-alignment kept:** the Python-version gate **blocks** (does not warn) below
+  **3.10** — the app uses 3.10 syntax (per v0.6.1 M3), unlike the scraper/template's warn-only
+  check. (DECISIONS.md #024/#025.)
+
+### Fixed — test-fixture commit (Phase 2)
+- The 10 pinned Shadow Slave fixtures are now **actually committed** (the ignore rule was
+  narrowed; a `*.pdf binary` `.gitattributes` guard prevents CRLF mangling), so fixture-backed
+  tests no longer silently skip in a fresh clone. (DECISIONS.md #007/#008; closes Open Issue #1.)
+
+### Docs
+- **New `md-instructions/DECISIONS.md`** — the fourth permanent doc (append-only ADR log),
+  created from the template and transcribed from the running Phase-0–9 decisions ledger
+  (27 entries, newest on top).
+- Re-tracked `AI-WORKSPACE.md` in-repo (deliberate exception to the gitignore-agent-config
+  convention). (DECISIONS.md #001.)
+- `EDITING-RULES.md` (Stage 1.5 evidence base rewritten from the real corpora; orphan-page +
+  TTS-criteria notes), `build-spec.md` (Option-B paths), `BRIEFING.md`, `README.md`, and
+  `handoff.md` updated to the v0.10.0 reality.
+
+### Verified
+- `python scripts/verify.py` → PASS. Suite green; corpus-backed tests skip only where the
+  gitignored local corpora are absent (an explicit, visible skip, never counted as a pass).
+  Shadow Slave output equivalence is pinned by both a corpus-free synthetic-text test and the
+  committed fixtures. The macOS `Setup_and_Run.command` is now fully verified — real macOS
+  clean-room bootstrap plus a real Finder double-click, confirmed 2026-07-16 (closing the item
+  Phase 9 left open on HOME-PC, which has no macOS).
+
 ## v0.9.0 — 2026-06-24 — Phase 9: Novel-Selection Dropdown + Dispatch Registry
 
 Promotes the previously-deferred "v2" novel-profile dropdown into v1 as a **UI + dispatch

@@ -1,0 +1,624 @@
+# ============================================================
+# Supreme Magus — Do-Not-Touch Protected Terms
+# ============================================================
+# Format: one term or phrase per line
+# Lines beginning with # are comments and are ignored
+# Blank lines are ignored
+# Preserve case exactly as written here
+# Multi-word phrases are supported
+# ============================================================
+# Ported in Phase 5b from files/study-examples/supreme_magus_master_index.txt (594 terms).
+# The built-in floor lives in scripts/profiles/supreme_magus/canonical_names.py;
+# this index must stay a superset of it (append freely as you read).
+# ============================================================
+
+# === supreme_magus_protected_names_exhaustive.txt ===
+Lith
+Lith Verhen
+Derek
+Derek McCoy
+Carl
+Carl McCoy
+Solus
+Elphyn
+Elphyn Althena Menadion
+Kamila
+Kamila Yehval
+Phloria
+Phloria Ernas
+Friya
+Friya Ernas
+Quylla
+Quylla Ernas
+Tista
+Tista Verhen
+Elina
+Elina Verhen
+Raaz
+Raaz Verhen
+Rena
+Rena Verhen-Proudhammer
+Trion
+Trion Proudstar
+Orpal
+Aran
+Aran Verhen
+Leria
+Leria Verhen-Proudhammer
+Lilia
+Lilia Fastarrow
+Leran
+Leran Fastarrow
+Falco
+Falco Verhen-Proudhammer
+Faluel
+Protector
+Scarlett
+Jirni
+Jirni Ernas
+Orion
+Orion Ernas
+Mirim
+Mirim Distar
+Morok
+Morok Eari
+Yurial
+Yurial Deirus
+Manohar
+Krishna Manohar
+Vastor
+Zogar Vastor
+Master Vastor
+Menadion
+Ripha
+Ripha Menadion
+Silverwing
+Lochra
+Lochra Silverwing
+Leegaain
+Salaark
+Tyris
+Tyris Griffon
+Nalrond
+Valeron
+Locrias
+Captain Locrias
+Varegrave
+Colonel Varegrave
+Feela
+Raagu
+Raagu Drerian
+Lotho
+Bytra
+Xenagrosh
+Zoreth
+Nandi
+Tezka
+Kalla
+Selia
+Selia Fastarrow
+Zinya
+Zinya Yehval
+Frey
+Frey Yehval
+Filia
+Filia Yehval
+Abominus
+Onyx
+Count Trequill Lark
+Trequill
+Keyla
+Keyla Lark
+Jadon
+Jadon Lark
+Senton
+Senton Verhen-Proudhammer
+Lenart
+Lenart Quontar Verhen-Proudhammer
+Teryon
+Teryon Nessa Verhen-Proudhammer
+Zekell
+Zekell Proudhammer
+King Meron
+Meron
+King Elm
+Elm
+Arthan
+King Arthan Griffon
+Zerves
+King Zerves Griffon
+Medalia
+Queen Medalia Griffon
+Peonia
+Princess Peonia
+Keal
+Princess Keal
+Syntilla
+Princess Syntilla
+Wynna
+Princess Wynna
+Milea
+Empress Milea Genys
+Acala
+Dawn
+Dusk
+Night
+Baba Yaga
+Vladion
+Vladion Zegroff
+Zolgrish
+Scourge
+Ratpack
+Fenagar
+Fenrir
+Sinmara
+Nalear
+Valesa Nalear
+Jian
+Jian Trasque
+Khavos
+Khavos Rudd
+Lyca
+Lyca Wanemyre
+Rugan
+Rugan Thorman
+Wil
+Wil Ironhelm
+Calyn
+Calyn Zeneff
+Peln
+Peln Reflaar
+Lyam
+Lyam Lukart
+Gorgus
+Gorgus Pontus
+Raynart
+Raynart Pontus
+Vinor
+Vinor Pontus
+Sothes
+Sothes Pontus
+Anathor
+Anathor Voross
+Leflia
+Leflia Quaroon
+Juria
+Juria Ernas
+Gunyin
+Gunyin Ernas
+Tulion
+Tulion Ernas
+Sevenus
+Sevenus Hystar
+Xoth
+Aren
+Aren Dolm
+Gyrwin
+Gyrwin Isaar
+Inxialot
+Inxialot Nagaar
+Jiza
+Jiza Gernoff
+Athung
+Athung Soranot
+Gaaron
+Gaaron Roghias
+Cylla
+Cylla Gernoff
+Tasaar
+Tasaar Quinus
+Rokuno
+Ezio
+Ezio McCoy
+Chris Wainright
+Elysia
+Elysia Verhen
+Kelia
+M'rael
+Aalejah
+Wren
+Wren Nian
+Tolmen
+Tolmen Ironheart
+Gelas
+Myshar
+Oghrom
+Oghrom Gernoff-Myrok
+Fyrwal
+Tessa
+Threin
+Arjîn
+Arjin
+Arjîn Rênas
+Arjin Renas
+Amyla
+Amyla Farg
+Siska
+Jhoa
+Lepto
+Qwor
+Shad
+Coirn
+Coirn Hatorne
+Horan
+Horan Palanor
+Quina
+Morn
+General Morn Griffon
+Berion
+General Berion
+Lizhark
+General Lizhark
+Vorgh
+General Vorgh
+Alman
+Alman Quaron
+Clefas
+Captain Clefas Lotta
+Kortus
+Captain Kortus Dast
+Legato
+Captain Legato
+Loman
+Loman Estar
+Rudra
+Timeka
+Timeka Ahria
+Xolman
+Xolman Pelan
+Yerna
+Captain Yerna
+Zarran
+Eman
+Commander Eman Yndel
+Brarr
+Lieutenant Brarr
+Guyles
+Lieutenant Guyles
+Ulpar
+Commander Ulpar
+Vickas
+Vickas Banut
+Beligros
+Heartmann
+Guilden
+Khran
+Sfarzen
+Sfarzen Rosics
+Tepper
+Terl
+Terl Snowfield
+Throq
+Nhilo
+Vipli
+Drowald
+Helion
+Hest
+Hren
+Hren Nacth
+Jerth
+Kron
+Liwell
+Miden
+Pazeol
+Pazeol Vyntar
+Rufo
+Tlea
+Tlea Ormann
+Xonta
+Elista
+Magus Elista
+Morgania
+Magus Morgania
+Frejik
+Magus Frejik
+Bolna
+Archmage Bolna
+Ejar
+Archmage Ejar
+Gillam
+Gillam Tanash
+Lukart
+Archmage Lukart
+Velan
+Velan Deirus
+Dorian
+Dorian Felhorn
+Kallion
+Kallion Nuragor
+Linden
+Linden Gorth
+Red
+Nindra
+Nindra Luce
+Kilian
+Kilian Aluria
+Ruusa
+Captain Ruusa
+Velagros
+Captain Velagros
+Garith
+Garith Senti
+Assa
+Fernath
+Hossa
+Syalle
+Trewan
+Utika
+Holmen
+Peicus
+Phrenna
+Phrenna Gorth
+Toman
+Vykaros
+Teben
+Kolmy
+Ebert
+Ebert Cailon
+Hestia
+Jyian
+Moniar
+Nuragor
+Phalmar
+Selimar
+Vinald
+Vinald Tanash
+Baran
+Hileo
+Solivar
+Hassar
+Hassar Beilin
+Lanza
+Xenth
+Xebas
+Arik
+Arik Xolver
+Cestor
+Cenar
+Cenar Lark
+Wyma
+Wyma Metra
+Krame
+Ebla
+Tristarm
+Eiros
+Eiros Wyalon
+Ifram
+Ifram Irehein
+Lazot
+Mox
+Rath
+Enja
+Izra
+Mergrave
+Mirias
+Mirias Wyalon
+Ternas
+Frenon
+Frenon Hogum
+Greph
+Hogum
+Lokar
+Lokar Trahan
+Rosen
+Rosen Stern
+Mefaal
+Duluth
+Duluth Krame
+Dyta
+Dyta Myrok
+Iriel
+Iriel Wyalon
+Kotu
+Kotu Wyalon
+Libea
+Libea Fintyr
+Minnea
+Minnea Tristarm
+Mynna
+Mynna Lanza
+Niha
+Niha Zeir
+Tikin
+Tikin Rath
+Tryssa
+Tryssa Myrok
+Zintar
+Zintar Tanash
+Linjos
+Headmaster Linjos
+Marth
+Duke Marth
+Pazuel
+The Wither
+Wither
+Vareen
+Cyare
+Eycos
+Hushar
+Kigan
+Nelia
+Gadorf
+Jarok
+Maeve
+Breganoth
+Xedros
+Qisal
+Ajatar
+Weyss
+Sedra
+Bodya
+Olua
+Emya
+Quya
+Scala
+Asphodus
+Lesalia
+Kieran
+Deraniel
+Pelion
+Ailia
+Benyo
+Jaren
+Treius
+Treius Clein
+Glamus
+Glamus Clein
+Tartania
+Temania
+Henya
+Cresia
+Horyu
+Aria
+Ormr
+Orton
+Canto
+Xola
+Ruria
+Estor
+Pyra
+Trevan
+Gentor
+Syrook
+Jorl
+Iskha
+Dryna
+Sentar
+Tarbas
+Lucky
+Crash
+Slash
+Volgun
+Brionac
+Guardian
+Thunder
+Gremus
+M'Rook
+Termyn
+Gerda
+Irtu
+Cormr
+Ilyum
+Ilyum Balkor
+Eos
+Eos Balkor
+Ashun
+Ashun Dagfuur
+Crevan
+Crevan Gershal
+Lenanna
+Jhet
+Mimeria
+Black Star
+Brina
+Brina Cornerstone
+Vexal
+Vexal Cornerstone
+Garth
+Garth Renkin
+Gurid
+Gurid Renkin
+Hilya
+Poltus
+Koya
+Countess Koya Gishal
+Linnea
+Westhar
+Urgamakka
+Reghia
+Freshya
+Zantia
+Belius
+Lightkeep
+Lutia
+Lustria
+Othre
+Xenatos
+Jambel
+Regharos
+Derios
+Kulah
+Nestrar
+Haug
+Huryole
+Kaduria
+Verhen
+Mogar
+Garlen
+Jiera
+Verendi
+Gorgon
+Griffon
+Phoenix
+Hydra
+Naga
+Lich
+Liches
+Abomination
+Abominations
+Awakened
+Guardians
+Ry
+Cron
+Byk
+Raiju
+Fomor
+Balor
+Jotunn
+Tiamat
+Skoll
+Shyf
+Wight
+Wyvern
+Roc
+Kirin
+Manticore
+Garmr
+Lindwurm
+Nidhogg
+Thunderbird
+Nue
+Garuda
+Leviathan
+Behemoth
+Treant
+Morrigan
+Nightwalker
+Jǫrmungrandr
+Jormungrandr
+Titania
+
+# === supreme_magus_protected_terms.txt ===
+# Supreme Magus — protected proper nouns & lore terms (supplement to built-in allowlist)
+# One term per line. Lines starting with # are comments. UTF-8.
+# Expand as you verify names from the novel; prefer exact canon capitalization.
+# --- Main characters ---
+# --- Recurring characters ---
+Thrud
+Pharek
+Sylpha
+Ryla
+Brinja
+Balkor
+Deirus
+# --- Places & regions ---
+Griffon Kingdom
+Blood Desert
+# --- Factions, titles, organizations ---
+Lich King
+White Griffon
+Crystal Griffon
+Council of Mages
+# --- Species, races, creature types ---
+Wyrmling
+Drake
+Basilisk
+# --- Artifacts, notable lore phrases ---
+World Mirror
+Tower of Menadion
+Eyes of Menadion
+Faluel's Lair
+
+# === main_recurring_names.txt ===
+
+# === rare_minor_names.txt ===

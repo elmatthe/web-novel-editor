@@ -9,8 +9,12 @@ text unchanged.
 The end goal is **TTS-ready output** for Kokoro / Microsoft TTS (see "TTS-Readiness Criteria"
 at the bottom). Every rule exists to make a chapter read aloud cleanly as an audiobook.
 
-Each rule is a pure function (string in → string out), living in `scripts/rules/` (universal,
-reusable across novels) or driven by per-novel data in `scripts/profiles/<novel>/`.
+Each rule is a pure function (string in → string out), living in `scripts/Universal/rules/`
+(universal, reusable across novels) or driven by per-novel data in
+`scripts/Universal/profiles/<novel>/`. (As of the Phase-8 reorganization all program code
+lives under `scripts/Universal/`; the module names in the table below are relative to that
+package. User-editable protected-term indexes and per-novel edit-details markdown ship under
+`scripts/Universal/resources/` — see Stage 13 and the per-novel edit-details docs.)
 
 ---
 
@@ -51,43 +55,79 @@ Apply in exactly this order. Earlier stages expose issues that later stages fix.
 
 ---
 
-## ⚠ Stage 1.5 — Ad / URL / Fingerprint Junk Strip (PLACEHOLDER — finalized in Phase 4)
+## Stage 1.5 — Ad / URL / Fingerprint Junk Strip (IMPLEMENTED — hardened in the v0.10.0 plan)
 
-**Status: STUB in Phase 1. The full stripping logic is built in Phase 4, against real corpus
-samples — not guesses.** This section documents intent and the evidence base; the exact
-patterns are finalized when implementing the module.
+**Status: shipped and hardened.** Built in Phase 4 (v0.4.0) and substantially hardened in the
+v0.10.0 junk-strip-hardening plan (Phases 1–4) against real dirty corpora — Noble Queen and
+Supreme Magus example chapters — not against guesses. This section documents intent and the
+real evidence base; the exact patterns live in `scripts/Universal/rules/junk_strip.py`.
 
 ### Why this is a first-class stage
 Webscraped novel PDFs are frequently littered with piracy/scraper fingerprinting that ruins a
 TTS listen: ads ("read the latest chapters at…"), bare URLs/domains in the prose, and site
-watermarks (often obfuscated with black-square glyphs or odd spacing to dodge filters). A URL
-or "visit piratesite.net" read aloud mid-chapter is a first-class defect for an audiobook, so
-removing it is a first-class stage.
+watermarks (often obfuscated with black-square glyphs, homoglyphs, or odd spacing to dodge
+filters). A URL or "visit piratesite.net" read aloud mid-chapter is a first-class defect for an
+audiobook, so removing it is a first-class stage.
 
-### Evidence base (real, not hypothetical)
-The prior editor `files/study-examples/ss_pdf_editor-v1.py` already shipped a `remove_novelbin()`
-pass against concrete fingerprints from an earlier scrape source:
+### Evidence base (real, per corpus — grounded in machine scans, not hypothetical)
+
+**A. Legacy source (from the prior editor `ss_pdf_editor-v1.py`, earlier scrape source).**
+The `remove_novelbin()` pass shipped against concrete fingerprints:
 - Exact markers: `@@novelbin@@`, `All ■■■■■ full.com`
 - Black-square-obfuscated domains: `Free■ebnovel.c■m`, `■■■■w■■■ov■■.co■` (letters → U+25A0)
 - Spaced/obfuscated promos: `Want to read more chapters? Come to p a n d a - n ovel,c.o.m`
 
-### Important finding about the current corpus
-The active corpus `files/pdf-example-chapters/webscraped_shadow_slave/` (3,000 PDFs) was scanned
-during Phase 1 planning (250+ chapters, forced-UTF-8) and contains **none** of these markers,
-black squares, or bare URLs — it appears to come from a cleaner source. So for *this* corpus the
-stage is insurance; it remains a genuine need for dirtier sources and future novels.
+**B. Shadow Slave corpus** (`webscraped_shadow_slave/`, 3,000 PDFs — the clean source).
+A 100%-coverage Phase-1 scan found **none** of these markers, black squares, or bare URLs — it
+came from a cleaner source (freewebnovel, which stripped its `<subtxt>` watermark tags at scrape
+time). For *this* corpus the stage is insurance; it remains a genuine need for dirtier sources.
+The 10 pinned Shadow Slave fixtures (now committed under `files/test-files/shadow_slave/`) verify
+this clean-source behavior in every clone.
 
-### Design (to implement in Phase 4)
-- **Tier 1 — high-confidence, default ON, near-zero false positive:** exact known markers (port
-  `MARKERS_TO_REMOVE` + the panda-promo regex from `ss_pdf_editor-v1.py`), `@@…@@` markers, bare
-  URLs (`https?://`, `www.`), and standalone obfuscated-domain tokens (■-substituted and
-  space-spread `d o m a i n . c o m`). **Token-level** removal — strip the URL/marker, leave the
-  surrounding prose intact.
+**C. The Noble Queen corpus** (`The_Noble_Queen-v2/`, 778 PDFs — dirty, novelfire source).
+novelfire.net watermarks spliced **inline into prose** (prose on both sides of the splice) in
+several shapes the original patterns could not see:
+- 17+ mangled domain spellings: `n0velfire`, `Nove1Fire`, `NoveIFire`, dropped-letter variants.
+- Tilde-separated `novel~fire~net` (no dot) and hyphen+truncated-TLD `novel-fire.et`.
+- Degraded template skeletons down to `crs r s novelfirenet`, and **cross-line splices** where a
+  template sentence ends one wrapped line and the domain opens the next (Phase 4 evidence).
+
+**D. Supreme Magus corpus** (`Supreme_Magus-v2/`, 4,191 PDFs — dirty, multi-site source).
+- Inline domain watermarks from ~8 sites (NiceNovel, NovelWell, NovelsToday, Libread,
+  lightsnovel, pandasnovel scrambles, etc.).
+- Spaced-out `f r e e w e b n o v e l. c o m` (5 files).
+- **One confirmed homoglyph watermark** — math-script-styled `freewebnovel.com` (ch 2151) that
+  NFC cannot fold; an NFKC sweep of all 7,979 files found no others.
+- Support-block lines (`AN:` / discord / ko-fi / paypal).
+- **3 whole-file Cloudflare error-1015 pages** (Ch. 1423, 1424, 1427) — the chapter text is
+  missing entirely; these are the **detect-and-flag** class (see below), never auto-stripped.
+  *(Bookkeeping: the initial Phase-1 recon estimated "4" such pages including one unconfirmed
+  "+1 more"; the committed detector-backed sample `SM_ERROR_PAGES` and the Phase-5 corpus run
+  both confirm the real count is **3** — see DECISIONS.md #027.)*
+
+### Design (as implemented)
+- **Tier 1 — high-confidence, default ON, near-zero false positive:** exact known markers,
+  `@@…@@` markers, bare URLs (`https?://`, `www.`); a **two-layer domain matcher** (an exact list
+  of every recorded mangled spelling **plus** a structural fuzzy layer — 0/1/3/I glyph folding,
+  bounded Levenshtein scaled to stem length, tail-truncation — gated by an English-word guard set
+  with the legitimate `webnovel.com` guard-listed; see DECISIONS.md #006); **minimum-span inline
+  removal** (excise only the confirmed junk token/span, preserve adjacent prose; drop a whole line
+  only when the whole line is proven junk; DECISIONS.md #004); spaced-domain and
+  black-square-obfuscated tokens; and **detection-only NFKC** on a throwaway copy of styled runs
+  to catch homoglyph domains without ever NFKC-rewriting the document (DECISIONS.md #003).
+- **Cloudflare error-1015 pages — detect-and-flag, NEVER auto-strip** (`detect_error_page()`,
+  ≥2 independent signals): both pipelines emit a GUI warning + a JSONL `integrity_flag` record
+  and preserve the page as-is. The fix for a data-loss error page is a re-scrape, not an edit
+  (DECISIONS.md #005).
 - **Tier 2 — heuristic promo LINES, default OFF / log-only, higher false-positive risk:** lines
-  like "read the latest chapters at…", "translator's note:" spam, donation plugs. **Never** strip
-  a segment containing a `ProtectedLexicon` term or canonical name.
+  like "read the latest chapters at…", translator's-note spam, donation plugs, and
+  discord/ko-fi/paypal tokens. **Never** strip a segment containing a `ProtectedLexicon` term or
+  canonical name.
 - Runs only on non-placeholder text; **every removal is recorded to the JSONL ReplacementLog**
-  (`rule="junk_strip"`) so it is fully auditable and reversible.
+  (`rule="junk_strip"`) so it is fully auditable and reversible. A committed zero-false-positive
+  suite over letter-sharing prose words + the shortest real defect fragments guards the patterns
+  in every clone; optional `@pytest.mark.local_corpus` tests exercise the full corpora when
+  present (with a `--require-local-corpora` strict mode).
 
 ---
 
@@ -147,7 +187,10 @@ Detection: `^Chapter\s+(\d[\d,]*)\s*[:\-–—]?\s*(.+?)\.?\s*$` (IGNORECASE | M
 
 ## Stage 13 — Canonical Name Normalization
 Correct obvious misspellings to the built-in `SS_CANONICAL_NAMES` floor (in
-`profiles/shadow_slave/canonical_names.py`). User additions come from `files/novel-index/`.
+`profiles/shadow_slave/canonical_names.py`). User additions come from the shipped
+`scripts/Universal/resources/novel-index/<novel>.txt` files. Shadow Slave, Supreme Magus, and
+The Noble Queen now ship real per-novel profiles + indexes; every other novel runs
+universal-only (no canonical-name protection, no forced fixes).
 
 ## Stage 14 — Forced Recurring Typo Substitutions
 `SS_SPECIAL_FIXES` applies while protected terms are still masked, so it corrects only
@@ -184,14 +227,47 @@ warning only — no auto-fix, no crash.**
 
 ---
 
+## PDF Build — Orphan Heading-Only Page Handling (Stage 20 companion)
+
+The PDF builder (`scripts/Universal/pdf/builder.py`) guards against a chapter heading being
+stranded alone at the bottom of a page:
+- **Prevention (active):** the chapter-heading `ParagraphStyle` sets `keepWithNext=1`, so a
+  heading can never land by itself at a page bottom. This is a structural no-op for today's
+  single-chapter inputs (the heading is already at the top of page 1).
+- **Detection-only (active, multi-chapter builds):** `detect_heading_only_pages()` uses the
+  existing `pdfplumber` to find any page whose sole content is a heading line. `batch_runner`
+  runs it **only** on multi-chapter output (≥2 `\f`-separated segments) and, on a hit, emits a
+  GUI warning + a JSONL `integrity_flag` record while **preserving the page**.
+- **Automatic deletion — DEFERRED, not implemented.** No safe positive "this page is a genuine
+  erroneous orphan" invariant exists, and the defect is not reproducible from either local
+  corpus (all inputs are per-chapter single-chapter PDFs). No PDF rewrite path exists, so `pypdf`
+  is **not** a dependency. See DECISIONS.md #017 / #018.
+
+---
+
 ## TTS-Readiness Criteria (the target outcome)
 
-Output is considered "reads cleanly aloud" for Kokoro / Microsoft TTS when:
-1. The chapter title is present and clean — exactly `Chapter N: Title.` on its own line.
-2. No bare URLs or domains appear anywhere (Stage 1.5).
+Primary target playback engine: **Microsoft Edge Neural** voice (also validated against Kokoro /
+Microsoft TTS generally). Output is considered "reads cleanly aloud" when:
+1. The chapter title is present and clean — exactly `Chapter N: Title.` on its own line
+   (a title's own terminal `?`/`!` is preserved, never given a duplicate trailing period).
+2. No bare URLs or domains appear anywhere (Stage 1.5) — including mangled/homoglyph/spaced and
+   inline-spliced scraper watermarks.
 3. No stray symbols are voiced as words — no `■ □ �`, lone `|`/`\`, raw `/`, or bracket litter;
    spaced em/en-dashes are converted so the engine pauses rather than reading "dash".
 4. Sentence/paragraph breaks are sane — false breaks rejoined, dehyphenation done, no mid-word
    splits shredding prosody.
 5. Punctuation is clean — no `..`, `?!.`, or missing post-period spaces.
 6. Everything is UTF-8 so smart quotes/accents are not spelled out as mojibake.
+
+**Re-verification (v0.10.0, Phase 4).** These criteria were re-verified at 100% corpus coverage
+against the new Noble Queen and Supreme Magus corpora (7,979 cached extractions). The established
+garbage sweep (spaced dashes, squares/U+FFFD, `__WE_` leaks, invisibles, ligatures, double
+spaces, space-before-punctuation, `word.Word` fusions, control chars) found **zero** hits — the
+criteria held. The one genuine gap found was criterion 2 (a novelfire watermark class the older
+patterns missed), fixed in Stage 1.5. Classes deliberately **flagged but not changed** (mechanical
+inference is unsafe, so they are candidate *future* rules, not v0.10.0 changes): `*` emphasis /
+censored-profanity asterisks (uncensoring is spec-excluded), unconverted `~` and raw `#` in
+authored contexts, letter-tight apostrophe-misuse (`don't`/`l'm` — Edge Neural voices it
+correctly today), and unspaced numeric-range dashes (`10-20`, betting odds) whose spoken form is
+not inferable.

@@ -79,26 +79,44 @@ Import PDFs → Select output folder → Click Run
 
 ## Confirmed Repo Structure
 
-> **✅ Path reconciliation — RESOLVED 2026-06-21 (Phase 1).** The live repo was mapped and
-> reconciled with the user. Decision: **keep the on-disk layout, update this spec to match.**
-> The tree below has been corrected to reflect the real working directory. Settled facts:
+> **✅ Path reconciliation — RESOLVED 2026-06-21 (Phase 1), UPDATED 2026-07-16 (Phase 10).**
+> The live repo was mapped and reconciled with the user. Settled facts:
 > - The instructions folder on disk is **`md-instructions/`** (plural). All references in this
 >   spec now use `md-instructions/`. (Note: the kickoff prompt's `md-instruction/` singular was a typo.)
-> - `novel-index/`, `study-examples/`, and `pdf-example-chapters/` live **inside `files/`**, not at
->   the repo root. The tree and explicit paths below reflect this. (Inline prose may still say
->   "the `novel-index/` system" conceptually — the real path is always `files/novel-index/`.)
 > - Startup scripts on disk are **`Setup_and_Run.bat`** + **`Setup_and_Run.command`** (a single
 >   self-contained pair), NOT the 3-file `.bat`/`.ps1`/`.sh` scheme this spec originally described.
->   The user chose to keep and adapt these two files. They were adapted in Phase 1 (entry point set
->   to `scripts/main.py`, requirements path `scripts/requirements.txt`, ffmpeg block removed).
-> - Entry point is **`scripts/main.py`**; **`requirements.txt` lives in `scripts/`** (not repo root);
->   the virtual environment is **`.venv/`**.
-> - Confirmed absolute paths on Home-PC:
->   - Test corpus: `...\webnovel_editor-main\files\pdf-example-chapters\webscraped_shadow_slave` (3,000 chapter PDFs, ~29 MB)
->   - Novel index: `...\webnovel_editor-main\files\novel-index` (only `shadow-slave.txt` populated; rest are empty placeholders)
->   - Prior editors: `...\webnovel_editor-main\files\study-examples`
+>   The user chose to keep and adapt these two files. They were rebuilt in Phase 9 (v0.10.0) into
+>   one hardened launcher per OS targeting `scripts/Universal/main.py`.
+> - `requirements.txt` and `verify.py` live in **`scripts/`**; the virtual environment is `.venv/`.
+>
+> **⚠ SUPERSEDED by the Phase-8 cross-platform reorganization + Option-B runtime-data move
+> (v0.10.0, DECISIONS.md #021 / #023).** The original Phase-1 decision placed `novel-index/`,
+> `study-examples/`, and `pdf-example-chapters/` under `files/`. That is **no longer true for the
+> two runtime-required data folders.** Current on-disk reality:
+> - **All program code moved under `scripts/Universal/`** (`core/ gui/ pdf/ pipelines/ profiles/
+>   rules/ utils/` + `main.py`); `scripts/Windows/` + `scripts/MacOS/` are `.gitkeep` structural
+>   placeholders only (no OS-exclusive code yet — *prepared*, not "macOS supported").
+> - **`novel-index/` and `Novel-Edits-Details/` now live under
+>   `scripts/Universal/resources/`** (the shipped tree), NOT under `files/`. The user chose
+>   **Option B** so `files/` is purely dev-only and a clean release ships only `scripts/` +
+>   launchers. Runtime resolvers (`novel_registry.NOVEL_INDEX_DIR`,
+>   `edit_details.EDIT_DETAILS_DIR`) resolve `parents[1]/"resources"/…` accordingly.
+> - **`files/` is now development-only:** `files/tests/` (pytest suite, moved from
+>   `scripts/tests/`), `files/test-files/shadow_slave/` (the 10 pinned fixtures, moved from
+>   repo-root `test-files/`), plus the gitignored `study-examples/`, `pdf-example-chapters/`,
+>   `test-logs/`, and `qa-tools/` corpora/scratch.
+> - Entry point is **`scripts/Universal/main.py`**.
+> - Confirmed local paths on Home-PC (post-reorg):
+>   - Test corpora (gitignored): `...\files\pdf-example-chapters\{webscraped_shadow_slave,
+>     The_Noble_Queen-v2, Supreme_Magus-v2}\`
+>   - Novel index (shipped): `...\scripts\Universal\resources\novel-index\` (`shadow-slave.txt`,
+>     `supreme-magus.txt`, `the-noble-queen.txt` populated; the rest empty placeholders)
+>   - Prior editors (dev-only reference): `...\files\study-examples\`
 
-The tree below reflects the **actual reconciled working repo** as of Phase 1 (2026-06-21).
+The tree below is the **original Phase-1 layout** and is retained for historical context; read
+it together with the superseding note above (`scripts/*` → `scripts/Universal/*`; `test-files/`
+→ `files/test-files/`; `scripts/tests/` → `files/tests/`; `files/novel-index/` →
+`scripts/Universal/resources/novel-index/`).
 
 ```
 webnovel-editor-main/
@@ -409,7 +427,7 @@ This is the exact order of operations when the user clicks Run. This is implemen
    - At least one valid .pdf path in the list
 
 2. Load novel-index terms for the active profile (Shadow Slave)
-   - Read files/novel-index/shadow-slave.txt
+   - Read scripts/Universal/resources/novel-index/shadow-slave.txt
    - Parse into ProtectedLexicon (see Novel-Index section)
    - Log count of loaded terms
 
@@ -814,7 +832,7 @@ SS_CANONICAL_NAMES: frozenset[str] = frozenset({
 })
 ```
 
-This set is the built-in floor. It is always loaded. The `files/novel-index/shadow-slave.txt` file adds terms on top of this.
+This set is the built-in floor. It is always loaded. The `scripts/Universal/resources/novel-index/shadow-slave.txt` file adds terms on top of this.
 
 ---
 
@@ -938,19 +956,22 @@ This is separate from the built-in canonical name sets in `scripts/profiles/`. T
 
 ### Folder Layout
 
+Location (post Phase-8 / Option B, v0.10.0): **`scripts/Universal/resources/novel-index/`** —
+part of the shipped tree, not `files/`.
+
 ```
-novel-index/
-  shadow-slave.txt        ← active, 6KB, has content
+scripts/Universal/resources/novel-index/
+  shadow-slave.txt        ← active, populated (SS profile)
+  supreme-magus.txt       ← active, populated (SM profile, 594 terms — Phase 5b)
+  the-noble-queen.txt     ← active, populated (NQ profile, 26 terms — Phase 5b)
   circle-of-inevitability.txt
   lord-of-the-mysteries.txt
   re-monster.txt
   renegade-immortal.txt
   reverend-insanity.txt
-  supreme-magus.txt
-  the-noble-queen.txt
 ```
 
-Each file corresponds to a novel profile. The filename (minus extension) maps to the profile key. As of this revision, **only `shadow-slave.txt` is populated (~5.6 KB)** — the other seven are intentional empty placeholders (0 bytes), reserved for novels not yet onboarded. The loader must treat an empty or missing index file as "no user terms for this novel" and fall back cleanly to the built-in canonical set, not error. Adding a new novel means populating its file here and adding a profile in `scripts/profiles/`.
+Each file corresponds to a novel profile. The filename (minus extension) maps to the profile key. As of v0.10.0, **`shadow-slave.txt`, `supreme-magus.txt`, and `the-noble-queen.txt` are populated** (real profiles) — the other five are intentional empty placeholders, reserved for novels not yet onboarded. The loader treats an empty or missing index file as "no user terms for this novel" and falls back cleanly to the built-in canonical set (universal-only editing), not error. Adding a new novel means populating its file here and adding a profile in `scripts/Universal/profiles/`.
 
 If a set of protected terms is genuinely universal (e.g. terms that should never be altered in any novel), prefer keeping them in the relevant rule logic or a clearly-labeled shared list rather than copy-pasting into every per-novel index file. For v1, focus only on `shadow-slave.txt`.
 
@@ -976,7 +997,7 @@ Port `_load_terms_from_file()` from the study examples. This function:
 
 `load_protected_lexicon()` merges the built-in canonical names with file-loaded terms:
 1. Start with built-in `SS_CANONICAL_NAMES` frozenset
-2. Load `files/novel-index/shadow-slave.txt`
+2. Load `scripts/Universal/resources/novel-index/shadow-slave.txt`
 3. Deduplicate (preserve first occurrence)
 4. Sort: multi-word phrases first (longest first), then single-word terms (longest first)
 5. Return as `ProtectedLexicon(terms=tuple, term_set_lower=frozenset)`
@@ -994,7 +1015,7 @@ Expand possessive and plural variants before masking:
 
 ### Growth Over Time
 
-The user adds new terms to `files/novel-index/shadow-slave.txt` as they are discovered. The system loads the file fresh every run, so additions take effect immediately without any code change.
+The user adds new terms to `scripts/Universal/resources/novel-index/shadow-slave.txt` as they are discovered. The system loads the file fresh every run, so additions take effect immediately without any code change.
 
 Shadow Slave world-specific terms that should be in this file include (expand as chapters are processed):
 - Named progression ranks and tiers
@@ -1012,12 +1033,14 @@ The repo is designed from the start to support multiple novels. Only Shadow Slav
 
 ### How to Add a New Novel
 
-1. Add `files/novel-index/<novel-name>.txt` with protected terms
-2. Add `scripts/profiles/<novel-name>/canonical_names.py` with the name set
-3. Add `scripts/profiles/<novel-name>/special_fixes.py` with forced substitutions
-4. Add `scripts/pipelines/<novel-name>.py` implementing the pipeline for that novel
-5. Update the GUI novel-profile dropdown (future v2 feature) to include the new profile
-6. Add test files in `scripts/tests/` for the new profile
+1. Add `scripts/Universal/resources/novel-index/<novel-name>.txt` with protected terms
+2. Add `scripts/Universal/profiles/<novel-name>/canonical_names.py` with the name set
+3. Add `scripts/Universal/profiles/<novel-name>/special_fixes.py` with forced substitutions
+4. Add `scripts/Universal/pipelines/<novel-name>.py` implementing the pipeline for that novel
+5. Register the novel in `scripts/Universal/core/novel_registry.py`; the GUI dropdown picks it
+   up automatically from the `resources/novel-index/*.txt` roster
+6. Add `scripts/Universal/resources/Novel-Edits-Details/<Novel-Name>.md` and test files in
+   `files/tests/` for the new profile
 
 No core modules need to be modified. The pipeline is a per-novel file that calls shared rule modules.
 
@@ -1037,7 +1060,7 @@ The batch runner calls `run_pipeline()` on whichever profile is active. Swapping
 Not every correction is tied to Shadow Slave. Many edits are **universal** — true for any webnovel regardless of series — and should be written so they can be reused across every novel without duplication:
 
 - **Universal rules** (apply to all novels): Unicode/ligature cleanup, spacing repair, OCR-artifact repair (`fix_zero_to_o`, dotted-word repair, spurious single-letter splits), spaced em-dash removal, `X/Y → X of Y` slash normalization, generic punctuation and grammar fixes, duplicate-chapter-title removal, chapter-title formatting. These live in `scripts/rules/` as the shared, stateless functions they already are, and any novel's pipeline may call them.
-- **Novel-specific data** (apply only to one novel): canonical character/place names, forced substitutions, and the protected-term list. These live in `scripts/profiles/<novel>/` (`canonical_names.py`, `special_fixes.py`) and `files/novel-index/<novel>.txt`. They are *data the universal rules consume*, not separate rule logic.
+- **Novel-specific data** (apply only to one novel): canonical character/place names, forced substitutions, and the protected-term list. These live in `scripts/profiles/<novel>/` (`canonical_names.py`, `special_fixes.py`) and `scripts/Universal/resources/novel-index/<novel>.txt`. They are *data the universal rules consume*, not separate rule logic.
 
 The design goal: a novel's pipeline file (`pipelines/<novel>.py`) is mostly a thin ordering of universal rules, parameterized by that novel's profile data. Adding a novel should rarely require new rule code — only new profile data — unless the novel has a genuinely unique formatting quirk, in which case a novel-specific rule may be added but kept clearly scoped to that profile. **Shadow Slave is the first profile, and its pipeline is the reference implementation** every later novel's pipeline is modeled on. When building the Shadow Slave pipeline, keep the universal/profile-data split clean so the second novel is a data exercise, not a refactor.
 
@@ -1201,9 +1224,9 @@ Test: run the full pipeline on five representative Shadow Slave chapters from `f
 Deliverables:
 - `scripts/core/protected_lexicon.py` — full `load_protected_lexicon()`, `mask_protected_terms()`, `unmask_placeholders()`, `expand_lexicon_variants()`
 - Integration with Shadow Slave pipeline
-- `files/novel-index/shadow-slave.txt` populated with initial content
+- `scripts/Universal/resources/novel-index/shadow-slave.txt` populated with initial content
 
-Test: add a term to `files/novel-index/shadow-slave.txt` that would otherwise be altered by a rule. Run a chapter through the pipeline and confirm the term is preserved unchanged.
+Test: add a term to `scripts/Universal/resources/novel-index/shadow-slave.txt` that would otherwise be altered by a rule. Run a chapter through the pipeline and confirm the term is preserved unchanged.
 
 ### Phase 6 — Testing and Packaging
 
@@ -1221,7 +1244,7 @@ Optional Phase 6 deliverable (not required for v1 release):
 Deliverables:
 - Novel-profile dropdown in GUI
 - Second novel profile scaffolded (whichever is chosen next)
-- `files/novel-index/<second-novel>.txt` populated
+- `scripts/Universal/resources/novel-index/<second-novel>.txt` populated
 - Pipeline for second novel implemented
 - Tests for second novel pipeline
 

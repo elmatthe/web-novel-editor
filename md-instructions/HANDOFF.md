@@ -1,181 +1,952 @@
-# HANDOFF — Phase 9: Novel-Selection Dropdown + Dispatch Registry
+# Web Novel Editor — Handoff
 
-This file is the single source of truth for pulling this work onto the home PC and for the
-Codex review pass. It assumes the reader has **only** the repo + this file (no chat context).
-
-- **Version:** v0.9.0 (Phase 9)
-- **Branch:** `feature/novel-dropdown` (do NOT squash-merge or delete; history not rewritten)
-- **Base:** branched from `593a9c4` (Merge PR #1 from elmatthe/release-main), i.e. v0.8.0.
-- **What this is:** promotes the previously-deferred "v2" novel-profile dropdown into v1 as a
-  **UI + dispatch layer only**. No new per-novel editorial profiles were authored — Shadow
-  Slave remains the only real profile, and its output is byte-for-byte unchanged.
+## Current Focus
+Phase-10 instruction drop (`Instructions_Phase10_JunkStrip_And_QA.md`) in progress on
+branch `feature/junk-strip-hardening`, re-based per Phase 0.5 onto `origin/main @ 319f523`
+(v0.9.0 — the dispatch registry is real and merged; the earlier "registry missing" finding
+only reflected a stale local clone). Phase 0 (baseline), Phase 0.5 (branch reconciliation,
+user-confirmed base), Phase 1 recon + addendum, Phase 2 (junk-strip Tier 1
+hardening + two-layer test infrastructure + fixture commit), **Phase 3
+(grammar/editorial QA pass), **Phase 4 (TTS-readiness sweep), **Phase 5
+(dual-mode dispatch confirmed at the registry/provenance level), and **Phase 5b
+(real Noble Queen + Supreme Magus profiles authored from files/study-examples/,
+registered and proven against the corpora) are done**; next is Phase 6
+(PDF-build alignment with web-novel-scraper, safety-first).
+User decisions on record: 10 pinned fixtures committed
+(Phase 2 — done);
+Noble Queen + Supreme Magus profiles authored in Phase 5b (NO profanity-uncensor map —
+honored, not ported);
+Renegade Immortal / Reverend Insanity stay universal-fallback placeholders; re-track
+AI-WORKSPACE.md; Setup_and_Run-template.* are study copies only — Phase 9 builds the
+single launcher per OS from them, then deletes them.
+Phase 6 (PDF-build alignment, safety-first) is now DONE: orphan-page handling is
+prevention (`keepWithNext`) + detection-only logging, automatic deletion DEFERRED (the
+defect is not reproducible — all 7,979 cached extractions are single-chapter); no `pypdf`
+added; PDF typography confirmed already aligned with the scraper.
+Phase 7 (GUI consistency with web-novel-scraper) is now DONE: terminology/layout/workflow
+alignment ONLY (paired "Web Novel Editor" naming, log moved to the bottom, "Advanced
+Options" grouping) with the editor's ttk design system fully preserved; NO Stop
+button / no cancellation (no safe seam — deferred), editor's daemon-thread lifecycle
+kept (scraper threading NOT ported).
+Phase 8 (repo/scripts-folder cross-platform reorganization) is now DONE, **including the
+runtime-data decision the user resolved as Option B**: all program code moved under
+`scripts/Universal/` (git mv, history preserved), `scripts/tests/` → `files/tests/`,
+repo-root `test-files/` → `files/test-files/`, `scripts/Windows|MacOS/` added as `.gitkeep`
+placeholders; resolver depth + conftest + verify + launcher + `.gitattributes`/`.gitignore`
+paths all updated. **Runtime-data conflict RESOLVED (user chose Option B):**
+`files/novel-index/` + `files/Novel-Edits-Details/` were relocated to
+`scripts/Universal/resources/{novel-index,Novel-Edits-Details}/`, so `files/` is now purely
+dev-only with no exceptions and a clean release ships only `scripts/` + launchers. Verify
+green (369); the release-ZIP proof was re-run with `files/` **entirely absent** and the app
+is fully functional. Ledger #023 supersedes #022. This relocation is the build-spec change
+the Phase-10 `DECISIONS.md` entry will formalize.
+Phase 9 (single hardened launcher per OS) is now DONE: one `Setup_and_Run.bat` and one
+`Setup_and_Run.command` rebuilt from the study templates, targeting
+`scripts/Universal/main.py` — 4 numbered steps, self-healing venv, health-GATED idempotent
+install (lock + `pip check` + import smoke; venv interpreter preferred on repeat launch),
+consent-gated base-runtime install, Windows `pythonw` windowless launch with a `--check`
+console preflight. Editor behavioral choices deliberately KEPT over the template's:
+Python-version gate **blocks** (does not warn) below 3.10; floor stays 3.10 (from-scratch
+winget install still pulls 3.11). The untracked `Setup_and_Run-template.*` study copies were
+deleted (root now has exactly one launcher per OS). Verify green (381).
+Phase 10 (docs & changelog) is now DONE: all four permanent docs + README + build-spec +
+EDITING-RULES + UNIVERSAL.md updated to v0.10.0; the new `md-instructions/DECISIONS.md` was
+created from `decisions-template.md` and transcribed from the running ledger (27 entries).
+Version confirmed **v0.10.0** (minor bump, not patch — ledger #026 / DECISIONS #026).
+**Phase 11 (final verify & wrap-up) is now DONE — the whole junk-strip-hardening plan
+(Phases 0–11) is COMPLETE.** This session: pushed the user-reviewed Phase-10 state to
+origin; ran the corpus-hash compare vs the Phase-0 baseline (**7,979/7,979 PDFs match, 0
+mismatch, 0 missing** — the only intended diff is the Phase-8 fixture-path remap
+`test-files/ → files/test-files/`, contents unchanged); deleted the instruction drop
+`Instructions_Phase10_JunkStrip_And_QA.md`; ran `python scripts/verify.py` against the
+post-delete tree → **PASS (383 passed, 0 skipped)**; updated this handoff + ledger #028;
+re-ran verify after the handoff edit to reconcile → still PASS; committed and pushed the
+Phase-11 commit. **The branch `feature/junk-strip-hardening` is pushed to origin and left
+UNMERGED for the user's end-of-plan review/merge — do NOT merge to `main` automatically.**
+No DECISIONS.md entry was added for Phase 11 (mechanical wrap-up, no non-obvious design
+choice — ledger #028 explains); DECISIONS.md stays at 27 entries.
+Standing instruction (2026-07-12 through Phase 10): the running decisions ledger in gitignored
+scratch (files/qa-tools/scratch/decisions-ledger.md, ADR format) was appended at the end of
+every phase; Phase 10's DECISIONS.md is a transcription of that ledger (not a reconstruction).
+RECONCILED in Phase 10: the Supreme Magus Cloudflare error-page count — the Phase-1 recon
+estimate of 4 (3 named + an unconfirmed "+1 more") is superseded by the committed/detected
+truth of **3** (SM_ERROR_PAGES = Ch. 1423/1424/1427; Phase-5 run flagged 3/3). Docs fixed to
+3; code unchanged (it was already correct). See DECISIONS #027. Historical Work Log entries
+below that say "4" are append-only history, left as written.
 
 ---
+
+## Open Issues / Bugs
+
+| # | Severity | File | Description | Status | Found by |
+|---|----------|------|-------------|--------|----------|
+| 1 | Minor | .gitignore / test-files/ | ~~The 10 pinned fixture PDFs are gitignored AND untracked~~ FIXED in Phase 2 (2026-07-10): ignore rule narrowed, the 10 PDFs committed with a `*.pdf binary` .gitattributes guard (staged blobs verified byte-identical to disk). | Fixed 2026-07-10 | Claude Code |
+| 2 | Minor | md-instructions/BRIEFING.md | ~~States v0.9.0 features exist that don't~~ RESOLVED by Phase 0.5: the registry/dropdown DO exist on origin/main @ 319f523; the local clone was behind (release-main @ v0.8.0). Not a doc bug. | Resolved 2026-07-06 | Claude Code |
+| 3 | Minor | .test-tmp/ | Pre-existing repo-root folder is ACL-locked (access denied to list/read even via icacls). Gitignored, left untouched; QA scratch lives in files/qa-tools/scratch/ instead. | Open | Claude Code |
+
+---
+
+## Work Log (newest first)
+
+- 2026-07-16 — **Phase 11 complete: final verify & wrap-up — the entire junk-strip-hardening
+  plan (Phases 0–11) is DONE; branch pushed to origin, left UNMERGED for the user's review.**
+  Executed the plan's deterministic Phase-11 order: (1) **pushed** the user-reviewed Phase-10
+  branch state to `origin/feature/junk-strip-hardening` (`639ec5e..9865297`; origin HEAD now
+  equals local HEAD `9865297`; **not** merged to `main`, no force-push). (2) **Corpus-hash
+  compare vs the Phase-0 baseline:** recomputed SHA-256 for every PDF in
+  `corpus-hashes-baseline-v2.txt` (the complete 7,979-hash baseline — SS 3,000 + Noble Queen
+  778 + Supreme Magus 4,191 + the 10 pinned fixtures) → **7,979/7,979 MATCH, 0 mismatch, 0
+  missing.** The **only** intended path diff is the Phase-8 relocation of the 10 fixtures
+  (`test-files/shadow_slave/` → `files/test-files/shadow_slave/`), which the compare script
+  remaps and confirms byte-identical. Source corpora were never touched. (Compare script ran
+  from the gitignored job tmp, not committed.) (3) **Deleted** the instruction drop
+  `md-instructions/Instructions_Phase10_JunkStrip_And_QA.md` via `git rm` (temporary drop per
+  AI-WORKSPACE — read, implemented, verified, deleted). (4) **`python scripts/verify.py`
+  against the post-delete tree → PASS: 383 passed, 0 skipped, ~23 s;** all three gate checks
+  green (pytest / deps pinned / CHANGELOG v0.10.0 == BRIEFING). **Skip-count discipline:** 0
+  skips — strictly better than the 381 passed / 1 bash-skip recorded in earlier phases; on
+  HOME-PC the local corpora and Git Bash are present, so the corpus-backed and
+  launcher-`bash -n` tests all RUN and pass here instead of skipping (no corpus test is being
+  miscounted as a pass — there are simply no skips). (5) Updated this handoff (Current Focus +
+  this entry + Session Sync Log) and appended **ledger #028**; **no DECISIONS.md entry** —
+  Phase 11 is mechanical wrap-up with no non-obvious design decision, so DECISIONS.md stays at
+  27 entries (#001–#027). (6) **Re-ran `verify.py` after the handoff edit** to reconcile the
+  committed state with the last gate run → still PASS. (7) Committed the Phase-11 doc/deletion
+  state and **pushed to origin.** **Pre-existing working-tree state left UNTOUCHED** exactly as
+  every prior phase did: `AI-WORKSPACE.md` (modified, unstaged), `md-instructions/kickoff-prompt.md`
+  (deleted, unstaged), and untracked `Map-Repo-Structure.bat`,
+  `md-instructions/plan-1-gui-batch-overhaul.md`, `md-instructions/plan-2-ai-editor-integration.md`
+  — none staged, committed, restored, or deleted; they are the user's to resolve at merge time.
+  **The branch is NOT merged to `main` — awaiting the user's explicit end-of-plan sign-off.**
+  — Claude Code
+
+- 2026-07-16 — **Phase 10 complete: docs & changelog pass for the whole junk-strip-hardening
+  plan (v0.10.0); DECISIONS.md created; SM error-page count reconciled to 3; committed local
+  only (NOT pushed — user reviewing docs before origin).** Version confirmed **v0.10.0** (minor
+  bump, not a patch v0.9.1 — the plan bundles new profiles + junk/PDF/GUI changes + a full repo
+  reorg; ledger #026). **Files updated:** (a) **`md-instructions/DECISIONS.md`** — NEW fourth
+  permanent doc, created from `decisions-template.md` and **transcribed** from the running
+  gitignored ledger (`files/qa-tools/scratch/decisions-ledger.md`) — all 27 entries (#001–#027),
+  newest on top, reasoning preserved verbatim, not a from-memory rewrite. (b)
+  **`CHANGELOG.md`** — new `## v0.10.0` top entry covering Phases 0.5–9 (registry reuse, junk
+  hardening, Phase-3 QA, Phase-4 TTS sweep, **Noble Queen + Supreme Magus profiles**, Phase-6
+  PDF prevention/detection with **no `pypdf` and deletion deferred**, Phase-7 GUI rename +
+  no-Stop, Phase-8 reorg + Option-B relocation, Phase-9 launcher **blocking 3.10 gate**
+  non-alignment, fixture commit, docs). (c) **`BRIEFING.md`** — bumped to v0.10.0; new "Current
+  State" block; repo/git, packaging (path-resolution note → `scripts/Universal/resources/` via
+  `parents[1]`), Deferred Features (orphan-page prevention/detection + deletion deferred, no
+  pypdf; Stop deferred; universal-seam caveat), "What Is Working" (three corpora folded in as
+  **local QA evidence**, macOS launcher verified), "What Is Broken", and "Next Steps" all
+  updated; historical phase sections left as history. (d) **`EDITING-RULES.md`** — Stage 1.5
+  rewritten from PLACEHOLDER to IMPLEMENTED with the **real per-corpus evidence base** (SS
+  clean / NQ novelfire / SM multi-site + homoglyph + spaced + **3 Cloudflare error pages**);
+  intro + Stage-13 paths → `scripts/Universal/...`; new PDF orphan-page-handling section; TTS
+  criteria annotated with the Phase-4 re-verification + Edge-Neural target + flagged-not-changed
+  classes. (e) **`build-spec.md`** — the Phase-1 "novel-index lives under `files/`" reconciliation
+  box **superseded** by the Phase-8/Option-B reality (code under `scripts/Universal/`, runtime
+  data under `scripts/Universal/resources/`, `files/` dev-only); concrete `files/novel-index/…`
+  path references + the Novel-Index folder-layout + "how to add a novel" list repointed. (f)
+  **`scripts/Universal/resources/Novel-Edits-Details/UNIVERSAL.md`** — added the "Basic Edit
+  Mode" naming note. (g) **`README.md`** — title → "Web Novel Editor"; three profiles + Basic
+  Edit Mode; entry point `scripts/Universal/main.py`; 4-step launcher; **macOS
+  `Setup_and_Run.command` verified 2026-07-16** (real clean-room bootstrap + Finder
+  double-click — closes the item Phase 9 left open on macOS-less HOME-PC); corpora described as
+  local QA evidence; Status → v0.10.0. (h) **`files/qa-tools/scratch/decisions-ledger.md`** —
+  appended #026 (version) + #027 (SM error-page reconciliation). **SM error-page resolution:**
+  code is source of truth — real count is **3** (SM_ERROR_PAGES = 1423/1424/1427; Phase-5 run
+  3/3), the Phase-1 recon "+1 more" was never confirmed; docs fixed to 3, **no code change**
+  (DECISIONS #027). **Verify:** `python scripts/verify.py` → PASS (CHANGELOG v0.10.0 matches
+  BRIEFING; deps pinned; suite green — corpus-backed tests skip only where the gitignored local
+  corpora are absent, a visible skip never counted as a pass). **NOT done (Phase 11, per the
+  single-phase kickoff scope):** deleting the instruction drop, the final corpus-hash compare,
+  the post-delete final verify, and any merge/push — the branch is **local-only**. — Claude Code
+
+- 2026-07-13 — **Phase 9 complete: one hardened `Setup_and_Run.bat` + one
+  `Setup_and_Run.command` rebuilt from the study templates, targeting the post-Phase-8
+  entry point `scripts/Universal/main.py`; the untracked `-template` study copies deleted.
+  Verify green (369→381).** No local `web-novel-scraper` clone exists on HOME-PC, so the
+  root `Setup_and_Run-template.*` (priority-1 reference, the AI-WORKSPACE scaffolder
+  sources) + the live launchers (priority-2) were the sources; the scraper was already
+  studied at commit `5127b384…` in Phases 6/7. **Built (both launchers):** 4 numbered
+  `[Step N of 4]` banners (Python/env check → venv → dependencies → preflight+launch; no
+  ffmpeg step — text/PDF tool); **self-healing venv** (detect missing `activate`, rebuild;
+  Windows ".venv still open → close windows / check Task Manager" guidance);
+  **health-GATED idempotent install** — skip only when ALL of {complete venv,
+  `.venv/requirements.lock` == `requirements.txt`, venv Python ≥3.10, `pip check` clean,
+  `import pdfplumber, reportlab` OK}; the lock is written ONLY after a successful install
+  AND validation; **venv interpreter preferred** on a healthy repeat launch (system Python
+  — `py -3`→`python` — searched only when the venv must be (re)built); consent-gated
+  winget (`Python.Python.3.11 --scope user`) / Homebrew base-runtime install; Windows
+  **`pythonw` windowless launch** with a `python`-fallback and a `--check` console
+  preflight (see below). **Deliberate NON-alignments with the template, noted so they're
+  not mistaken for oversights:** (a) the Python-version gate **BLOCKS** (does not
+  warn-and-continue like the template/scraper) below 3.10 — per CHANGELOG v0.6.1 M3 the app
+  uses 3.10 syntax; (b) the floor stays **3.10** even though a from-scratch install pulls
+  3.11; (c) the macOS `.command` has no `pythonw`, so it launches with `python` (console
+  visible) — windowless launch is Windows-only. **App-code touch (justified):** added a
+  `--check` flag to `scripts/Universal/main.py` that runs the real startup import chain
+  (tkinter → `gui.app`) and exits 0 without opening a window — the windowless-launch
+  startup-error mechanism Phase 9 §8 calls for, reusing `main.py`'s existing friendly
+  tkinter-missing message (ledger #025). **Verified:** (1) clean-room bootstrap in a temp
+  dir — fresh `venv` → `pip install` the pinned `requirements.txt` → `pip check` clean →
+  `import pdfplumber, reportlab` → `main.py --check` "Startup check passed" (exit 0); (2) a
+  **real `cmd.exe` run of the actual `.bat`** — first run reused the healthy venv, installed
+  + validated + wrote `.venv/requirements.lock`, preflight passed, launched the GUI
+  windowless via `pythonw`; a **repeat run** printed all 4 step banners in order and took
+  the idempotent **"Dependencies are already installed and healthy - skipping install"**
+  path, then launched windowless (detached `pythonw` killed after each run; `.venv` is
+  gitignored so the lock file is not tracked). **NOT executed end-to-end:** the macOS
+  `.command` — no macOS on HOME-PC — verified only by `bash -n` (passes), static structure,
+  and logic-parity with the proven `.bat`; **the user should double-click it on a Mac to
+  confirm.** **Tests (committed):** `files/tests/test_launchers.py` +12 (ordered numbered
+  steps; self-healing venv; block-not-warn on old Python; consent gate before base-runtime
+  install; health-checked idempotent install; preflight-before-windowless-launch;
+  subroutine-resolution parse check) — all static inspection, never touching the real
+  env; new `files/tests/test_main_check_flag.py` (2) pins the `--check` contract. The
+  Phase-6 M4 pip-fail guard, the 3.10-block strings, and the `bash -n` check are all still
+  asserted. `.gitattributes` (Phase 8) already enforces `*.bat eol=crlf` / `*.command
+  eol=lf`; the `.command` keeps mode `100755`; working-copy line endings confirmed (bat
+  CRLF, command LF). `python scripts/verify.py` → PASS (381 passed; was 369 — +14 launcher/
+  preflight tests). Decisions ledger appended #024 (launcher build + non-alignments) + #025
+  (`--check` preflight). Docs (BRIEFING/CHANGELOG/README/build-spec/EDITING-RULES) +
+  `DECISIONS.md` creation intentionally untouched — Phase 10 per plan. — Claude Code
+
+- 2026-07-13 — **Phase 8 follow-up: runtime-data conflict resolved by the user as Option B
+  — `files/novel-index/` + `files/Novel-Edits-Details/` relocated to
+  `scripts/Universal/resources/`; `files/` is now purely dev-only. Verify green (369);
+  release-ZIP proof re-run with `files/` ENTIRELY absent.** Both dirs moved via `git mv`
+  (history preserved) into `scripts/Universal/resources/{novel-index,Novel-Edits-Details}/`.
+  Runtime resolvers repointed: `novel_registry.NOVEL_INDEX_DIR` +
+  `edit_details.EDIT_DETAILS_DIR` from `parents[3]/"files"/…` to `parents[1]/"resources"/…`.
+  Updated 3 test path literals (`test_multi_novel`, `test_pipeline`, `test_protection`) and
+  every concrete-path mention in shipped code comments/docstrings + the shipped edit-details
+  `.md` resources (they now point at `scripts/Universal/resources/novel-index/…`). No
+  packaging manifest exists (distribution is the launcher), so nothing else to update.
+  **Verified:** `python scripts/verify.py` → PASS (369, unchanged); release-ZIP simulation
+  with **no `files/` dir at all** → roster 8 (SS first), SS profile + 352 protected terms,
+  edit-details layered, universal fallback intact — app fully functional shipping only
+  `scripts/` + launchers. Decisions ledger #023 (Supersedes #022). Narrative docs
+  (BRIEFING/CHANGELOG/README/build-spec) still Phase 10 per plan — this is the build-spec
+  change that Phase 10's DECISIONS.md will formalize. — Claude Code
+
+- 2026-07-13 — **Phase 8 complete (except one escalated decision): repo reorganized to
+  `AI-WORKSPACE.md`'s cross-platform layout — a mechanical structural pass, all via
+  `git mv` so history follows; verify green post-move (369, unchanged from the
+  pre-move baseline).** Audit-first (findings in
+  `files/qa-tools/scratch/phase8-audit-findings.md`): grep confirmed only *runtime*
+  OS-branching (`utils/file_utils.open_in_file_manager`), no OS-exclusive modules, so
+  everything moves under `scripts/Universal/`. **Moves:** every package (`core gui pdf
+  pipelines profiles rules utils`) + `main.py` → `scripts/Universal/`; `verify.py` +
+  `requirements.txt` stay at `scripts/` root; `scripts/Windows/` + `scripts/MacOS/` added
+  as `.gitkeep` placeholders (*structurally prepared only — NOT macOS-supported*);
+  `scripts/tests/` → `files/tests/`; repo-root `test-files/` → `files/test-files/` (10
+  pinned fixtures kept tracked, `.gitignore` negation rules repointed). **Path fixes the
+  move touched:** runtime resolvers `novel_registry.py`/`edit_details.py`
+  `parents[2]`→`parents[3]` (still reach repo-root `files/…` from the deeper
+  `scripts/Universal/core/`); `verify.py` `TESTS_DIR` `scripts/tests`→`files/tests`; the
+  moved `conftest.py` now bootstraps `scripts/Universal/` onto `sys.path` (mirrors the
+  scraper's `files/tests/conftest.py`) **while preserving** the editor's `local_corpus`
+  marker + `--require-local-corpora` flag; test fixture-path literals
+  `test-files`→`files/test-files` (the `_REPO_ROOT` 3×dirname/`parents[2]` computations
+  stay valid — both `scripts/tests/` and `files/tests/` are 2 dirs below root); launchers'
+  `MAIN_SCRIPT` → `scripts/Universal/main.py`; `.gitattributes` gains the scraper's
+  launcher line-ending rules (`*.bat`/`*.cmd`→CRLF, `*.command`→LF), preserving `*.pdf
+  binary`. Import mechanism unchanged (top-level package imports; `main.py` needed no edit).
+  **Verified from multiple angles (Phase 8 §9):** verify/pytest from the repo root (369),
+  from an arbitrary different cwd, and from a spaced-path cwd (369 each); runtime-resolver
+  smoke (novel-index + edit-details resolve and exist); **release-ZIP simulation** — with
+  the entire *dev-only* `files/` tree absent (tests/test-files/test-logs/pdf-example-chapters/
+  study-examples/qa-tools) the app still loads novel selection (roster 8, SS first),
+  protected-term index (352 SS terms), and edit-details, **provided** `files/novel-index` +
+  `files/Novel-Edits-Details` ship; launchers point at the new entry point + `bash -n` OK;
+  no shipped-tree (`scripts/Universal/`) import of anything under `files/tests`/`files/test-files`.
+  **DEFERRED — escalated to the user (do NOT resolve unilaterally):** `files/novel-index/`
+  + `files/Novel-Edits-Details/` are runtime-required but `build-spec.md` (~L87–89)
+  deliberately places them under `files/` while `AI-WORKSPACE.md` says `files/` is dev-only.
+  Left where they are this phase; options presented in the Phase-8 summary. `.claude/` left
+  as-is; `.codex/` absent, not created (per-machine gitignored agent config, out of a
+  mechanical-move scope). Docs (BRIEFING/CHANGELOG/README/build-spec) + `DECISIONS.md`
+  creation are Phase 10 per plan — intentionally untouched. Decisions ledger appended #021
+  (reorg approach) + #022 (runtime-data escalation). — Claude Code
+
+- 2026-07-13 — **Phase 7 complete: GUI visual/structural consistency with
+  `web-novel-scraper` — terminology/layout/workflow alignment ONLY, the editor's
+  polished ttk design system fully preserved; NO cancellation/threading change.**
+  Catalogued `scripts/gui/app.py` (editor) against the scraper's
+  `scripts/Universal/app.py` (@ scraper commit
+  `5127b384f48d1496bab4a34af79264ced97a98b5` — HEAD confirmed unchanged since the
+  Phase-6 read, no drift) side by side. **Two of the plan's alignment items were
+  already satisfied and left untouched:** novel/source selection is already first
+  (novel card row 1), and input/output controls (file list, output folder) already
+  precede the options card. **Three changes applied, all confined to
+  `scripts/gui/app.py`, zero design-system change:** (a) **paired naming** — window
+  title + header H1 "Webnovel Editor" → **"Web Novel Editor"** (pairs the scraper's
+  "Web Novel Scraper"); the internal code name in non-GUI docstrings / the `__WE_`
+  log-prefix constant left as-is (not user-facing). (b) **log at the bottom** —
+  reordered so the run controls (progress bar + Start button) sit *above* the log,
+  which is now the last large widget above the thin status strip, mirroring the
+  scraper's Start/Stop → progress → log order; a pure grid-row swap (log 5→6, run
+  6→5, weighted expanding row 5→6) with no widget/style edits. (c) **grouping** —
+  the three advanced/diagnostic checkboxes (replacement log / debug text / dry run)
+  card relabelled "Options" → **"Advanced Options"** so they read as secondary.
+  **Explicitly NOT done (per plan §3/§4 + the kickoff's no-scope-creep guardrail):**
+  no Stop/Cancel button (the editor's `run_batch` has no cooperative-cancellation
+  seam; faking it by killing the `daemon=True` worker mid-PDF-write is the exact
+  corruption hazard Phase 6 atomicity guards against — cancellation recorded as a
+  **separately deferred feature**); the editor keeps its own daemon-thread +
+  `self.after(0, ...)` lifecycle (the scraper's `threading.Event` + non-daemon +
+  close-poll pattern was **not** ported); no scraper-only controls added
+  (site/browser/delay/range/output-mode); no editor-only controls removed; the
+  "Start Batch Processing" label kept verbatim (already Start-prefixed; bare "Start"
+  rejected as low-value). **Tests (committed):** `scripts/tests/test_app.py` +3 —
+  paired title + real `minsize` (anti-clipping); structural order (novel-first,
+  run-above-log via grid-row assertions, "Advanced Options" card present); progress
+  drives-up-and-resets-to-zero between runs + Start starts enabled. All GUI tests
+  skip cleanly with no display. **Verified:** `python scripts/verify.py` → PASS;
+  suite 366→369 passed + gate green (deps pinned, CHANGELOG v0.9.0 matches BRIEFING).
+  Real screenshot render (scratch `phase7_gui.png`, gitignored) visually confirmed
+  the paired title, header, card order, and Advanced-Options label. Decisions ledger
+  appended #019 (alignment approach) + #020 (no-cancellation / lifecycle preserved).
+  Docs (BRIEFING/CHANGELOG/README/EDITING-RULES) intentionally untouched — Phase 10
+  per plan. — Claude Code
+
+- 2026-07-12 — **Phase 6 complete: PDF-build alignment with `web-novel-scraper`,
+  safety-first — orphan-page handling is prevention + detection-only, automatic
+  deletion DEFERRED because the defect is not reproducible from real data; no
+  `pypdf` added; typography confirmed already aligned.** Did the plan-required
+  reproducibility check BEFORE any build change: same-code double-build of the 10
+  pinned fixtures is byte-DIFFERENT (0/10 — ReportLab embeds CreationDate/ModDate)
+  but semantically IDENTICAL (10/10 text/page-count/dims), establishing semantic
+  comparison as the sound equivalence basis (Phase 6 §12). **Reproducibility of the
+  orphan defect:** a 100%-coverage scan of ALL 7,979 Phase-1 cached extractions
+  (`phase6_orphan_scan.py`) found **zero** multi-chapter/combined documents (every
+  file has exactly one chapter-heading-shaped line; the single 0-heading file, SM
+  ch. 3362, is a filename-underscore artifact and is still single-chapter) and
+  **zero** heading-only files — so the scraper's `remove_single_heading_pages()`
+  scenario cannot arise from either local corpus. Deletion is therefore correctly
+  **deferred**, not built against a hypothetical. **Typography** confirmed by reading
+  `scripts/pdf/builder.py` and the scraper's
+  `scripts/Universal/webnovel_scraper/pdf_builder.py` (@ scraper commit
+  `5127b384f48d1496bab4a34af79264ced97a98b5`) side by side: identical Times-Roman
+  11/15pt justified body, Helvetica-Bold 14/18pt #134252 headings, 0.5" margins, `\f`
+  page breaks, same heading regexes — no change made (the editor's `[.?!]` terminal
+  and lossless over-long-heading fallback are deliberate prior-phase improvements,
+  kept). **What changed (all in existing `pdf/builder.py` + `core/batch_runner.py` —
+  no new modules):** (a) `keepWithNext=1` on the chapter-heading `ParagraphStyle` so a
+  heading can never be stranded alone at a page bottom — a synthetic RED probe found
+  stranding at filler counts 18 and 37 with the old builder, both now prevented;
+  (b) new `pdf.builder.detect_heading_only_pages()` (uses the already-present
+  `pdfplumber`, returns 1-based page numbers, **never deletes**); (c) `batch_runner`
+  calls the detector **only** for multi-chapter builds (≥2 `\f` segments — today's
+  single-chapter case skips it, proven by a spy test) and on a hit emits a GUI warning
+  + a JSONL `integrity_flag` record (`rule="pdf.heading_only_page_flag"`) while keeping
+  the page. **SS/output equivalence proven:** `phase6_equivalence_proof.py` rebuilt all
+  10 fixtures with the post-change builder and semantically matched them against the
+  pre-change capture — 10/10 identical text, page count, AND dimensions (`keepWithNext`
+  is a structural no-op when the heading is already page-1 top, which every real
+  single-chapter input is). **Tests (committed):** +13 in `test_pdf.py`
+  (stranding-prevention parametrized over filler 17/18/19/36/37/38; single-heading-only
+  document preserved as 1 page = zero-page guard; multi-chapter empty-body chapter
+  builds; trailing heading-only chapter builds — `keepWithNext` on the last flowable;
+  extremely-long heading still lossless; 3 detector tests) and +2 in `test_batch.py`
+  (heading-only page flagged-not-deleted with JSONL `integrity_flag` asserted; single
+  chapter skips detection via a monkeypatch spy). Phase 6 §7–9 (metadata/atomicity/
+  file-lock tests) are **N/A** — no rewrite path implemented, so they're skipped by
+  construction. `python scripts/verify.py` → PASS; suite 350→365 passed + 1 known bash
+  skip (no new skips). Decisions ledger appended #017 (orphan handling) + #018 (no
+  `pypdf`). Docs (EDITING-RULES/BRIEFING/CHANGELOG deferred-feature note) intentionally
+  untouched — Phase 10 per plan. Scratch: `phase6-orphan-scan-report.txt`,
+  `phase6-repro-report.txt`, `phase6-equivalence-report.txt` +
+  `phase6_orphan_scan.py`/`phase6_repro_check.py`/`phase6_red_experiment.py`/
+  `phase6_equivalence_proof.py` (all gitignored). — Claude Code
+
+- 2026-07-12 — **Phase 5b complete: real per-novel profiles authored for The Noble
+  Queen and Supreme Magus from files/study-examples/ — a pure data/porting exercise
+  on the validated seam; zero core/rules/pdf changes.** Both novels now dispatch to
+  their own registered profile (`novel_registry._REGISTRY` + 2 pipeline modules
+  mirroring shadow_slave.py stage-for-stage + 2 profile packages), with populated
+  indexes (`the-noble-queen.txt` 26 terms, `supreme-magus.txt` 594 terms — ported
+  programmatically with round-trip checks from the user's master indexes; SM master
+  confirmed a superset of all 4 _legacy lists; index ⊇ floor invariant pinned for
+  both) and edit-details docs (`The-Noble-Queen.md`, `Supreme-Magus.md`).
+  **NQ_SPECIAL_FIXES is empty by evidence** (the scrapers' only table is the
+  decorative-Unicode watermark class = universal junk-strip; no NQ-specific typo
+  exists). **SM_SPECIAL_FIXES = 16 proper-noun artifact keys** ported from the legacy
+  editor's PROPER_NOUN_ARTIFACTS/Ragnarok fixes and re-validated codepoint-exactly
+  against all 4,191 cached SM extractions; the Ragnarök family restores to the
+  authored "Ragnarök" (ö — ~185 intact corpus occurrences), NOT the legacy plain
+  "Ragnarok"; excluded per decision/evidence: the profanity-uncensor map (spec),
+  generic-word artifacts (`rnade` is a substring FP hazard — "Bernadette"; pinned by
+  test), possessive dupes (covered by substring replace). Universal-seam caveat
+  handled as the plan directs: LOTM is NOT being authored, so the trigger is unmet —
+  the fallback keeps reusing the LOTM stub, still pinned by
+  test_universal_fallback_applies_no_special_fixes (ledger #014). **Committed proof**
+  (new scripts/tests/test_novel_profiles.py, 27 tests incl. 2 corpus-marked):
+  dispatch/roster/floor/index/md-layering for both novels; SM fixes apply + are
+  logged in SM mode and in NO other mode (cross-novel isolation both directions);
+  censored `f*ck` passes through SM mode verbatim (uncensor exclusion pinned);
+  "Bernadette" survives; protected terms survive both new pipelines; no __WE_ leak
+  at 594-term scale; Renegade Immortal/Reverend Insanity still universal-only; SS
+  dispatch untouched. test_dual_mode_provenance.py re-pointed its universal-mode
+  exemplar The Noble Queen → Renegade Immortal (Phase 5 §2's anticipated swap —
+  deliberate, documented in docstrings). **Corpus proof** (scratch
+  phase5b_profile_proof.py over the Phase-1 cached extractions): all 113 SM files
+  containing any fix key come out with every key removed (116 special-fix events;
+  the digit-0 keys are normally pre-repaired by universal ocr_repair stage 9 —
+  documented backstop), pipeline idempotent on its own output (0 second-pass fixes,
+  byte-identical), NQ first/middle/last clean in profile mode, no leaks. ALL CHECKS
+  PASSED. SS-equivalence: shadow_slave.py and all rules/ untouched this phase; the
+  suite's fixture-backed + synthetic equivalence tests re-ran green. Suite 322→350
+  passed + 1 known bash skip; `python scripts/verify.py` PASS. Docs
+  (CHANGELOG/BRIEFING/EDITING-RULES/README/GUI) untouched — Phase 10 per plan.
+  Decisions ledger created at files/qa-tools/scratch/decisions-ledger.md (16 entries:
+  Phases 0–5 backfilled + this phase's #011–#016). Details:
+  files/qa-tools/scratch/phase5b-findings.md (+ phase5b_generate_profiles.py,
+  phase5b_profile_proof.py, phase5b-proof-report.txt, artifact scans; gitignored).
+  — Claude Code
+
+- 2026-07-11 — **Phase 5 complete: dual-mode dispatch confirmed at the
+  registry/provenance level against the real corpora — the recovered v0.9.0
+  registry works as designed; NO rebuild or behavioral fix was needed.** The
+  one change is the plan-directed provenance gap fix: run-level dispatch
+  metadata was previously only transient GUI-log text, so `run_batch` now
+  returns `novel` + `profile_applied` in its summary and stamps every JSONL
+  replacement log with a `{"record": "run_metadata", ...}` header line
+  (selected/novel/mode/pipeline/protected_terms) via an optional
+  `ReplacementLog.metadata` field — a run header, per the plan, NOT a
+  per-event field; entry schema and `len()` unchanged, header omitted when
+  metadata is unset (backward-compatible, TDD RED→GREEN). **Committed proof**
+  (new `scripts/tests/test_dual_mode_provenance.py`, 11 tests): Noble Queen +
+  Supreme Magus resolve to the universal fallback (empty floor, own index);
+  registration — not index contents — is the deciding factor (a no-index name
+  still falls back; monkeypatch-registering "Re Monster" flips it to profile
+  with no index change); bait strings (`Almanach`/`carcassess`) changed in SS
+  mode and untouched in a "The Noble Queen" run through the FULL `run_batch`
+  seam on a synthesized PDF with JSONL provenance asserted both ways;
+  spy-level proof `shadow_slave._apply_special_fixes` is never *called* in a
+  universal-only run (and fires exactly once in SS mode); no `__WE_` leak in
+  output/logs/JSONL in either mode. **Corpus proof** (real `run_batch` runs,
+  deterministic Phase-1 §8 sample): NQ 35 as "The Noble Queen" and SM 33
+  (incl. the 3 recorded error pages) as "Supreme Magus" → universal-only
+  headers, 0 special_fixes entries, 0 protected terms, `strip_junk` over
+  every output a byte no-op (residual-junk proof), 3/3 error pages
+  integrity-flagged not stripped; SS 8 as "Shadow Slave" → novel-profile
+  header, protected probe terms never reduced. ALL CHECKS PASSED. One
+  existing test updated for the deliberate summary-contract change
+  (`test_robustness` empty-run exact-dict pin gains the 2 new keys). Flagged,
+  not acted on: Phase-1/4 notes say 4 SM error pages, the committed
+  `SM_ERROR_PAGES` sample list records 3 (all 3 flagged correctly) —
+  bookkeeping only, reconcile in Phase 10 if desired. Suite 311→322 passed +
+  1 known bash skip; `verify.py` PASS. Docs (CHANGELOG/BRIEFING) untouched —
+  Phase 10 per plan. Details: files/qa-tools/scratch/phase5-findings.md
+  (+ phase5_dual_mode_proof.py, phase5-proof-report.txt, phase5-out/,
+  gitignored). — Claude Code
+
+- 2026-07-11 — **Phase 4 complete: TTS-readiness sweep (target: Microsoft Edge
+  Neural); criteria re-verified at 100% corpus coverage and held, except one
+  genuine criterion-2 gap — a novelfire watermark class invisible to the
+  Phase-2 matcher — found, fixed conservatively in junk_strip, and pinned.**
+  Ran the FULL post-Phase-3 pipeline over ALL 7,979 Phase-1 cached raw
+  extractions (NQ 778 universal, SM 4,191 universal with the 4 error pages
+  correctly flagged+skipped, SS 3,000 + 10 pinned in Shadow Slave mode;
+  7,975 outputs, 0 pipeline errors) — full machine-scan coverage, a superset
+  of the Phase-1 §8 sample; no render pass needed (the fix has no
+  builder-visible surface). **§1 established garbage sweep: ZERO hits of any
+  class** (spaced dashes, squares/U+FFFD, __WE_ leaks, invisibles, ligatures,
+  double spaces, space-before-punct, word.Word fusions, control chars) —
+  criteria held. **§2 neural-TTS flags (sequential-thinking per call; all
+  flagged, NOT changed):** 810 asterisks = censored profanity/*emphasis*/
+  authored (*) footnotes (uncensoring is spec-excluded content alteration);
+  567 curly-single U+2018 = inner-thought style (by-design untouched) + 76
+  letter-tight apostrophe-misuse (don‘t/l‘m — typographically safe to
+  normalize but Edge Neural voices it correctly, so a future-rule candidate);
+  19 raw # (Rule #1/Orphanage #113/#TeamLith — authored, voiced as intended);
+  31 numeric ranges (betting odds 3-1/100-1 — spoken form not inferable);
+  SS ch 1735 "eta: ~37 minutes" = authored system-alert prose (SS corpus
+  confirmed still watermark-clean). **§3 the one genuine defect (fixed):**
+  21 NQ chapters carried novelfire splices in three shapes the Phase-2
+  matcher can't see — tilde-separated `novel~fire~net` (no dot, 5 ch),
+  hyphen+truncated-TLD `novel-fire.et` (ch 676), and CROSS-LINE splices
+  (template sentence ends one wrapped line, domain opens the next — the
+  "line-wrapped markers" case Phase 2 §5 deferred pending real evidence, now
+  evidenced). Fix all inside `scripts/rules/junk_strip.py` (no new modules,
+  FP bar not lowered): 2 exact domain tokens; `publshed`/`te` template vocab;
+  new `_TEMPLATE_EXCLUSIVE` set (misspelled tokens impossible in prose)
+  gating a cross-line continuation that trims the previous line's template
+  tail ONLY when anchored by confirmed column-0 junk AND containing an
+  exclusive token (prose tails like "...she wrote the novel" pinned
+  untouchable); trailing comma consumable only on exclusive tokens (ch
+  627/692 "r r crs," skeleton; "novel," pinned as prose). TDD RED→GREEN per
+  sub-shape; 18 new shortest-real-fragment tests in
+  test_junk_strip_hardening.py. **Zero-FP proof:** old-vs-new strip_junk
+  diffed over all 7,975 raw files → exactly the 21 NQ chapters changed,
+  every span manually reviewed (pure watermark removal, zero prose lost),
+  zero SM/SS/pinned changes → **SS-output-equivalence intact by direct
+  full-corpus proof**; final full-pipeline re-scan of all 778 NQ outputs =
+  0 residual. Suite 293→311 passed + 1 known bash skip (strict
+  --require-local-corpora mode); `verify.py` PASS. EDITING-RULES criteria/
+  Stage-1.5 evidence updates deferred to Phase 10 per plan; interim record:
+  files/qa-tools/scratch/phase4-findings.md (+ phase4_tts_sweep.py,
+  phase4_classify.py, phase4-sweep-report.txt, gitignored). — Claude Code
+
+- 2026-07-11 — **Phase 3 complete: grammar/editorial QA pass over the real corpora;
+  2 genuine defects found, fixed conservatively, and pinned; everything else clean.**
+  Ran the FULL post-Phase-2 pipeline over the deterministic Phase-1 §8 sample —
+  73 files total: NQ 35 (32 recorded-dirty + first/middle/last, universal mode),
+  SM 30 (27 recorded-dirty + first/middle/last, error pages excluded as the flag
+  class, universal mode), SS 8 (v0.5.0 spread Ch. 1/500/1500/2500/3000 +
+  first/middle/last, Shadow Slave mode) — then swept output with the v0.5.0
+  programmatic garbage sweep plus stage-targeted scans (15/16/9/12/18) and a
+  pypdfium2 PNG visual pass on the two defect chapters. **Defect 1 (Stage 12/15,
+  NQ ch. 649):** a "?"-terminated title gained an appended period ("Did Someone Say
+  Cats?."), the exact duplicate-terminal form EDITING-RULES Stage 15 (`?!.`→`?!`)
+  and TTS criterion 5 forbid. Fixed at source — `normalize_chapter_titles` keeps a
+  title's own terminal ?/!; heading validation accepts `[.?!]`; `punctuation.py`
+  gained the documented guarded collapse `([?!])\.(?!\.)`. Knock-on found by the
+  render pass: `pdf/builder.py` had the same terminal-`.` assumption in its exact
+  heading regex + merged-heading path, so a "?"-heading silently rendered as body
+  text — both aligned to `[.?!]` (verified re-render: styled #134252 bold heading).
+  **Defect 2 (Stage 16, NQ ch. 621):** the a→an rule flipped correct "a euphoria"
+  to "an euphoria" — eu-/ew- words are vowel-letter/consonant-sound ("you"); added
+  `eu|ew` to the existing one/once lookahead guard. **Verified-legit style, NOT
+  changed:** SS "?..." question+ellipsis (ch. 500/1500) — the new collapse is
+  guarded against ellipses and a test pins the style verbatim. **Clean:** Stage 9
+  zero artifact shapes in output (aggressive passes stay omitted); Stage 12 all 73
+  raw headings are `Chapter N: <title>`, zero non-normalized after pipeline;
+  Stage 18 zero spaced dashes; garbage sweep zero hits (Phase-2 hardening holds on
+  the dirty NQ/SM files); SS sample output unaffected by the fixes (no `?.`/eu/`?`-
+  title occurrences in it) — SS-equivalence guarantee intact. **No ambiguous
+  flagged-but-not-fixed items** — both findings were clear-cut rule defects with
+  spec backing (sequential-thinking used for the Stage-12 resolution choice:
+  keep the title's own ?/! rather than append or substitute). TDD RED→GREEN per
+  defect; 8 new committed shortest-real-fragment tests (5 test_rules.py,
+  3 test_pdf.py). Suite 285→293 passed, 1 known bash skip; `verify.py` PASS.
+  Sample lists + full detail: files/qa-tools/scratch/phase3-findings.md +
+  phase3_qa_driver.py (gitignored). Docs (EDITING-RULES/CHANGELOG/BRIEFING)
+  intentionally untouched — Phase 10 per plan. — Claude Code
+
+- 2026-07-10 — **Phase 2 complete: junk-strip Tier 1 hardened against every Phase-1
+  defect class; two-layer test infrastructure built; 10 pinned fixtures committed.**
+  All in `scripts/rules/junk_strip.py` (no new engine modules), 8 sub-commits
+  (4b3d0a3…), verify gate PASS (285 passed, 1 skipped — the known pre-existing
+  "No usable bash found" launcher skip; baseline-at-merge was 114/16, the 16
+  fixture/tkinter skips now all RUN because the fixtures are committed and this
+  machine has tkinter). What Tier 1 now removes, all minimum-span and JSONL-logged:
+  (a) **domain-token matcher** — exact list of every recorded mangled spelling
+  (novelfire zoo incl. bracket forms, SM sites, `lightsNovel ?om`, `nnnnn full.com`)
+  plus a structural fuzzy matcher (fold 0/1/3/I, bounded Levenshtein scaled to stem
+  length, tail-truncation) gated by an English-word guard set; `webnovel.com`
+  (legit official site — literal tail of freewebnovel!) is guard-listed; zero-FP
+  suite over letter-sharing prose words committed as required. (b) **inline splice
+  removal** — leftward template-vocabulary expansion anchored on a confirmed domain
+  token; stops at real prose/sentence punctuation; handles glued `prose?Template`
+  boundaries, digit-mangled `N0v3l. Fie.net` two-token domains, degraded `crs r s`
+  skeletons WITH anchor; a line is dropped only when the removal itself empties it
+  (pre-existing blank lines preserved — latent bug found+fixed+pinned). (c) **spaced
+  domains** — freewebnovel spelled-out pattern incl. bracketed forms; panda promo
+  moved into the same per-line seam-cleanup pass. (d) **homoglyph domains** —
+  detection-only NFKC on a throwaway copy of math-alphanumeric runs; original
+  styled run removed; document NEVER NFKC-rewritten and Stage-1-stays-NFC pinned
+  by test. (e) **Cloudflare error-1015 pages** — `detect_error_page()` (>=2
+  independent signals), wired into BOTH pipelines as detect-and-flag
+  (gui warning + `integrity_flag` JSONL entry), never auto-stripped. (f) **Tier 2**
+  gains discord.gg/ko-fi.com/paypal.me/`AN:` tokens — still default-off; note the
+  pre-existing Tier-2 code only writes log entries when `enable_tier2=True`
+  (off = untouched, no records); pattern extension gives QA the hook. Corpus layer:
+  `local_corpus` marker + `--require-local-corpora` strict flag (mechanism tested
+  both ways); deterministic sample (59 recorded-dirty files + first/middle/last per
+  corpus): NQ 32/35 + SM 27/30 dirty-before-clean, **zero residual junk after**,
+  3/3 error pages flagged not stripped, clean SS sample byte no-op, ~6 s.
+  SS-output-equivalence holds (SS corpus clean → no SS text change; equivalence
+  tests green). Superpowers brainstorm→plan→TDD flow used (RED→GREEN per task);
+  sequential-thinking used for the fuzzy-matcher FP-guard design (it caught the
+  webnovel-tail FP before code did). Design/plan notes:
+  files/qa-tools/scratch/phase2-design.md + phase2-plan.md (gitignored). NOT done
+  here (later phases): EDITING-RULES/BRIEFING/CHANGELOG updates (Phase 10),
+  `test-files/` → `files/test-files/` move (Phase 8), Phase 3+ work. — Claude Code
+
+- 2026-07-06 — **Phase 1 addendum complete: the junk-strip defect is now reproducible.**
+  Hashed (corpus-hashes-baseline-v2.txt, 7,979 SHA-256; SS subset byte-identical to the
+  original baseline), extracted (0 errors) and 100%-machine-scanned the two user-added
+  corpora. The_Noble_Queen-v2 (778 PDFs): ~60–73 files carry novelfire.net watermarks —
+  template sentences + domain spliced INLINE into prose (prose on both sides of the
+  splice), with 17 mangled domain spellings (n0velfire/Nove1Fire/NoveIFire/dropped-letter
+  variants) and letter-degraded templates down to "crs r s novelfirenet" skeletons.
+  Supreme_Magus-v2 (4,191 PDFs): inline domain watermarks from ~8 sites (NiceNovel,
+  NovelWell, NovelsToday, Libread, lightsnovel, pandasnovel scrambles), spaced-out
+  "f r e e w e b n o v e l. c o m" (5 files), ONE confirmed homoglyph watermark
+  (math-script freewebnovel.com, NFKC-foldable, ch 2151 — NFKC sweep of all 7,979 files
+  found no others), AN/discord/ko-fi/paypal support-block lines, and 4 WHOLE-FILE
+  Cloudflare error-1015 pages (chapter text missing — detect-and-report class, never
+  auto-strip). Current Tier 1 catches none of the bare/mangled/spaced/inline classes
+  (proven by execution). Shadow Slave re-confirmed clean. Evidence materially differs
+  from EDITING-RULES.md Stage 1.5 — spec update deferred to Phase 10 per plan. Full
+  details: files/qa-tools/scratch/phase1-findings.md (addendum §7–§11),
+  junk-scan-report.txt, homoglyph-domain-scan.txt. — Claude Code
+
+- 2026-07-06 — **Phase 0.5 (Branch Reconciliation) complete.** `git fetch --all` showed
+  origin/main advanced 4a42ba8 → 319f523: PR #2 merged the full v0.9.0 registry work
+  (novel_registry.py + GUI dropdown + tests, commits 44582a1…4b33035 on
+  origin/feature/novel-dropdown), followed by 6 GitHub web-UI curation commits (deleted
+  .claude/, .codex/, AI-WORKSPACE.md; re-uploaded md-instructions with uppercase
+  HANDOFF.md). Registry verified complete — **no rebuild needed**; Phase 5 reverts to
+  confirm/prove scope. Migration (user-approved, non-destructive): old feature branch
+  WIP-committed (792e2e2) and renamed `archive/junk-strip-hardening-pre-0.5`;
+  `feature/junk-strip-hardening` recreated from 319f523; restored forward the expanded
+  AI-WORKSPACE.md (re-tracked per user — DECISIONS.md entry due in Phase 10), the
+  1240-line instruction file (replacing main's stale 975-line copy), decisions-template,
+  launcher study templates (untracked, deleted at end of Phase 9), .gitignore scratch
+  rule; lowercase handoff.md merged into this uppercase HANDOFF.md (main's casing wins).
+  Full topology: files/qa-tools/scratch/phase0.5-branch-topology.md. — Claude Code
+
+- 2026-07-05 — Phase 0 + Phase 1 recon complete (on the old 7a44b73 base; baseline being
+  re-recorded on the new base). Old baseline: verify PASS, pytest 106/0/0; SHA-256 of all
+  3,010 corpus PDFs in files/qa-tools/scratch/corpus-hashes-baseline.txt. Phase 1:
+  machine-scanned 100% of webscraped_shadow_slave (3,000 PDFs) + 10 pinned fixtures —
+  ZERO junk of any class; all 49 promo-keyword hits are legitimate prose; repeated lines
+  are genuine narration refrains + the novel's own [system] lines (must never strip).
+  Real fingerprint evidence found in study-examples scrapers: webnovel.com
+  decorative-Unicode watermark letters (V2_DECORATIVE_REPLACEMENTS in
+  scrape_noble_queen-v3.py) — NFC does not fold these. Study-examples inventory for
+  Phase 5b: Noble Queen 26 terms, Supreme Magus 594-term master + 4 legacy lists.
+  User has since added two new corpora for the Phase 1 addendum:
+  files/pdf-example-chapters/The_Noble_Queen-v2/ (778 PDFs) and Supreme_Magus-v2/
+  (4,191 PDFs). Findings: files/qa-tools/scratch/phase0-baseline-notes.md +
+  phase1-findings.md + junk-scan-report.txt. — Claude Code
+
+---
+
+## Session Sync Log (newest first)
+
+### 2026-07-16 — HOME-PC — PUSHED (Phase 11: final verify & wrap-up; plan COMPLETE, branch UNMERGED)
+- Branch:  feature/junk-strip-hardening (Phase 11, 1 commit on top of 9865297); pushed to
+           origin (origin HEAD == local HEAD). **NOT merged to main** — left for the user.
+- Pushed first: the user-reviewed Phase-10 state (639ec5e..9865297) before any Phase-11 work.
+- Deleted: md-instructions/Instructions_Phase10_JunkStrip_And_QA.md (the temporary instruction
+           drop — read/implemented/verified/deleted per AI-WORKSPACE; tracked file, `git rm`)
+- Changed: md-instructions/handoff.md (Current Focus + Work Log Phase-11 entry + this Sync entry)
+- Corpus:  SHA-256 recompare vs corpus-hashes-baseline-v2.txt → 7,979/7,979 match, 0 mismatch,
+           0 missing. Only intended diff: 10 fixtures remapped test-files/ → files/test-files/
+           (Phase-8 git mv, contents identical). No source PDF modified; none staged/committed.
+- Result:  python scripts/verify.py post-delete → PASS (383 passed, 0 skipped). Re-ran verify
+           after this handoff edit to reconcile committed state with the last gate run → PASS.
+- Local-only (untracked/gitignored by design): files/qa-tools/scratch/decisions-ledger.md
+           (appended #028), the corpus PDFs under files/pdf-example-chapters/ (never staged),
+           plus the pre-existing working-tree state left UNTOUCHED by Phase 11
+           (AI-WORKSPACE.md modification, md-instructions/kickoff-prompt.md deletion,
+           Map-Repo-Structure.bat, plan-1-gui-batch-overhaul.md, plan-2-ai-editor-integration.md)
+           — none staged, committed, restored, or deleted; the user resolves these at merge time.
+- Plan:    Phases 0–11 COMPLETE. Branch pushed, unmerged, ready for the user's final review/merge.
+
+### 2026-07-16 — HOME-PC — not pushed (Phase 10: docs & changelog, v0.10.0)
+- Branch:  feature/junk-strip-hardening (Phase 10, 1 commit on top of 639ec5e)
+- Added:   md-instructions/DECISIONS.md (NEW permanent doc — transcribed from the running
+           ledger, 27 entries #001–#027, newest on top)
+- Changed: md-instructions/CHANGELOG.md (new ## v0.10.0 top entry),
+           md-instructions/BRIEFING.md (v0.10.0 current-state; repo/git, packaging,
+           deferred-features, what-is-working, what-is-broken, next-steps updated; paths →
+           scripts/Universal/ + scripts/Universal/resources/),
+           md-instructions/EDITING-RULES.md (Stage 1.5 real evidence base; PDF orphan-page
+           section; TTS re-verification note; intro/Stage-13 paths → scripts/Universal/...),
+           md-instructions/build-spec.md (Phase-1 files/ placement box SUPERSEDED by Option B;
+           novel-index path refs → scripts/Universal/resources/novel-index/; folder-layout +
+           add-a-novel list),
+           scripts/Universal/resources/Novel-Edits-Details/UNIVERSAL.md (Basic Edit Mode note),
+           README.md (title → "Web Novel Editor"; three profiles + Basic Edit Mode; entry point
+           scripts/Universal/main.py; macOS launcher verified 2026-07-16; Status → v0.10.0),
+           md-instructions/handoff.md (this entry + Work Log + Current Focus; SM error-page
+           item reconciled to 3)
+- Version: v0.9.0 → v0.10.0 (CHANGELOG top == BRIEFING == README; verify gate satisfied)
+- Reconciled: SM Cloudflare error-page count → 3 (code = truth; SM_ERROR_PAGES unchanged); no
+           source code changed this phase (docs-only)
+- Result:  python scripts/verify.py → PASS. No corpus PDF / extracted text / scratch staged.
+- Local-only (untracked/gitignored by design): files/qa-tools/scratch/decisions-ledger.md
+           (appended #026 + #027), plus the pre-existing working-tree state untouched by
+           Phase 10 (AI-WORKSPACE.md modification, kickoff-prompt deletion, Map-Repo-Structure.bat,
+           decisions-template.md, plan-1-gui-batch-overhaul.md, plan-2-ai-editor-integration.md)
+- NOT done (Phase 11): instruction-drop deletion, final corpus-hash compare, post-delete final
+           verify, merge/push — branch left local-only for the user's doc review.
+- Note:    the on-disk handoff file is tracked as `HANDOFF.md` (uppercase); git core.ignorecase
+           is true, so editing "handoff.md" edits the same physical file — no rename, no
+           duplicate created.
+
+### 2026-07-13 — HOME-PC — not pushed (Phase 9: single hardened launcher per OS)
+- Branch:  feature/junk-strip-hardening (Phase 9, 1 commit on top of d0554ca)
+- Changed: Setup_and_Run.bat (rebuilt: 4 numbered steps, self-healing venv, health-gated
+           idempotent install, venv-first interpreter order, pythonw windowless launch +
+           --check preflight; blocking 3.10 gate kept), Setup_and_Run.command (same
+           structure in bash; python launch — no pythonw on macOS),
+           scripts/Universal/main.py (added `--check` startup preflight flag),
+           files/tests/test_launchers.py (+12 Phase-9 assertions; Phase-6 M4 + 3.10-block
+           + bash -n kept), md-instructions/HANDOFF.md (this entry + Work Log + Current
+           Focus)
+- Added:   files/tests/test_main_check_flag.py (2 tests pinning the --check contract)
+- Deleted: Setup_and_Run-template.bat, Setup_and_Run-template.command (untracked study
+           copies — removed with rm, never tracked; root now has one launcher per OS)
+- Result:  verify green (381, was 369). Line endings: bat CRLF / command LF (.gitattributes
+           enforces); .command mode 100755 preserved.
+- Verified directly: clean-room venv bootstrap + real cmd.exe .bat run (fresh-lock build
+           then idempotent skip, windowless pythonw launch). NOT run end-to-end: the macOS
+           .command (no macOS here) — bash -n + static + logic-parity only; user to confirm
+           on a Mac.
+- Local-only (untracked/gitignored by design): files/qa-tools/scratch/decisions-ledger.md
+           (appended #024 + #025), .venv/requirements.lock (created by the .bat run; inside
+           gitignored .venv), plus the pre-existing working-tree state untouched by Phase 9
+           (AI-WORKSPACE.md modification, kickoff-prompt deletion, decisions-template.md,
+           plan-1-gui-batch-overhaul.md, plan-2-ai-editor-integration.md)
+
+### 2026-07-13 — HOME-PC — not pushed (Phase 8 follow-up: Option B relocation)
+- Branch:  feature/junk-strip-hardening (Phase 8 follow-up, 1 commit on top of a3fd87c)
+- Moved (git mv — history preserved):
+           files/novel-index/ -> scripts/Universal/resources/novel-index/ ;
+           files/Novel-Edits-Details/ -> scripts/Universal/resources/Novel-Edits-Details/
+- Changed: scripts/Universal/core/novel_registry.py + edit_details.py (resolvers
+           parents[3]/"files" -> parents[1]/"resources"; adjacent comments);
+           concrete-path docstrings/comments across scripts/Universal/*.py; the shipped
+           edit-details .md resources (files/novel-index -> scripts/Universal/resources/
+           novel-index); files/tests/{test_multi_novel,test_pipeline,test_protection}.py
+           (index path literals); md-instructions/HANDOFF.md (this entry + Work Log +
+           Current Focus)
+- Added:   (none — no new modules/deps)
+- Result:  files/ now tracks only dev-only content (tests/, test-files/); no runtime data
+           under files/. Release-ZIP proof passes with files/ entirely absent.
+- Local-only (untracked/gitignored by design): files/qa-tools/scratch/decisions-ledger.md
+           (appended #023, marked #022 Superseded), plus the pre-existing working-tree state
+           untouched (AI-WORKSPACE.md mod, kickoff-prompt deletion, Setup_and_Run-template.*,
+           decisions-template.md, plan-1/plan-2)
+
+### 2026-07-13 — HOME-PC — not pushed (Phase 8)
+- Branch:  feature/junk-strip-hardening (Phase 8, 1 commit on top of 2d2affd)
+- Moved (git mv — history preserved):
+           scripts/{core,gui,pdf,pipelines,profiles,rules,utils}/ + scripts/main.py
+           -> scripts/Universal/... ; scripts/tests/ -> files/tests/ ;
+           scripts/conftest.py -> files/tests/conftest.py (rewritten) ;
+           test-files/ -> files/test-files/ (10 pinned SS fixtures, kept tracked)
+- Added:   scripts/Windows/.gitkeep, scripts/MacOS/.gitkeep (structural placeholders)
+- Changed: scripts/Universal/core/novel_registry.py + edit_details.py (parents[2]->[3]);
+           scripts/Universal/main.py (docstring path); scripts/verify.py (TESTS_DIR);
+           files/tests/conftest.py (sys.path -> scripts/Universal + preserved
+           local_corpus marker/flag); files/tests/{test_batch,test_multi_novel,
+           test_pipeline,test_protection,test_robustness,test_novel_registry}.py
+           (fixture path -> files/test-files); Setup_and_Run.bat + .command
+           (MAIN_SCRIPT -> scripts/Universal/main.py + error text); .gitattributes
+           (launcher eol rules); .gitignore (test-files -> files/test-files rules);
+           md-instructions/HANDOFF.md (this entry + Work Log + Current Focus)
+- Local-only (untracked/gitignored by design): files/qa-tools/scratch/
+           decisions-ledger.md (appended #021 + #022) + phase8-audit-findings.md,
+           plus the pre-existing working-tree state untouched by Phase 8
+           (AI-WORKSPACE.md modification, kickoff-prompt deletion,
+           Setup_and_Run-template.*, decisions-template.md, plan-1-gui-batch-overhaul.md,
+           plan-2-ai-editor-integration.md)
+- DEFERRED (user decision): files/novel-index/ + files/Novel-Edits-Details/ NOT relocated
+           (build-spec vs AI-WORKSPACE conflict) — see Work Log + ledger #022
+
+### 2026-07-13 — HOME-PC — not pushed (Phase 7)
+- Branch:  feature/junk-strip-hardening (Phase 7, 1 commit on top of ecef31d)
+- Changed: scripts/gui/app.py (window title + header H1 -> "Web Novel Editor";
+           run controls reordered above the log so the log is at the bottom
+           [grid rows: log 5->6, run 6->5, weighted row 5->6]; "Options" card
+           relabelled "Advanced Options"; run-row bottom pad PAD_S->PAD_M),
+           scripts/tests/test_app.py (+3 Phase-7 tests: paired title + minsize;
+           layout order novel-first + log-at-bottom + Advanced-Options card;
+           progress reset-between-runs + Start enabled; plus a _all_descendants
+           helper), md-instructions/HANDOFF.md (this entry + Work Log)
+- Added:   (none — no new modules, no new dependency)
+- Local-only (untracked/gitignored by design): files/qa-tools/scratch/
+           decisions-ledger.md (appended #019 + #020) + phase7_gui.png (screenshot
+           render), plus the pre-existing working-tree state untouched by Phase 7
+           (AI-WORKSPACE.md modification, kickoff-prompt deletion,
+           Setup_and_Run-template.*, decisions-template.md,
+           plan-1-gui-batch-overhaul.md, plan-2-ai-editor-integration.md)
+
+### 2026-07-12 — HOME-PC — not pushed (Phase 6)
+- Branch:  feature/junk-strip-hardening (Phase 6, 1 commit on top of fa7481d)
+- Changed: scripts/pdf/builder.py (keepWithNext=1 on chapter-heading style;
+           new detect_heading_only_pages(); pdfplumber import + module docstring
+           note; HEADING_ONLY_PAGE_RE), scripts/core/batch_runner.py (import
+           detect_heading_only_pages; multi-chapter-only post-build detection
+           pass → GUI warn + JSONL integrity_flag, never deletes),
+           scripts/tests/test_pdf.py (+13 Phase-6 tests), scripts/tests/test_batch.py
+           (+2 Phase-6 tests), md-instructions/HANDOFF.md (this entry + Work Log)
+- Added:   (none — no new modules, no new dependency; pypdf deliberately NOT added)
+- Local-only (untracked/gitignored by design): files/qa-tools/scratch/
+           decisions-ledger.md (appended #017 + #018) + phase6_orphan_scan.py +
+           phase6-orphan-scan-report.txt + phase6_repro_check.py +
+           phase6-repro-report.txt + phase6_red_experiment.py +
+           phase6_equivalence_proof.py + phase6-equivalence-report.txt +
+           phase6-out/, plus the pre-existing working-tree state untouched by
+           Phase 6 (AI-WORKSPACE.md modification, kickoff-prompt deletion,
+           Setup_and_Run-template.*, decisions-template.md,
+           plan-1-gui-batch-overhaul.md, plan-2-ai-editor-integration.md)
+
+### 2026-07-12 — HOME-PC — not pushed (Phase 5b)
+- Branch:  feature/junk-strip-hardening (Phase 5b, 1 commit on top of 548ffbc)
+- Changed: scripts/core/novel_registry.py (NQ + SM registry entries, imports,
+           docstring note), files/novel-index/the-noble-queen.txt (26 terms)
+           + files/novel-index/supreme-magus.txt (594 terms) (both populated
+           from study-examples masters, header + section comments),
+           scripts/tests/test_dual_mode_provenance.py (universal-mode exemplar
+           The Noble Queen -> Renegade Immortal; fallback test re-parametrized
+           to the two intentionally-unauthored placeholders),
+           md-instructions/HANDOFF.md (this entry)
+- Added:   scripts/profiles/the_noble_queen/{__init__,canonical_names,
+           special_fixes}.py (26-term floor; empty fixes by evidence),
+           scripts/profiles/supreme_magus/{__init__,canonical_names,
+           special_fixes}.py (594-term floor; 16 proper-noun artifact fixes,
+           profanity map NOT ported),
+           scripts/pipelines/the_noble_queen.py + supreme_magus.py (mirror
+           shadow_slave.py stage-for-stage),
+           files/Novel-Edits-Details/The-Noble-Queen.md + Supreme-Magus.md,
+           scripts/tests/test_novel_profiles.py (27 Phase-5b tests, 2 of them
+           local_corpus-marked)
+- Local-only (untracked/gitignored by design): files/qa-tools/scratch/
+           decisions-ledger.md (NEW standing ledger, Phases 0-5 backfilled) +
+           phase5b-findings.md + phase5b_generate_profiles.py +
+           phase5b_profile_proof.py + phase5b-proof-report.txt +
+           phase5b_artifact_scan*.py, plus the pre-existing working-tree state
+           untouched by Phase 5b (AI-WORKSPACE.md modification, kickoff-prompt
+           deletion, Setup_and_Run-template.*, decisions-template.md,
+           plan-1-gui-batch-overhaul.md)
+
+### 2026-07-11 — HOME-PC — not pushed (Phase 5)
+- Branch:  feature/junk-strip-hardening (Phase 5, 1 commit on top of 960792a)
+- Changed: scripts/core/replacement_log.py (optional run-level `metadata`
+           field; write_jsonl emits a run_metadata header line when set),
+           scripts/core/batch_runner.py (builds the run_metadata provenance
+           dict, stamps it onto each per-file ReplacementLog, summary gains
+           `novel` + `profile_applied`, docstring return contract updated),
+           scripts/tests/test_robustness.py (empty-run exact-summary pin
+           gains the 2 new provenance keys),
+           md-instructions/HANDOFF.md (this entry)
+- Added:   scripts/tests/test_dual_mode_provenance.py (11 Phase-5 tests:
+           NQ/SM universal fallback, registry-is-the-decider, run_batch-seam
+           bait-string provenance both modes, SS special-fix spy proof,
+           __WE_ leak guards, summary + JSONL run-metadata header,
+           header-optional backward compatibility)
+- Local-only (untracked/gitignored by design): files/qa-tools/scratch/
+           phase5_dual_mode_proof.py + phase5-findings.md +
+           phase5-proof-report.txt + phase5-out/, plus the pre-existing
+           working-tree state untouched by Phase 5 (AI-WORKSPACE.md
+           modification, kickoff-prompt deletion, Setup_and_Run-template.*,
+           decisions-template.md, plan-1-gui-batch-overhaul.md)
+
+### 2026-07-11 — HOME-PC — not pushed (Phase 4)
+- Branch:  feature/junk-strip-hardening (Phase 4, 1 commit on top of d43ca76)
+- Changed: scripts/rules/junk_strip.py (2 exact domain tokens
+           novel~fire~net / novel-fire.et; publshed/te template vocab;
+           _TEMPLATE_EXCLUSIVE set; cross-line template-tail continuation;
+           exclusive-token comma allowance),
+           scripts/tests/test_junk_strip_hardening.py (+18 Phase-4
+           regressions: tilde/truncated-TLD splices, cross-line splices,
+           prose-tail + comma FP guards, exclusive-subset invariant,
+           prose-tilde survival, log entry),
+           md-instructions/HANDOFF.md (this entry)
+- Local-only (untracked/gitignored by design): files/qa-tools/scratch/
+           phase4-findings.md + phase4_tts_sweep.py + phase4_classify.py +
+           phase4-sweep-report.txt + phase4-classify-report.txt, plus the
+           pre-existing working-tree state untouched by Phase 4
+           (AI-WORKSPACE.md modification, kickoff-prompt deletion,
+           Setup_and_Run-template.*, decisions-template.md,
+           plan-1-gui-batch-overhaul.md)
+
+### 2026-07-11 — HOME-PC — not pushed
+- Branch:  feature/junk-strip-hardening (Phase 3, 1 commit on top of 12a1891)
+- Changed: scripts/rules/chapter_titles.py (keep a title's own terminal ?/!;
+           validation accepts [.?!]), scripts/rules/punctuation.py (guarded
+           "?."/"!." duplicate-terminal collapse), scripts/rules/grammar.py
+           (eu/ew guard on the a→an rule), scripts/pdf/builder.py (heading
+           regex + merged-heading path accept ?/! terminals),
+           scripts/tests/test_rules.py (+5 Phase-3 regressions),
+           scripts/tests/test_pdf.py (+3 Phase-3 regressions),
+           md-instructions/HANDOFF.md (this entry)
+- Local-only (untracked/gitignored by design): files/qa-tools/scratch/
+           phase3-findings.md + phase3_qa_driver.py + phase3_render_check.py +
+           phase3-out/, plus the pre-existing working-tree state untouched by
+           Phase 3 (AI-WORKSPACE.md modification, kickoff-prompt deletion,
+           Setup_and_Run-template.*, decisions-template.md,
+           plan-1-gui-batch-overhaul.md)
+
+### 2026-07-10 — HOME-PC — not pushed
+- Branch:  feature/junk-strip-hardening (Phase 2, 9 commits on top of ef3b7a2)
+- Changed: scripts/rules/junk_strip.py (Tier-1 hardening: domain matcher, splice
+           removal, spaced domains, homoglyph pass, error-page detection, Tier 2
+           tokens), scripts/pipelines/shadow_slave.py + lord_of_mysteries.py
+           (error-page flag wiring), scripts/conftest.py (local_corpus marker +
+           --require-local-corpora flag), .gitignore (test-files/ rule narrowed),
+           md-instructions/HANDOFF.md (this entry)
+- Added:   scripts/tests/test_junk_strip_hardening.py (committed fast layer),
+           scripts/tests/test_junk_strip_corpus.py (optional corpus layer),
+           .gitattributes (*.pdf binary), test-files/shadow_slave/*.pdf
+           (10 pinned fixtures, now tracked)
+- Local-only (untracked/gitignored by design): files/qa-tools/scratch/
+           phase2-design.md + phase2-plan.md, Setup_and_Run-template.*,
+           AI-WORKSPACE.md modification + kickoff-prompt deletion (pre-existing
+           working-tree state, untouched by Phase 2)
+
+### 2026-07-06 — HOME-PC — not pushed
+- Branch:  feature/junk-strip-hardening recreated from origin/main @ 319f523;
+           old branch preserved as archive/junk-strip-hardening-pre-0.5 (@ 792e2e2)
+- Changed: .gitignore (re-applied files/qa-tools/scratch/ rule on the new base),
+           md-instructions/Instructions_Phase10_JunkStrip_And_QA.md (user's 1240-line
+           version replaces main's stale copy), md-instructions/HANDOFF.md (this merge)
+- Added:   AI-WORKSPACE.md (re-tracked, user-directed), md-instructions/decisions-template.md
+- Local-only (untracked by design): Setup_and_Run-template.bat/.command (study copies,
+           deleted at Phase 9 step 12), files/qa-tools/scratch/* (gitignored)
+
+### 2026-07-05 — HOME-PC — not pushed
+- Added:   lowercase handoff.md (now merged into this file), .gitignore scratch rule.
+- Note:    All Phase 0/1 artifacts are local-only gitignored scratch.
+
+---
+
+# Historical — Phase 9 (v0.9.0) handoff, as merged to main
+
+*Kept for its still-load-bearing decisions (universal-seam coupling, fixture
+discrepancy). The "to pull this locally" instructions are obsolete — the branch is
+merged into main.*
+
+- **Version:** v0.9.0 (Phase 9)
+- **Branch:** `feature/novel-dropdown` (merged to main via PR #2, 43e2701)
+- **What it was:** promoted the previously-deferred "v2" novel-profile dropdown into v1 as
+  a **UI + dispatch layer only**. No new per-novel editorial profiles were authored —
+  Shadow Slave remains the only real profile, and its output is byte-for-byte unchanged.
 
 ## What changed (the 30-second version)
 
-1. **New registry** `scripts/core/novel_registry.py` — single source of truth for (a) the GUI
-   dropdown roster, derived from `files/novel-index/*.txt`, and (b) novel-name → pipeline
-   dispatch. Registered novel (Shadow Slave) → real profile; everything else → **universal-
-   only** fallback (the `lord_of_mysteries` universal stub, empty floor, no other novel's
-   special-fixes).
-2. **GUI dropdown** — labelled read-only combobox, defaults to "Shadow Slave", always passes
-   the selection explicitly to `run_batch`.
+1. **New registry** `scripts/core/novel_registry.py` — single source of truth for (a) the
+   GUI dropdown roster, derived from `files/novel-index/*.txt`, and (b) novel-name →
+   pipeline dispatch. Registered novel (Shadow Slave) → real profile; everything else →
+   **universal-only** fallback (the `lord_of_mysteries` universal stub, empty floor, no
+   other novel's special-fixes).
+2. **GUI dropdown** — labelled read-only combobox, defaults to "Shadow Slave", always
+   passes the selection explicitly to `run_batch`.
 3. **`run_batch` dispatches via the registry** and its `novel_name` default changed from
-   `"Shadow Slave"` to **universal-only** (`None`). Logging records the selected novel + which
-   layer ran.
+   `"Shadow Slave"` to **universal-only** (`None`). Logging records the selected novel +
+   which layer ran.
 
----
+## Verify result (at merge time)
 
-## Files to pull (flat list, for quick machine reading)
-
-```
-# created
-scripts/core/novel_registry.py
-scripts/tests/test_novel_registry.py
-md-instructions/HANDOFF.md
-# modified
-scripts/core/batch_runner.py
-scripts/gui/app.py
-scripts/tests/test_batch.py
-scripts/tests/test_app.py
-md-instructions/CHANGELOG.md
-md-instructions/BRIEFING.md
-README.md
-# deleted
-(none)
-```
-
-All of the above are on branch `feature/novel-dropdown`. Nothing on `main` was touched.
-
-## Files created / modified / deleted (annotated)
-
-### Created
-- `scripts/core/novel_registry.py` — roster derivation + `NovelDispatch` + `resolve_dispatch`.
-- `scripts/tests/test_novel_registry.py` — roster, dispatch, fallback, SS-unchanged, default.
-- `md-instructions/HANDOFF.md` — this file (final commit).
-
-### Modified
-- `scripts/core/batch_runner.py` — dispatch via `resolve_dispatch`; `novel_name` default →
-  universal-only; per-novel + layer logging. (Removed the hardcoded `_NOVEL_INDEX`/`_NOVEL_NAME`
-  and the direct `shadow_slave`/`SS_CANONICAL_NAMES` imports.)
-- `scripts/gui/app.py` — new "Novel" dropdown panel + `_on_novel_changed`; row layout shifted
-  by one; status bar shows the selected novel; `novel_name=self.novel_var.get()` passed to
-  `run_batch`.
-- `scripts/tests/test_batch.py` — round-trip test passes `novel_name="Shadow Slave"` explicitly.
-- `scripts/tests/test_app.py` — dropdown assertions; `gui.app` import made lazy (collect-clean
-  where tkinter is absent).
-- `md-instructions/CHANGELOG.md` — v0.9.0 entry.
-- `md-instructions/BRIEFING.md` — version, current phase, deferred/next-steps updated; dropdown
-  noted as v1 (supersedes the prior "v2 deferred" note).
-- `README.md` — GUI description now mentions the novel dropdown; Status section bumped to
-  v0.9.0 and describes the dropdown + universal-only fallback.
-
-### Deleted
-- None.
-
----
-
-## Verify result
-
-`python scripts/verify.py` → **PASS** (run on this branch).
-
-- pytest: **114 passed, 16 skipped** (was 86 passed / 1 skipped at v0.8.0).
-- Dependency pins: all `==`.
-- CHANGELOG bump: v0.9.0, matches BRIEFING.
-
-**About the skips (important):** the 16 skips are all **environment-gated, not failures**.
-The Shadow-Slave PDF corpus (`test-files/shadow_slave/`) is gitignored and is **not** in the
-repo (see "Pre-existing discrepancy" below), so corpus-backed tests skip wherever those local
-fixtures are absent. On a machine that has the fixtures (the home PC) most of these run. The
-container used here additionally lacks `tkinter`, so the GUI smoke test skips there too.
-
-The **"Shadow Slave output unchanged"** guarantee does **not** depend on the corpus: it is
+`python scripts/verify.py` → **PASS**: pytest **114 passed, 16 skipped** (was 86/1 at
+v0.8.0). The 16 skips are environment-gated (gitignored corpus fixtures + no tkinter in
+the review container), not failures. The "Shadow Slave output unchanged" guarantee is
 pinned by a corpus-free synthetic-text test
-(`test_shadow_slave_dispatch_equals_direct_pipeline_on_synthetic_text`) that runs everywhere.
-The full `run_batch` dispatch path was additionally exercised manually against a synthesized
-PDF: SS output byte-for-byte identical via dispatch; Lord of the Mysteries / other novels fall
-back to universal-only and do **not** apply Shadow Slave's forced substitutions.
+(`test_shadow_slave_dispatch_equals_direct_pipeline_on_synthetic_text`).
 
----
+## Decisions made in Phase 9 (still in force)
 
-## Decisions I made (where the spec left a choice)
-
-- **#1 — placeholder visibility (you leaned "show them"): SHOWING all index files.** The roster
-  has one entry per `files/novel-index/*.txt`, including the 7 empty placeholders, so the full
-  novel roster is visible. (`available_novels` does not filter empties.)
-- **#3 — `run_batch` default (you asked to confirm): CHANGED to universal-only.** You approved
-  this. `run_batch(novel_name=None)` now edits universal-only (no implicit Shadow Slave); the
-  GUI always passes the selected novel explicitly. **Downstream-test effect:** none broke — the
-  existing `run_batch` tests assert only generic behaviour. To keep coverage honest, the
-  round-trip test in `test_batch.py` now passes `novel_name="Shadow Slave"` explicitly, and new
-  tests pin the universal-only default.
-- **Display-name casing:** Title-Case with common small words kept lowercase unless first, so
-  `lord-of-the-mysteries.txt` → "Lord of the Mysteries" (matching your example) while
-  `shadow-slave.txt` → "Shadow Slave". Casing is cosmetic only — dispatch normalizes it away.
-- **Universal-only seam reuse:** per spec, the universal-only fallback reuses the existing
-  Phase-7 `lord_of_mysteries` stub pipeline (universal rules, empty profile) rather than
-  inventing new structure. See the Codex note below about the coupling this implies.
-- **`test_app.py` lazy import (small, supporting):** `from gui import app` moved inside the test
-  after `importorskip("tkinter")`, so the suite *collects* cleanly on a machine with no tkinter
-  at all (it previously errored at collection, contradicting the test's own "green headless"
-  docstring). Behaviour on a real machine is unchanged.
-
----
-
-## Pre-existing discrepancy I did NOT fix (out of scope, but you should know)
-
-`test-files/` is gitignored (`.gitignore` line ~27: `test-files/`) and the 10 Shadow-Slave
-fixtures were **never actually committed** (`git ls-tree -r HEAD` shows none). BRIEFING and a
-`.gitignore` comment both *claim* these fixtures "ARE committed" — that claim is inaccurate in
-the current repo. Consequence: corpus-backed tests skip anywhere the fixtures aren't present on
-disk. This predates Phase 9 and I left it alone. If you want those tests to run in clean clones
-/ CI / the Codex env, the fixtures need to be force-added (`git add -f test-files/shadow_slave`)
-or the ignore narrowed — your call.
-
----
-
-## To pull this locally (home PC)
-
-```bash
-# from your local full-stack repo root, with the elmatthe/web-novel-editor remote as 'origin'
-git fetch origin
-git checkout feature/novel-dropdown      # or: git switch feature/novel-dropdown
-git pull origin feature/novel-dropdown   # if the branch already exists locally
-
-# verify (needs the pinned deps; tkinter must be present for the GUI smoke test to run)
-python -m pip install -r scripts/requirements.txt
-python scripts/verify.py
-```
-
-If you keep the Shadow-Slave fixtures in `test-files/shadow_slave/` locally, the corpus-backed
-tests will run there even though they're gitignored.
-
----
-
-## FOR CODEX REVIEW — riskiest areas to check first
-
-1. **Dropdown roster derivation** (`novel_registry.available_novels` /
-   `display_name_from_index_filename`): one entry per `files/novel-index/*.txt`, placeholders
-   included, default ("Shadow Slave") listed first. Check the filename→display-name mapping and
-   that it round-trips with `index_filename_for` (e.g. `the-noble-queen.txt` ↔ "The Noble
-   Queen", `re-monster.txt` ↔ "Re Monster"). Casing of small words is intentional/cosmetic.
-2. **Dispatch fallback** (`resolve_dispatch`): confirm a profile-less / unknown / empty / None
-   novel resolves to the universal-only pipeline with an **empty** canonical floor and **no**
-   other novel's special-fixes, and that it never raises. Confirm case/separator-insensitivity
-   reuses `edit_details._norm_key` (single normalization source).
-3. **The `run_batch` default change (#3):** confirm `novel_name` default is universal-only and
-   that nothing else in the codebase relied on the old implicit "Shadow Slave" default. The GUI
-   passes `novel_var.get()` explicitly — confirm that path.
-4. **Shadow Slave output is byte-for-byte unchanged:** the load-bearing claim. Verify both the
-   synthetic-text equivalence test and (where fixtures exist) the corpus-backed one. The
-   dispatch for Shadow Slave must use the same pipeline, canonical names, and index file as the
-   old hardcoded path — `resolve_dispatch("Shadow Slave")` returns `shadow_slave.run_pipeline`,
-   `SS_CANONICAL_NAMES`, `shadow-slave.txt`.
-5. **Universal-seam coupling (latent):** the universal-only fallback currently reuses
-   `pipelines.lord_of_mysteries.run_pipeline`, which is universal-rules-only *only because* its
-   profile (`LOTM_SPECIAL_FIXES`) is empty. `test_universal_fallback_applies_no_special_fixes`
-   pins that emptiness. **If/when a real Lord of the Mysteries profile is authored**, that
-   pipeline stops being a neutral universal seam and every other profile-less novel would
-   inherit LOTM's fixes — at that point give the universal fallback its own dedicated pipeline
-   and register LOTM explicitly. Flagged in the `novel_registry` module docstring too.
+- **Placeholder visibility: SHOWING all index files** — roster has one entry per
+  `files/novel-index/*.txt`, including empty placeholders.
+- **`run_batch` default: universal-only (`None`)** — user-approved; the GUI always passes
+  the selected novel explicitly; new tests pin the default.
+- **Display-name casing:** Title-Case with small words lowercase unless first
+  (`lord-of-the-mysteries.txt` → "Lord of the Mysteries"). Cosmetic — dispatch
+  normalizes via `edit_details._norm_key`.
+- **Universal-seam coupling (latent):** the universal-only fallback reuses
+  `pipelines.lord_of_mysteries.run_pipeline`, which is universal-rules-only *only
+  because* `LOTM_SPECIAL_FIXES` is empty —
+  `test_universal_fallback_applies_no_special_fixes` pins that emptiness. **If/when a
+  real LOTM profile is authored, give the universal fallback its own dedicated pipeline
+  and register LOTM explicitly.** (Phase 5b step 3 of the current plan addresses this.)
+- **Fixture discrepancy (pre-existing):** `test-files/` is gitignored and the 10
+  Shadow-Slave fixtures were never actually committed despite BRIEFING/.gitignore
+  comments claiming so → open issue #1 above; approved fix lands in Phase 2.

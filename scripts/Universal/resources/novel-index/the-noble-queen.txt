@@ -1,0 +1,50 @@
+# ============================================================
+# The Noble Queen — Do-Not-Touch Protected Terms
+# ============================================================
+# Format: one term or phrase per line
+# Lines beginning with # are comments and are ignored
+# Blank lines are ignored
+# Preserve case exactly as written here
+# Multi-word phrases are supported
+# ============================================================
+# Ported in Phase 5b from files/study-examples/noble_queen_master_index.txt (26 terms).
+# The built-in floor lives in scripts/profiles/the_noble_queen/canonical_names.py;
+# this index must stay a superset of it (append freely as you read).
+# ============================================================
+
+# --- Protagonist / antagonist / titles ---
+Queen Bee
+Noble Queen
+Mongrel
+
+# --- Other characters from chapter 1 ---
+Lady Morgan
+Brock
+Honey
+Noble
+Fort
+
+# --- Characters surfaced from later chapters (extend as you read) ---
+# (chapter 808's closing line surfaces "Mordret.")
+Mordret
+
+# --- In-world terms from chapter 1 ---
+Dreamscape
+The Dreamscape
+Dream Realm
+Awakened
+Aspect
+Blood Aspect
+Valor
+
+# --- Shadow Slave parent-series canon (verify and prune as you read) ---
+Sleeper
+Master
+Nightmare
+Memory
+Trial
+Echo
+Flaw
+Spell
+Sovereign
+Dread Lord
