@@ -45,3 +45,6 @@ Thumbs.db
 # The full webscraped corpus (~3,000 PDFs, ~29 MB) is excluded. The pinned fixtures
 # the tests actually need live in files/test-files/shadow_slave/ and ARE committed.
 files/pdf-example-chapters/
+
+# Agent config — not shipped
+AI-WORKSPACE.md
