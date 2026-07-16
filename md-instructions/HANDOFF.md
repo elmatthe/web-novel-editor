@@ -53,10 +53,18 @@ Phase 10 (docs & changelog) is now DONE: all four permanent docs + README + buil
 EDITING-RULES + UNIVERSAL.md updated to v0.10.0; the new `md-instructions/DECISIONS.md` was
 created from `decisions-template.md` and transcribed from the running ledger (27 entries).
 Version confirmed **v0.10.0** (minor bump, not patch — ledger #026 / DECISIONS #026).
-**Next is Phase 11 (final verify & wrap-up) — NOT started this session per the kickoff's
-single-phase scope.** Phase 11 will delete the instruction drop, re-run the corpus hash
-compare, and do the final verify before any merge; the branch stays local-only (not pushed)
-for the user's doc review.
+**Phase 11 (final verify & wrap-up) is now DONE — the whole junk-strip-hardening plan
+(Phases 0–11) is COMPLETE.** This session: pushed the user-reviewed Phase-10 state to
+origin; ran the corpus-hash compare vs the Phase-0 baseline (**7,979/7,979 PDFs match, 0
+mismatch, 0 missing** — the only intended diff is the Phase-8 fixture-path remap
+`test-files/ → files/test-files/`, contents unchanged); deleted the instruction drop
+`Instructions_Phase10_JunkStrip_And_QA.md`; ran `python scripts/verify.py` against the
+post-delete tree → **PASS (383 passed, 0 skipped)**; updated this handoff + ledger #028;
+re-ran verify after the handoff edit to reconcile → still PASS; committed and pushed the
+Phase-11 commit. **The branch `feature/junk-strip-hardening` is pushed to origin and left
+UNMERGED for the user's end-of-plan review/merge — do NOT merge to `main` automatically.**
+No DECISIONS.md entry was added for Phase 11 (mechanical wrap-up, no non-obvious design
+choice — ledger #028 explains); DECISIONS.md stays at 27 entries.
 Standing instruction (2026-07-12 through Phase 10): the running decisions ledger in gitignored
 scratch (files/qa-tools/scratch/decisions-ledger.md, ADR format) was appended at the end of
 every phase; Phase 10's DECISIONS.md is a transcription of that ledger (not a reconstruction).
@@ -79,6 +87,38 @@ below that say "4" are append-only history, left as written.
 ---
 
 ## Work Log (newest first)
+
+- 2026-07-16 — **Phase 11 complete: final verify & wrap-up — the entire junk-strip-hardening
+  plan (Phases 0–11) is DONE; branch pushed to origin, left UNMERGED for the user's review.**
+  Executed the plan's deterministic Phase-11 order: (1) **pushed** the user-reviewed Phase-10
+  branch state to `origin/feature/junk-strip-hardening` (`639ec5e..9865297`; origin HEAD now
+  equals local HEAD `9865297`; **not** merged to `main`, no force-push). (2) **Corpus-hash
+  compare vs the Phase-0 baseline:** recomputed SHA-256 for every PDF in
+  `corpus-hashes-baseline-v2.txt` (the complete 7,979-hash baseline — SS 3,000 + Noble Queen
+  778 + Supreme Magus 4,191 + the 10 pinned fixtures) → **7,979/7,979 MATCH, 0 mismatch, 0
+  missing.** The **only** intended path diff is the Phase-8 relocation of the 10 fixtures
+  (`test-files/shadow_slave/` → `files/test-files/shadow_slave/`), which the compare script
+  remaps and confirms byte-identical. Source corpora were never touched. (Compare script ran
+  from the gitignored job tmp, not committed.) (3) **Deleted** the instruction drop
+  `md-instructions/Instructions_Phase10_JunkStrip_And_QA.md` via `git rm` (temporary drop per
+  AI-WORKSPACE — read, implemented, verified, deleted). (4) **`python scripts/verify.py`
+  against the post-delete tree → PASS: 383 passed, 0 skipped, ~23 s;** all three gate checks
+  green (pytest / deps pinned / CHANGELOG v0.10.0 == BRIEFING). **Skip-count discipline:** 0
+  skips — strictly better than the 381 passed / 1 bash-skip recorded in earlier phases; on
+  HOME-PC the local corpora and Git Bash are present, so the corpus-backed and
+  launcher-`bash -n` tests all RUN and pass here instead of skipping (no corpus test is being
+  miscounted as a pass — there are simply no skips). (5) Updated this handoff (Current Focus +
+  this entry + Session Sync Log) and appended **ledger #028**; **no DECISIONS.md entry** —
+  Phase 11 is mechanical wrap-up with no non-obvious design decision, so DECISIONS.md stays at
+  27 entries (#001–#027). (6) **Re-ran `verify.py` after the handoff edit** to reconcile the
+  committed state with the last gate run → still PASS. (7) Committed the Phase-11 doc/deletion
+  state and **pushed to origin.** **Pre-existing working-tree state left UNTOUCHED** exactly as
+  every prior phase did: `AI-WORKSPACE.md` (modified, unstaged), `md-instructions/kickoff-prompt.md`
+  (deleted, unstaged), and untracked `Map-Repo-Structure.bat`,
+  `md-instructions/plan-1-gui-batch-overhaul.md`, `md-instructions/plan-2-ai-editor-integration.md`
+  — none staged, committed, restored, or deleted; they are the user's to resolve at merge time.
+  **The branch is NOT merged to `main` — awaiting the user's explicit end-of-plan sign-off.**
+  — Claude Code
 
 - 2026-07-16 — **Phase 10 complete: docs & changelog pass for the whole junk-strip-hardening
   plan (v0.10.0); DECISIONS.md created; SM error-page count reconciled to 3; committed local
@@ -577,6 +617,26 @@ below that say "4" are append-only history, left as written.
 ---
 
 ## Session Sync Log (newest first)
+
+### 2026-07-16 — HOME-PC — PUSHED (Phase 11: final verify & wrap-up; plan COMPLETE, branch UNMERGED)
+- Branch:  feature/junk-strip-hardening (Phase 11, 1 commit on top of 9865297); pushed to
+           origin (origin HEAD == local HEAD). **NOT merged to main** — left for the user.
+- Pushed first: the user-reviewed Phase-10 state (639ec5e..9865297) before any Phase-11 work.
+- Deleted: md-instructions/Instructions_Phase10_JunkStrip_And_QA.md (the temporary instruction
+           drop — read/implemented/verified/deleted per AI-WORKSPACE; tracked file, `git rm`)
+- Changed: md-instructions/handoff.md (Current Focus + Work Log Phase-11 entry + this Sync entry)
+- Corpus:  SHA-256 recompare vs corpus-hashes-baseline-v2.txt → 7,979/7,979 match, 0 mismatch,
+           0 missing. Only intended diff: 10 fixtures remapped test-files/ → files/test-files/
+           (Phase-8 git mv, contents identical). No source PDF modified; none staged/committed.
+- Result:  python scripts/verify.py post-delete → PASS (383 passed, 0 skipped). Re-ran verify
+           after this handoff edit to reconcile committed state with the last gate run → PASS.
+- Local-only (untracked/gitignored by design): files/qa-tools/scratch/decisions-ledger.md
+           (appended #028), the corpus PDFs under files/pdf-example-chapters/ (never staged),
+           plus the pre-existing working-tree state left UNTOUCHED by Phase 11
+           (AI-WORKSPACE.md modification, md-instructions/kickoff-prompt.md deletion,
+           Map-Repo-Structure.bat, plan-1-gui-batch-overhaul.md, plan-2-ai-editor-integration.md)
+           — none staged, committed, restored, or deleted; the user resolves these at merge time.
+- Plan:    Phases 0–11 COMPLETE. Branch pushed, unmerged, ready for the user's final review/merge.
 
 ### 2026-07-16 — HOME-PC — not pushed (Phase 10: docs & changelog, v0.10.0)
 - Branch:  feature/junk-strip-hardening (Phase 10, 1 commit on top of 639ec5e)
