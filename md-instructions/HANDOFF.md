@@ -1,78 +1,32 @@
 # Web Novel Editor — Handoff
 
 ## Current Focus
-Phase-10 instruction drop (`Instructions_Phase10_JunkStrip_And_QA.md`) in progress on
-branch `feature/junk-strip-hardening`, re-based per Phase 0.5 onto `origin/main @ 319f523`
-(v0.9.0 — the dispatch registry is real and merged; the earlier "registry missing" finding
-only reflected a stale local clone). Phase 0 (baseline), Phase 0.5 (branch reconciliation,
-user-confirmed base), Phase 1 recon + addendum, Phase 2 (junk-strip Tier 1
-hardening + two-layer test infrastructure + fixture commit), **Phase 3
-(grammar/editorial QA pass), **Phase 4 (TTS-readiness sweep), **Phase 5
-(dual-mode dispatch confirmed at the registry/provenance level), and **Phase 5b
-(real Noble Queen + Supreme Magus profiles authored from files/study-examples/,
-registered and proven against the corpora) are done**; next is Phase 6
-(PDF-build alignment with web-novel-scraper, safety-first).
-User decisions on record: 10 pinned fixtures committed
-(Phase 2 — done);
-Noble Queen + Supreme Magus profiles authored in Phase 5b (NO profanity-uncensor map —
-honored, not ported);
-Renegade Immortal / Reverend Insanity stay universal-fallback placeholders; re-track
-AI-WORKSPACE.md; Setup_and_Run-template.* are study copies only — Phase 9 builds the
-single launcher per OS from them, then deletes them.
-Phase 6 (PDF-build alignment, safety-first) is now DONE: orphan-page handling is
-prevention (`keepWithNext`) + detection-only logging, automatic deletion DEFERRED (the
-defect is not reproducible — all 7,979 cached extractions are single-chapter); no `pypdf`
-added; PDF typography confirmed already aligned with the scraper.
-Phase 7 (GUI consistency with web-novel-scraper) is now DONE: terminology/layout/workflow
-alignment ONLY (paired "Web Novel Editor" naming, log moved to the bottom, "Advanced
-Options" grouping) with the editor's ttk design system fully preserved; NO Stop
-button / no cancellation (no safe seam — deferred), editor's daemon-thread lifecycle
-kept (scraper threading NOT ported).
-Phase 8 (repo/scripts-folder cross-platform reorganization) is now DONE, **including the
-runtime-data decision the user resolved as Option B**: all program code moved under
-`scripts/Universal/` (git mv, history preserved), `scripts/tests/` → `files/tests/`,
-repo-root `test-files/` → `files/test-files/`, `scripts/Windows|MacOS/` added as `.gitkeep`
-placeholders; resolver depth + conftest + verify + launcher + `.gitattributes`/`.gitignore`
-paths all updated. **Runtime-data conflict RESOLVED (user chose Option B):**
-`files/novel-index/` + `files/Novel-Edits-Details/` were relocated to
-`scripts/Universal/resources/{novel-index,Novel-Edits-Details}/`, so `files/` is now purely
-dev-only with no exceptions and a clean release ships only `scripts/` + launchers. Verify
-green (369); the release-ZIP proof was re-run with `files/` **entirely absent** and the app
-is fully functional. Ledger #023 supersedes #022. This relocation is the build-spec change
-the Phase-10 `DECISIONS.md` entry will formalize.
-Phase 9 (single hardened launcher per OS) is now DONE: one `Setup_and_Run.bat` and one
-`Setup_and_Run.command` rebuilt from the study templates, targeting
-`scripts/Universal/main.py` — 4 numbered steps, self-healing venv, health-GATED idempotent
-install (lock + `pip check` + import smoke; venv interpreter preferred on repeat launch),
-consent-gated base-runtime install, Windows `pythonw` windowless launch with a `--check`
-console preflight. Editor behavioral choices deliberately KEPT over the template's:
-Python-version gate **blocks** (does not warn) below 3.10; floor stays 3.10 (from-scratch
-winget install still pulls 3.11). The untracked `Setup_and_Run-template.*` study copies were
-deleted (root now has exactly one launcher per OS). Verify green (381).
-Phase 10 (docs & changelog) is now DONE: all four permanent docs + README + build-spec +
-EDITING-RULES + UNIVERSAL.md updated to v0.10.0; the new `md-instructions/DECISIONS.md` was
-created from `decisions-template.md` and transcribed from the running ledger (27 entries).
-Version confirmed **v0.10.0** (minor bump, not patch — ledger #026 / DECISIONS #026).
-**Phase 11 (final verify & wrap-up) is now DONE — the whole junk-strip-hardening plan
-(Phases 0–11) is COMPLETE.** This session: pushed the user-reviewed Phase-10 state to
-origin; ran the corpus-hash compare vs the Phase-0 baseline (**7,979/7,979 PDFs match, 0
-mismatch, 0 missing** — the only intended diff is the Phase-8 fixture-path remap
-`test-files/ → files/test-files/`, contents unchanged); deleted the instruction drop
-`Instructions_Phase10_JunkStrip_And_QA.md`; ran `python scripts/verify.py` against the
-post-delete tree → **PASS (383 passed, 0 skipped)**; updated this handoff + ledger #028;
-re-ran verify after the handoff edit to reconcile → still PASS; committed and pushed the
-Phase-11 commit. **The branch `feature/junk-strip-hardening` is pushed to origin and left
-UNMERGED for the user's end-of-plan review/merge — do NOT merge to `main` automatically.**
-No DECISIONS.md entry was added for Phase 11 (mechanical wrap-up, no non-obvious design
-choice — ledger #028 explains); DECISIONS.md stays at 27 entries.
-Standing instruction (2026-07-12 through Phase 10): the running decisions ledger in gitignored
-scratch (files/qa-tools/scratch/decisions-ledger.md, ADR format) was appended at the end of
-every phase; Phase 10's DECISIONS.md is a transcription of that ledger (not a reconstruction).
-RECONCILED in Phase 10: the Supreme Magus Cloudflare error-page count — the Phase-1 recon
-estimate of 4 (3 named + an unconfirmed "+1 more") is superseded by the committed/detected
-truth of **3** (SM_ERROR_PAGES = Ch. 1423/1424/1427; Phase-5 run flagged 3/3). Docs fixed to
-3; code unchanged (it was already correct). See DECISIONS #027. Historical Work Log entries
-below that say "4" are append-only history, left as written.
+**Plan 1 — GUI & Batch Overhaul (target v0.11.0)** in progress on branch
+`feature/gui-batch-overhaul` — a NEW branch off `main` @ `c424d30`, created 2026-07-17
+after the user merged the completed junk-strip-hardening plan (v0.10.0) into `main`
+(merge `94999a8`; the old `feature/junk-strip-hardening` branch is history, do not build
+on it). Active instruction drop: `md-instructions/plan-1-gui-batch-overhaul.md` (v2,
+reconciled 2026-07-17 — authoritative; see also
+`files/qa-tools/scratch/plan1-reconciliation.md` for path/line references).
+Plan 2 (`plan-2-ai-editor-integration.md`) is a separate later drop — untouched.
+
+**Phase 1 (input model + natural-order scanning) is DONE** (2026-07-18, committed on the
+branch): `natsort==8.4.0` pinned (verified live on PyPI, DECISIONS #028); new
+`scripts/Universal/core/input_scanner.py` (`scan_upload` preserves upload order,
+`scan_folder` = depth-first recursive scan, own PDFs first in natural order then
+subfolders in natural order, non-PDFs ignored — contract pinned by
+`files/tests/test_input_scanner.py`); GUI input card gains the two-mode toggle
+(Upload PDFs / Select Folder radio pair enabling/disabling each other's controls),
+folder picker, and the shared listbox now previews the resolved processing order
+(relative paths in folder mode). **Folder-mode batch start is deliberately blocked with
+a friendly "arrives in the next update" dialog — order preview only; wiring folder mode
+into batch/output is Phase 2's job** (do not "fix" this as a bug). Upload-mode batch
+behavior is unchanged. Verify green: 401 passed, 0 skipped (was 383).
+
+Next: **Phase 2 — output mirroring + naming** (Downloads resolution via known-folder
+lookup in `utils/file_utils.py`, `<name>-x` auto-increment, structure mirroring,
+original filenames / drop the `EDITED_` prefix, remove the output-folder picker,
+update every test asserting `EDITED_` names).
 
 ---
 
@@ -87,6 +41,44 @@ below that say "4" are append-only history, left as written.
 ---
 
 ## Work Log (newest first)
+
+- 2026-07-18 — **Plan 1 (GUI & Batch Overhaul, v0.11.0) Phase 1 complete: input model +
+  natural-order scanning, on the new branch `feature/gui-batch-overhaul`.**
+  **Branch setup first (2026-07-17):** verified `feature/junk-strip-hardening` is merged
+  into `main` (`94999a8`) and `main` == `origin/main` == `c424d30`; backed up the on-disk
+  gitignored `AI-WORKSPACE.md` outside the repo; discarded the stale uncommitted tracked
+  changes on the merged branch (the `AI-WORKSPACE.md` modification and the user-confirmed
+  `md-instructions/kickoff-prompt.md` deletion); checked out `main` (`git pull --ff-only`
+  → already up to date) and created `feature/gui-batch-overhaul`; restored
+  `AI-WORKSPACE.md` (untracked+ignored here, correct) — both plan drops preserved
+  untouched. **Phase 1 work (TDD RED→GREEN throughout):** (1) `scripts/requirements.txt`
+  += `natsort==8.4.0` — latest stable verified live on PyPI 2026-07-17, not pinned from
+  memory (Context7 confirmed the API surface; DECISIONS #028). (2) New
+  `scripts/Universal/core/input_scanner.py`: `scan_upload(paths)` (flat, caller order
+  preserved exactly, non-PDFs dropped) and `scan_folder(root)` (depth-first recursion;
+  at each level the directory's OWN PDFs first in natural order, then subfolders in
+  natural order; case-insensitive `.pdf` match; unreadable subdirs skipped;
+  `NotADirectoryError` on a missing root) — one shared
+  `natsort_keygen(alg=ns.IGNORECASE)` key. (3) GUI (`scripts/Universal/gui/app.py`):
+  the "PDF Files" card became an "Input" card with a mutually exclusive radio pair
+  (Upload PDFs / Select Folder) that enables/disables each mode's controls
+  (`add/remove/clear` vs `Choose Folder…`); folder selection runs `scan_folder` and the
+  shared listbox previews the resolved processing order (relative POSIX paths in folder
+  mode, basenames in upload mode); status strip shows the active input mode + queued
+  count; ttk design system untouched (added only a `TRadiobutton` style on the existing
+  tokens). **Folder-mode Start is intentionally a no-op behind an explanatory dialog —
+  Phase 1 only resolves and displays the order; batch/output wiring is Phase 2** (pinned
+  by test so it can't silently regress). Upload-mode batch flow unchanged (list
+  rendering consolidated into one `_refresh_file_list` helper). **Tests:** new
+  `files/tests/test_input_scanner.py` (14 — numeric/mixed/case ordering, depth-first
+  contract, nested numeric dirs, empty folder, non-PDF ignore, case-insensitive
+  extension, missing-folder raise, upload order preserved) + 4 new GUI tests in
+  `test_app.py` (toggle default + both radios, enablement flip both directions,
+  folder-scan resolved-order display, folder-mode Start deferred) — each watched RED
+  before implementation. `python scripts/verify.py` → **PASS, 401 passed, 0 skipped**
+  (was 383; +18). DECISIONS #028 appended (natsort adoption). Docs beyond
+  Handoff/DECISIONS untouched — CHANGELOG v0.11.0 entry is this plan's Phase 6 per the
+  drop. — Claude Code
 
 - 2026-07-16 — **Phase 11 complete: final verify & wrap-up — the entire junk-strip-hardening
   plan (Phases 0–11) is DONE; branch pushed to origin, left UNMERGED for the user's review.**
@@ -617,6 +609,24 @@ below that say "4" are append-only history, left as written.
 ---
 
 ## Session Sync Log (newest first)
+
+### 2026-07-18 — HOME-PC — PUSHED (Plan 1 Phase 1: input model + natural-order scanning)
+- Branch:  feature/gui-batch-overhaul — NEW, off main @ c424d30 (junk-strip-hardening merged
+           by the user via 94999a8; old feature branch abandoned as history). First push of
+           this branch to origin as the in-progress backup.
+- Added:   scripts/Universal/core/input_scanner.py (ordered-list builder, both input modes),
+           files/tests/test_input_scanner.py (14 tests — ordering contract pinned)
+- Changed: scripts/requirements.txt (+ natsort==8.4.0, pinned, comment),
+           scripts/Universal/gui/app.py (Input card: two-mode toggle, folder picker,
+           resolved-order preview; folder-mode Start deferred to Phase 2 behind a dialog),
+           files/tests/test_app.py (+4 GUI tests),
+           md-instructions/Decisions.md (appended #028 — natsort adoption),
+           md-instructions/Handoff.md (Current Focus rewritten for Plan 1 + this entry)
+- Local-only (untracked/gitignored by design): AI-WORKSPACE.md (restored on-disk copy,
+           gitignored on this branch), .claude/, the two plan drops stay untracked as drops
+           (plan-1-gui-batch-overhaul.md is the ACTIVE drop — deleted only at end of plan).
+- Result:  python scripts/verify.py → PASS (401 passed, 0 skipped; was 383). Phase 2
+           (output mirroring + naming) is next.
 
 ### 2026-07-16 — HOME-PC — PUSHED (Phase 11: final verify & wrap-up; plan COMPLETE, branch UNMERGED)
 - Branch:  feature/junk-strip-hardening (Phase 11, 1 commit on top of 9865297); pushed to

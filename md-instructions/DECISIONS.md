@@ -9,6 +9,31 @@ its original decision date. New decisions continue to be appended here (newest o
 
 ---
 
+## 028 — Plan 1 Phase 1: `natsort==8.4.0` adopted for natural-order folder scanning (not hand-rolled numeric sorting) — 2026-07-18 — Claude Code
+
+**Status:** Accepted
+**Context:** The GUI & Batch Overhaul plan (target v0.11.0) adds a Select-Folder input mode
+with a recursive scan whose ordering contract is depth-first traversal with natural
+(numeric-aware) ordering at every level — `1, 2, 10`, not `1, 10, 2` — so chapter files
+numbered by a person process in reading order. Numeric-aware sorting has real edge cases
+(multi-number names, mixed case, embedded text), and the plan explicitly forbids
+hand-rolling it.
+**Decision:** Add **`natsort==8.4.0`** to `scripts/requirements.txt` — the latest stable
+release, verified live against PyPI on 2026-07-17 (8.4.0, published 2023; the project is
+mature and stable, not stale) rather than pinned from training memory. The scanner
+(`scripts/Universal/core/input_scanner.py`) uses one shared `natsort_keygen(alg=ns.IGNORECASE)`
+key so ordering is case-insensitive (matching Windows filename semantics) and identical for
+files and directories. The ordering contract is pinned by `files/tests/test_input_scanner.py`.
+**Alternatives considered:** Hand-rolled `re.split`-based numeric key — rejected: the plan
+forbids it and natsort's handling of edge cases (multiple numbers, unicode digits, case
+folding) is well-tested upstream. `os_sorted` (natsort's OS-file-explorer emulation) —
+rejected: it varies by platform/locale, while the ordering contract must be identical on
+Windows and macOS.
+**Consequences:** One new pinned runtime dependency (pure-Python, no binaries — no launcher
+change needed; installed via the existing `requirements.txt` flow). Both input modes route
+through `input_scanner` (`scan_upload` preserves upload order; `scan_folder` applies the
+contract), giving Phase 2's output mirroring a single ordered-list source of truth.
+
 ## 027 — Phase 10: Supreme Magus Cloudflare error-page count reconciled to 3 (committed/detected truth), not the Phase-1 recon estimate of 4 — 2026-07-16 — Claude Code
 
 **Status:** Accepted
