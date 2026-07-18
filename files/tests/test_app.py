@@ -111,6 +111,132 @@ def test_app_layout_order_matches_scraper():
         app.destroy()
 
 
+def test_app_input_mode_defaults_to_upload_with_both_toggles():
+    """Plan 1 Phase 1: two mutually exclusive input modes exist; Upload is default."""
+    tk = pytest.importorskip("tkinter")
+    from tkinter import ttk
+    from gui import app as appmod
+
+    try:
+        app = appmod.WebnovelEditorApp()
+    except tk.TclError:
+        pytest.skip("no display available for Tk")
+    try:
+        app.withdraw()
+        app.update_idletasks()
+
+        assert app.input_mode_var.get() == "upload"
+        radio_texts = {
+            str(w.cget("text"))
+            for w in _all_descendants(app)
+            if isinstance(w, ttk.Radiobutton)
+        }
+        assert "Upload PDFs" in radio_texts
+        assert "Select Folder" in radio_texts
+
+        # Upload mode active: upload buttons enabled, folder picker disabled.
+        assert "disabled" not in app.add_button.state()
+        assert "disabled" in app.choose_folder_button.state()
+    finally:
+        app.destroy()
+
+
+def test_app_input_mode_switch_flips_panel_enablement():
+    """Selecting the other mode disables the inactive mode's controls (and back)."""
+    tk = pytest.importorskip("tkinter")
+    from gui import app as appmod
+
+    try:
+        app = appmod.WebnovelEditorApp()
+    except tk.TclError:
+        pytest.skip("no display available for Tk")
+    try:
+        app.withdraw()
+        app.update_idletasks()
+
+        app.input_mode_var.set("folder")
+        app._on_input_mode_changed()
+        app.update_idletasks()
+        assert "disabled" in app.add_button.state()
+        assert "disabled" in app.remove_button.state()
+        assert "disabled" in app.clear_button.state()
+        assert "disabled" not in app.choose_folder_button.state()
+
+        app.input_mode_var.set("upload")
+        app._on_input_mode_changed()
+        app.update_idletasks()
+        assert "disabled" not in app.add_button.state()
+        assert "disabled" in app.choose_folder_button.state()
+    finally:
+        app.destroy()
+
+
+def test_app_folder_scan_displays_resolved_natural_order(tmp_path):
+    """Choosing a folder resolves the ordered list (input_scanner contract) and shows
+    it in the file list, as relative paths in that exact order."""
+    tk = pytest.importorskip("tkinter")
+    from gui import app as appmod
+
+    for name in ("10.pdf", "1.pdf", "2.pdf"):
+        (tmp_path / name).write_bytes(b"%PDF-stub")
+    sub = tmp_path / "extras"
+    sub.mkdir()
+    (sub / "5.pdf").write_bytes(b"%PDF-stub")
+
+    try:
+        app = appmod.WebnovelEditorApp()
+    except tk.TclError:
+        pytest.skip("no display available for Tk")
+    try:
+        app.withdraw()
+        app.update_idletasks()
+
+        app.input_mode_var.set("folder")
+        app._on_input_mode_changed()
+        app._apply_input_folder(str(tmp_path))
+        app.update_idletasks()
+
+        shown = list(app.file_listbox.get(0, "end"))
+        assert shown == ["1.pdf", "2.pdf", "10.pdf", "extras/5.pdf"]
+        assert [p.name for p in app.folder_files] == ["1.pdf", "2.pdf", "10.pdf", "5.pdf"]
+    finally:
+        app.destroy()
+
+
+def test_app_folder_mode_start_is_deferred_to_phase_2(tmp_path, monkeypatch):
+    """Phase 1 only resolves and displays the order — Start in folder mode must not
+    launch a batch (output wiring is Phase 2)."""
+    tk = pytest.importorskip("tkinter")
+    from gui import app as appmod
+
+    (tmp_path / "1.pdf").write_bytes(b"%PDF-stub")
+
+    try:
+        app = appmod.WebnovelEditorApp()
+    except tk.TclError:
+        pytest.skip("no display available for Tk")
+    try:
+        app.withdraw()
+        app.update_idletasks()
+
+        infos = []
+        monkeypatch.setattr(appmod.messagebox, "showinfo",
+                            lambda *a, **k: infos.append(a))
+        monkeypatch.setattr(appmod.messagebox, "showwarning",
+                            lambda *a, **k: infos.append(a))
+
+        app.input_mode_var.set("folder")
+        app._on_input_mode_changed()
+        app._apply_input_folder(str(tmp_path))
+        app._start_batch()
+        app.update_idletasks()
+
+        assert app._running is False
+        assert infos  # the user was told, not silently ignored
+    finally:
+        app.destroy()
+
+
 def test_app_progress_resets_between_runs():
     """Phase 7 GUI hardening: progress can be driven up and reset back to zero, so a
     second run never starts with a stale progress value."""

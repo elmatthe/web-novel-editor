@@ -21,9 +21,11 @@ from __future__ import annotations
 import os
 import threading
 import tkinter as tk
+from pathlib import Path
 from tkinter import filedialog, messagebox, ttk
 
 from core.batch_runner import run_batch
+from core.input_scanner import scan_folder
 from core.novel_registry import DEFAULT_NOVEL, available_novels
 from utils.file_utils import open_in_file_manager
 
@@ -68,7 +70,9 @@ class WebnovelEditorApp(tk.Tk):
         self.configure(bg=WINDOW_BG)
 
         # State
-        self.file_paths: list[str] = []
+        self.file_paths: list[str] = []       # upload mode: user-ordered flat list
+        self.folder_files: list[Path] = []    # folder mode: resolved natural-order scan
+        self.input_folder = ""                # folder mode: the selected root folder
         self._running = False
 
         self._init_fonts()
@@ -147,6 +151,10 @@ class WebnovelEditorApp(tk.Tk):
                         font=self.font_body, focuscolor=ACCENT)
         style.map("TCheckbutton", background=[("active", PANEL_BG)])
 
+        style.configure("TRadiobutton", background=PANEL_BG, foreground=TEXT_BODY,
+                        font=self.font_body, focuscolor=ACCENT)
+        style.map("TRadiobutton", background=[("active", PANEL_BG)])
+
         style.configure("Accent.Horizontal.TProgressbar", background=ACCENT,
                         troughcolor="#dbe2e7", bordercolor=BORDER, lightcolor=ACCENT,
                         darkcolor=ACCENT)
@@ -171,7 +179,8 @@ class WebnovelEditorApp(tk.Tk):
         self._build_status_bar(root, row=7)
 
         self._refresh_status()
-        self._log("Ready. Add PDF files and choose an output folder to begin.", "muted")
+        self._log("Ready. Upload PDFs or select a folder to preview its processing "
+                  "order, then choose an output folder to begin.", "muted")
 
     def _build_header(self, parent: ttk.Frame, row: int) -> None:
         header = ttk.Frame(parent, style="Header.TFrame")
@@ -217,13 +226,28 @@ class WebnovelEditorApp(tk.Tk):
         self._refresh_status()
 
     def _build_file_panel(self, parent: ttk.Frame, row: int) -> None:
-        frame = ttk.Labelframe(parent, text="PDF Files", style="Card.TLabelframe",
+        frame = ttk.Labelframe(parent, text="Input", style="Card.TLabelframe",
                                padding=PAD_M)
         frame.grid(row=row, column=0, sticky="ew", pady=(0, PAD_M))
         frame.columnconfigure(0, weight=1)
 
+        # Two mutually exclusive input modes (Plan 1 Phase 1). The radio pair flips
+        # which mode's controls are enabled; the shared list below always shows the
+        # resolved processing order for the active mode.
+        self.input_mode_var = tk.StringVar(value="upload")
+        modes = ttk.Frame(frame, style="Panel.TFrame")
+        modes.grid(row=0, column=0, sticky="w", pady=(0, PAD_S))
+        ttk.Radiobutton(
+            modes, text="Upload PDFs", value="upload", variable=self.input_mode_var,
+            command=self._on_input_mode_changed,
+        ).pack(side="left")
+        ttk.Radiobutton(
+            modes, text="Select Folder", value="folder", variable=self.input_mode_var,
+            command=self._on_input_mode_changed,
+        ).pack(side="left", padx=(PAD_M, 0))
+
         list_wrap = ttk.Frame(frame, style="Panel.TFrame")
-        list_wrap.grid(row=0, column=0, sticky="ew")
+        list_wrap.grid(row=1, column=0, sticky="ew")
         list_wrap.columnconfigure(0, weight=1)
 
         self.file_listbox = tk.Listbox(
@@ -239,12 +263,25 @@ class WebnovelEditorApp(tk.Tk):
         self.file_listbox.configure(yscrollcommand=scroll.set)
 
         btns = ttk.Frame(frame, style="Panel.TFrame")
-        btns.grid(row=1, column=0, sticky="w", pady=(PAD_M, 0))
-        ttk.Button(btns, text="Add PDFs", command=self._add_pdfs).pack(side="left")
-        ttk.Button(btns, text="Remove Selected", command=self._remove_selected).pack(
-            side="left", padx=(PAD_S, 0))
-        ttk.Button(btns, text="Clear All", command=self._clear_all).pack(
-            side="left", padx=(PAD_S, 0))
+        btns.grid(row=2, column=0, sticky="ew", pady=(PAD_M, 0))
+        btns.columnconfigure(3, weight=1)
+        self.add_button = ttk.Button(btns, text="Add PDFs", command=self._add_pdfs)
+        self.add_button.grid(row=0, column=0)
+        self.remove_button = ttk.Button(btns, text="Remove Selected",
+                                        command=self._remove_selected)
+        self.remove_button.grid(row=0, column=1, padx=(PAD_S, 0))
+        self.clear_button = ttk.Button(btns, text="Clear All", command=self._clear_all)
+        self.clear_button.grid(row=0, column=2, padx=(PAD_S, 0))
+
+        self.choose_folder_button = ttk.Button(btns, text="Choose Folder…",
+                                               command=self._choose_input_folder)
+        self.choose_folder_button.grid(row=0, column=4, sticky="e")
+
+        self.folder_var = tk.StringVar(value="No folder selected")
+        ttk.Label(frame, textvariable=self.folder_var, style="PathValue.TLabel",
+                  anchor="w").grid(row=3, column=0, sticky="ew", pady=(PAD_S, 0))
+
+        self._on_input_mode_changed(log=False)
 
     def _build_output_panel(self, parent: ttk.Frame, row: int) -> None:
         frame = ttk.Labelframe(parent, text="Output Folder", style="Card.TLabelframe",
@@ -323,6 +360,56 @@ class WebnovelEditorApp(tk.Tk):
         ttk.Label(parent, textvariable=self.status_var, style="Status.TLabel",
                   anchor="w").grid(row=row, column=0, sticky="ew")
 
+    # -- input mode -------------------------------------------------------------
+    def _on_input_mode_changed(self, log: bool = True) -> None:
+        """Flip which mode's controls are live and re-show that mode's file order."""
+        folder_mode = self.input_mode_var.get() == "folder"
+        upload_state = tk.DISABLED if folder_mode else tk.NORMAL
+        folder_state = tk.NORMAL if folder_mode else tk.DISABLED
+        for button in (self.add_button, self.remove_button, self.clear_button):
+            button.configure(state=upload_state)
+        self.choose_folder_button.configure(state=folder_state)
+
+        self._refresh_file_list()
+        if log:
+            mode_label = "Select Folder" if folder_mode else "Upload PDFs"
+            self._log(f"Input mode: {mode_label}", "info")
+        self._refresh_status()
+
+    def _choose_input_folder(self) -> None:
+        directory = filedialog.askdirectory(title="Select the folder of PDFs to process")
+        if directory:
+            self._apply_input_folder(directory)
+
+    def _apply_input_folder(self, directory: str) -> None:
+        """Scan ``directory`` (recursive, natural order) and display the result."""
+        try:
+            self.folder_files = scan_folder(directory)
+        except (NotADirectoryError, OSError) as exc:
+            self._log(f"Could not scan folder: {exc}", "error")
+            return
+        self.input_folder = directory
+        self.folder_var.set(directory)
+        self._refresh_file_list()
+        self._log(
+            f"Scanned folder: {directory} — {len(self.folder_files)} PDF(s) in "
+            "processing order.", "info")
+        if not self.folder_files:
+            self._log("No PDF files found in that folder.", "warn")
+        self._refresh_status()
+
+    def _refresh_file_list(self) -> None:
+        """Re-render the shared list with the active mode's resolved order."""
+        self.file_listbox.delete(0, tk.END)
+        if self.input_mode_var.get() == "folder":
+            root = Path(self.input_folder) if self.input_folder else None
+            for path in self.folder_files:
+                label = path.relative_to(root).as_posix() if root else str(path)
+                self.file_listbox.insert(tk.END, label)
+        else:
+            for path in self.file_paths:
+                self.file_listbox.insert(tk.END, os.path.basename(path))
+
     # -- file list actions ------------------------------------------------------
     def _add_pdfs(self) -> None:
         paths = filedialog.askopenfilenames(
@@ -331,8 +418,8 @@ class WebnovelEditorApp(tk.Tk):
         for path in paths:
             if path not in self.file_paths:   # silently skip duplicates
                 self.file_paths.append(path)
-                self.file_listbox.insert(tk.END, os.path.basename(path))
                 added += 1
+        self._refresh_file_list()
         if added:
             self._log(f"Added {added} file(s).", "info")
         self._refresh_status()
@@ -342,8 +429,8 @@ class WebnovelEditorApp(tk.Tk):
         if not selection:
             return
         for index in reversed(selection):
-            self.file_listbox.delete(index)
             del self.file_paths[index]
+        self._refresh_file_list()
         self._log(f"Removed {len(selection)} file(s).", "info")
         self._refresh_status()
 
@@ -351,8 +438,8 @@ class WebnovelEditorApp(tk.Tk):
         if not self.file_paths:
             return
         count = len(self.file_paths)
-        self.file_listbox.delete(0, tk.END)
         self.file_paths.clear()
+        self._refresh_file_list()
         self._log(f"Cleared {count} file(s).", "info")
         self._refresh_status()
 
@@ -367,6 +454,16 @@ class WebnovelEditorApp(tk.Tk):
     # -- run / worker -----------------------------------------------------------
     def _start_batch(self) -> None:
         if self._running:
+            return
+        if self.input_mode_var.get() == "folder":
+            # Phase 1 only resolves and displays the folder order; batch/output
+            # wiring for folder mode lands in Phase 2 of the GUI & Batch Overhaul.
+            messagebox.showinfo(
+                "Folder mode coming next",
+                "Folder mode currently previews the processing order only.\n"
+                "Running a batch from a folder arrives in the next update — "
+                "switch to Upload PDFs to process files now.",
+            )
             return
         if not self.file_paths:
             messagebox.showwarning("No files", "Add at least one PDF file before running.")
@@ -447,13 +544,21 @@ class WebnovelEditorApp(tk.Tk):
         self.log_text.configure(state=tk.DISABLED)
 
     def _refresh_status(self) -> None:
+        if not hasattr(self, "status_var"):
+            return  # called during panel construction, before the status bar exists
         out = getattr(self, "output_dir", "")
         out_label = out if out else "not selected"
         novel = getattr(self, "novel_var", None)
         novel_label = novel.get() if novel is not None else "—"
+        if getattr(self, "input_mode_var", None) and self.input_mode_var.get() == "folder":
+            mode_label = "folder"
+            queued = len(self.folder_files)
+        else:
+            mode_label = "upload"
+            queued = len(self.file_paths)
         self.status_var.set(
-            f"novel: {novel_label}   |   {len(self.file_paths)} file(s) queued   "
-            f"|   output: {out_label}")
+            f"novel: {novel_label}   |   input: {mode_label}   |   "
+            f"{queued} file(s) queued   |   output: {out_label}")
 
 
 def launch() -> None:
