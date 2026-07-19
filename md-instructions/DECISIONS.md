@@ -9,6 +9,40 @@ its original decision date. New decisions continue to be appended here (newest o
 
 ---
 
+## 033 — Plan 1 Phase 4: session-only pause/continue via a between-files Event gate (the safe seam DECISIONS #020's deferred cancellation lacked) — 2026-07-18 — Claude Code
+
+**Status:** Accepted
+**Context:** DECISIONS #020 deferred Stop/Cancel because `run_batch` had no cooperative
+seam — killing the daemon worker mid-PDF-write risks a corrupt output, and the scraper's
+cancellation machinery was out of scope to port. The plan's pause feature builds exactly
+the between-files checkpoint that discussion described: pause is safe where cancellation
+wasn't, because it only ever holds *between* files — the file in flight always finishes
+and is fully written before the loop can stop moving.
+**Decision:** `run_batch` gains an optional `pause_gate: threading.Event` (SET = run,
+cleared = pause requested), consulted only at the top of each iteration for files 2..N —
+never before the first file or after the last. On a cleared gate it logs "Paused after
+chapter N of M." and blocks on `pause_gate.wait()` until Continue sets it. The GUI owns
+one gate per app (`self.pause_gate`) wired to a Pause ⇄ Continue button that is enabled
+only while a batch runs; `_start_batch` re-sets the gate so a new batch always starts
+un-paused. **Pause state is session-only — deliberately no persistence across GUI
+restarts:** the gate is in-memory only, and closing the app while paused simply ends the
+daemon worker with the partial batch's completed outputs intact (re-running later is a
+fresh `<name>-x` folder by the Phase-2 numbering, so nothing is overwritten). The batch
+also gained the always-constructed per-file `ReplacementLog` so the condensed log line
+can show an edit count even when the JSONL option is off (the JSONL file itself is still
+written only when enabled).
+**Alternatives considered:** A polling loop on a "paused" flag — rejected: `Event.wait()`
+blocks without busy-waiting and needs no poll interval. Persisting pause/queue state to
+disk for resume-after-restart — rejected: heavy machinery for a session tool, and the
+numbered-output contract already makes a re-run safe. Extending pause into full
+cancellation — rejected: still out of scope; #020's corruption analysis stands, and a
+future Stop can now reuse this same between-files seam as its checkpoint.
+**Consequences:** No threading-model change (same daemon worker + `after(0, ...)`
+marshalling); headless callers that pass no gate are byte-identical in behavior. The
+condensed-log rewrite in the same phase means pipeline "⚠" integrity warnings
+(DECISIONS #005/#017) are explicitly forwarded to the GUI while verbose stage chatter
+stays in the JSONL.
+
 ## 032 — Plan 1 Phase 3: default dropdown selection changed Shadow Slave → "Universal" — 2026-07-18 — Claude Code
 
 **Status:** Accepted

@@ -10,6 +10,24 @@ reconciled 2026-07-17 — authoritative; see also
 `files/qa-tools/scratch/plan1-reconciliation.md` for path/line references).
 Plan 2 (`plan-2-ai-editor-integration.md`) is a separate later drop — untouched.
 
+**Phase 4 (pause/continue + condensed log) is DONE** (2026-07-18, committed on the
+branch): `run_batch` gained an optional `pause_gate` `threading.Event` (SET = run,
+cleared = pause) consulted only BETWEEN files — the current file always finishes, so
+pausing can never interrupt a PDF write (the safe seam DECISIONS #020's deferred
+cancellation lacked; DECISIONS #033 — session-only, no persistence, deliberate). The
+GUI has a Pause ⇄ Continue button next to Start (enabled only while running); the
+worker logs "Paused after chapter N of M." on hold and a continue line on resume. The
+GUI log is now condensed: ONE line per file — `[i/N] name — done (X edits)` /
+`— done (dry run, X edits)` / `— skipped (not found)` / `— skipped (image-only/empty)` /
+`— FAILED (Type: reason)` — plus an end-of-batch summary block (totals + Failed:/
+Skipped: name lists, omitted when empty). Verbose pipeline stage chatter stays in the
+JSONL only; pipeline "⚠" integrity warnings still surface as GUI warnings. The per-file
+`ReplacementLog` is now always constructed so the edit count shows even with the JSONL
+option off (the file is only written when enabled). The Phase-3-noted log oddity is
+fixed: an explicit "Universal" selection logs "Universal editing selected — …" instead
+of "No novel-specific profile for 'Universal'" (log-string-only; dispatch untouched).
+Verify green: 457 passed, 0 skipped.
+
 **Phase 3 ("Universal" default entry + profile-less markers) is DONE** (2026-07-18,
 committed on the branch): the dropdown roster now leads with an injected **"Universal"**
 entry — the new default selection (DECISIONS #032) — dispatching through the EXISTING
@@ -43,9 +61,11 @@ preserves upload order, `scan_folder` = depth-first natural-order recursive scan
 pinned by `files/tests/test_input_scanner.py`); GUI two-mode Input toggle + folder picker
 + resolved-order preview.
 
-Next: **Phase 4 — pause/continue + condensed log** (Event-based between-files pause,
-Pause ⇄ Continue button state machine, one-line-per-file condensed log format +
-end-of-batch summary; tests drive the worker callbacks deterministically).
+Next: **Phase 5 — TTS jargon sweep rule** (conservative universal junk_strip extension
+removing standalone decorative symbol runs — `~~~`, `-=-=-`, `***` etc. — token-level,
+protected terms shielded, every removal JSONL-logged; the ~810-asterisk FP hazard from
+the Phase-4 TTS sweep is real: censored profanity / authored emphasis / footnote
+markers must survive; EDITING-RULES.md section update rides along).
 
 ---
 
@@ -60,6 +80,57 @@ end-of-batch summary; tests drive the worker callbacks deterministically).
 ---
 
 ## Work Log (newest first)
+
+- 2026-07-18 — **Plan 1 (GUI & Batch Overhaul, v0.11.0) Phase 4 complete: pause/continue
+  + condensed log — Event-gate pause between files, Pause ⇄ Continue button, one-line-
+  per-file log + end-of-batch summary, explicit-Universal log line fixed.** TDD
+  RED→GREEN (new test file + 2 GUI tests watched fail — unexpected `pause_gate` kwarg /
+  missing `pause_button` / old log format — before implementation). **Work:** (1)
+  `core/batch_runner.py` — new optional `pause_gate: threading.Event` param (SET = run,
+  cleared = pause), consulted at the top of each per-file iteration for files 2..N only
+  (never before the first file or after the last; the in-flight file always completes —
+  the safe between-files seam #020's cancellation discussion described; DECISIONS #033).
+  On hold: `"Paused after chapter N of M."` (warn) → `pause_gate.wait()` → `"Continuing
+  with chapter i of M."` (accent). Condensed per-file logging: the old Extracting/Wrote/
+  SKIP/Dry-run/FAILED multi-line chatter replaced by exactly one line per file
+  (`[i/N] name — done (X edits)` success / `— done (dry run, X edits)` info /
+  `— skipped (not found)` + `— skipped (image-only/empty)` warn / `— FAILED (Type:
+  reason)` error); per-file sidecar log lines dropped (sidecars written silently);
+  end-of-batch summary block = totals line (`Batch complete: S done, F failed, K skipped
+  of N.`) + `Failed:`/`Skipped:` name-and-reason lists (omitted when empty, error/warn
+  tags). `ReplacementLog` is now ALWAYS constructed per file (feeds the edit count);
+  JSONL still written only when the option is on. Pipeline `gui_log` seam filtered:
+  verbose `✓` stage lines no longer reach the GUI, `⚠` integrity warnings (error pages
+  #005, heading-only pages #017) still do. Explicit-Universal fix (log-string-only,
+  Phase-3 deviation): `novel_name` = "Universal" logs `"Universal editing selected —
+  applying the standard universal-only editing (no novel-specific layer)."`; genuinely
+  profile-less novels keep the honest `"No novel-specific profile for '<name>'"` line;
+  dispatch/registry untouched. (2) `gui/app.py` — `self.pause_gate` Event (set at
+  construction and at every batch start), Pause button beside Start (disabled while
+  idle; `_toggle_pause` clears the gate + relabels "Continue" + logs "Pause requested —
+  the current file will finish first.", sets it back on Continue; no-op when idle);
+  `_reset_pause_control()` on done/error restores gate + disabled "Pause";
+  `_process_worker` passes the gate to `run_batch`. No threading-model change (same
+  daemon worker + `after(0, ...)`). **Tests (457 passed, 0 skipped; was 437+1):** new
+  `files/tests/test_pause_and_condensed_log.py` (17 — scripted fake gate proving hold-
+  after-current/before-next + resume ordering, a real set Event never pauses, no gate
+  check before first/after last file, gate optional; exact condensed line contracts for
+  done/singular-edit/dry-run/not-found/image-only/FAILED with their color tags; edit
+  count shown with JSONL option off + no `.jsonl` written / still written when on;
+  summary-block totals + Failed:/Skipped: lists + empty-section omission; verbose-✓
+  filtered while ⚠ surfaces as warn; explicit-Universal line + profile-less line
+  regression) + `test_app.py` +2 (pause-button state machine incl. idle no-op;
+  Start passes the app's gate to `run_batch` and completion resets button/gate — the
+  synchronous-fake-Thread + spy idiom, no real sleeps). All monkeypatched at the same
+  seams as `test_robustness` (`extract_text_from_pdf`/`resolve_dispatch`/`build_pdf`)
+  so every case is deterministic. End-to-end smoke outside pytest (scratchpad, real
+  `threading.Event`, 3 real fixtures as "Universal"): pause requested during file 1 →
+  exactly 1 file done at hold, worker alive+blocked, Continue → 3/3 done, condensed
+  lines + summary block + "Universal editing selected" confirmed in the captured log.
+  `python scripts/verify.py` → **PASS (457 passed, 0 skipped — the previously-skipped
+  environmental launcher bash check RAN this session and passed).** DECISIONS #033
+  appended (session-only pause, relating #020). CHANGELOG/BRIEFING untouched — Phase 6
+  per the drop. Next: Phase 5 (TTS jargon sweep). — Claude Code
 
 - 2026-07-18 — **Plan 1 (GUI & Batch Overhaul, v0.11.0) Phase 3 complete: "Universal"
   default roster entry + profile-less "no profile yet" markers — dispatch registry
@@ -716,6 +787,23 @@ end-of-batch summary; tests drive the worker callbacks deterministically).
 ---
 
 ## Session Sync Log (newest first)
+
+### 2026-07-18 — HOME-PC — PUSHED (Plan 1 Phase 4: pause/continue + condensed log)
+- Branch:  feature/gui-batch-overhaul (1 commit this session on top of 308f85e)
+- Added:   files/tests/test_pause_and_condensed_log.py (17 tests — pause gate contract,
+           condensed line formats + tags, summary block, ⚠-filter, Universal log line)
+- Changed: scripts/Universal/core/batch_runner.py (pause_gate param + between-files
+           hold; condensed one-line-per-file log + end-of-batch summary block;
+           ReplacementLog always built for edit counts, JSONL still option-gated;
+           pipeline gui_log filtered to ⚠-only; explicit-Universal log line),
+           scripts/Universal/gui/app.py (pause_gate Event + Pause ⇄ Continue button,
+           _toggle_pause/_reset_pause_control, worker passes the gate),
+           files/tests/test_app.py (+2 pause-button/gate-wiring tests),
+           md-instructions/Decisions.md (appended #033 session-only pause, rel. #020),
+           md-instructions/Handoff.md (Current Focus + Work Log + this entry)
+- Result:  python scripts/verify.py → PASS (457 passed, 0 skipped — the environmental
+           launcher bash skip of Phases 2/3 ran and passed this session; was 437/1).
+           Phase 5 (TTS jargon sweep rule) is next.
 
 ### 2026-07-18 — HOME-PC — PUSHED (Plan 1 Phase 3: "Universal" default entry + markers)
 - Branch:  feature/gui-batch-overhaul (1 commit this session on top of 7eeab8f)

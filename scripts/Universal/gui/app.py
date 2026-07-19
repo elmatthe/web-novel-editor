@@ -1,7 +1,8 @@
 """Tkinter main window and all GUI logic.
 
 This is the single-window UI: a two-mode Input card (Upload PDFs / Select Folder),
-three option checkboxes, a log widget, a progress bar, and a Run button. The output
+three option checkboxes, a log widget, a progress bar, and Run + Pause/Continue
+buttons (pause holds the batch between files — the current file always finishes). The output
 location is not user-chosen (v0.11.0): every batch writes into a fresh auto-numbered
 `Downloads\\<novel>-x` folder — flat in upload mode, mirroring the selected folder's
 structure in folder mode — with original filenames kept.
@@ -81,6 +82,11 @@ class WebnovelEditorApp(tk.Tk):
         self.folder_files: list[Path] = []    # folder mode: resolved natural-order scan
         self.input_folder = ""                # folder mode: the selected root folder
         self._running = False
+        # Cooperative pause gate shared with run_batch: SET = run, cleared = pause
+        # requested. Consulted between files only, so the current file always finishes.
+        # Session-only state — a fresh batch (and app start) always begins un-paused.
+        self.pause_gate = threading.Event()
+        self.pause_gate.set()
 
         self._init_fonts()
         self._configure_styles()
@@ -349,9 +355,14 @@ class WebnovelEditorApp(tk.Tk):
         self.progress = ttk.Progressbar(bar, mode="determinate",
                                         style="Accent.Horizontal.TProgressbar")
         self.progress.grid(row=0, column=0, sticky="ew", padx=(0, PAD_M))
+        # Pause ⇄ Continue: enabled only while a batch runs. Pausing holds the worker
+        # between files (the current file always finishes — see run_batch's pause_gate).
+        self.pause_button = ttk.Button(bar, text="Pause", command=self._toggle_pause,
+                                       state=tk.DISABLED)
+        self.pause_button.grid(row=0, column=1, sticky="e", padx=(0, PAD_S))
         self.run_button = ttk.Button(bar, text="Start Batch Processing",
                                      style="Accent.TButton", command=self._start_batch)
-        self.run_button.grid(row=0, column=1, sticky="e")
+        self.run_button.grid(row=0, column=2, sticky="e")
 
     def _build_status_bar(self, parent: ttk.Frame, row: int) -> None:
         self.status_var = tk.StringVar(value="")
@@ -479,6 +490,8 @@ class WebnovelEditorApp(tk.Tk):
 
         self._running = True
         self.run_button.configure(state=tk.DISABLED)
+        self.pause_gate.set()  # a new batch always starts un-paused
+        self.pause_button.configure(state=tk.NORMAL, text="Pause")
         self.progress.configure(maximum=len(files), value=0)
         dry = self.opt_dry_run.get()
         self._log(
@@ -500,6 +513,8 @@ class WebnovelEditorApp(tk.Tk):
                 dry_run=self.opt_dry_run.get(),
                 novel_name=self._batch_novel,  # the clean (marker-stripped) selection
                 mirror_root=self._batch_mirror_root,
+                pause_gate=self.pause_gate,
+
                 gui_log=lambda message, level="info": self.after(
                     0, self._log, message, level),
                 progress=lambda value: self.after(0, self._set_progress, value),
@@ -509,9 +524,28 @@ class WebnovelEditorApp(tk.Tk):
             return
         self.after(0, self._on_done, summary)
 
+    def _toggle_pause(self) -> None:
+        """Pause ⇄ Continue. Pausing clears the gate; the worker holds between files
+        (the current file always finishes first), so this can never corrupt an output."""
+        if not self._running:
+            return
+        if self.pause_gate.is_set():
+            self.pause_gate.clear()
+            self.pause_button.configure(text="Continue")
+            self._log("Pause requested — the current file will finish first.", "warn")
+        else:
+            self.pause_gate.set()
+            self.pause_button.configure(text="Pause")
+
+    def _reset_pause_control(self) -> None:
+        """Back to idle: gate open, button disabled and relabelled for the next batch."""
+        self.pause_gate.set()
+        self.pause_button.configure(state=tk.DISABLED, text="Pause")
+
     def _on_done(self, summary: dict) -> None:
         self._running = False
         self.run_button.configure(state=tk.NORMAL)
+        self._reset_pause_control()
         skipped = summary.get("skipped", 0)
 
         # Auto-open the output folder so the user lands on their results (spec GUI
@@ -535,6 +569,7 @@ class WebnovelEditorApp(tk.Tk):
     def _on_error(self, exc: Exception) -> None:
         self._running = False
         self.run_button.configure(state=tk.NORMAL)
+        self._reset_pause_control()
         self._log(f"Batch aborted: {type(exc).__name__}: {exc}", "error")
         messagebox.showerror("Batch error", f"{type(exc).__name__}: {exc}")
 

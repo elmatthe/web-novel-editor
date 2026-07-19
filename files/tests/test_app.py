@@ -508,3 +508,71 @@ def test_app_progress_resets_between_runs():
         assert int(app.progress["value"]) == 0
     finally:
         app.destroy()
+
+
+def test_app_pause_button_state_machine():
+    """Plan 1 Phase 4: a Pause button exists next to Start — disabled while idle, and
+    while a batch runs it toggles Pause ⇄ Continue by clearing/setting the pause gate
+    (the worker holds between files while the gate is cleared)."""
+    tk = pytest.importorskip("tkinter")
+    from gui import app as appmod
+
+    try:
+        app = appmod.WebnovelEditorApp()
+    except tk.TclError:
+        pytest.skip("no display available for Tk")
+    try:
+        app.withdraw()
+        app.update_idletasks()
+
+        # Idle: button present, disabled, labelled Pause; toggling is a no-op.
+        assert str(app.pause_button["state"]) == "disabled"
+        assert str(app.pause_button["text"]) == "Pause"
+        app._toggle_pause()
+        assert str(app.pause_button["text"]) == "Pause"
+
+        # Running: Pause clears the gate and relabels; Continue sets it back.
+        app._running = True
+        app.pause_gate.set()
+        app._toggle_pause()
+        assert not app.pause_gate.is_set()
+        assert str(app.pause_button["text"]) == "Continue"
+        app._toggle_pause()
+        assert app.pause_gate.is_set()
+        assert str(app.pause_button["text"]) == "Pause"
+    finally:
+        app.destroy()
+
+
+def test_app_start_batch_passes_pause_gate_and_resets_button(tmp_path, monkeypatch):
+    """Start wires the app's pause gate into run_batch (set = running), and batch
+    completion disables the button and restores the Pause label + open gate."""
+    tk = pytest.importorskip("tkinter")
+    from gui import app as appmod
+
+    pdf = tmp_path / "a.pdf"
+    pdf.write_bytes(b"%PDF-stub")
+
+    try:
+        app = appmod.WebnovelEditorApp()
+    except tk.TclError:
+        pytest.skip("no display available for Tk")
+    try:
+        app.withdraw()
+        app.update_idletasks()
+        calls = _wire_batch_spy(appmod, monkeypatch, tmp_path)
+
+        app.file_paths.append(str(pdf))
+        app._refresh_file_list()
+        app._start_batch()
+        app.update()
+
+        assert len(calls) == 1
+        assert calls[0]["pause_gate"] is app.pause_gate
+        assert app.pause_gate.is_set()  # a fresh batch always starts un-paused
+        # The synchronous fake thread already finished: back to idle state.
+        assert app._running is False
+        assert str(app.pause_button["state"]) == "disabled"
+        assert str(app.pause_button["text"]) == "Pause"
+    finally:
+        app.destroy()
