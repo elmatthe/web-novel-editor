@@ -1,13 +1,15 @@
 """Tkinter main window and all GUI logic.
 
-This is the single-window v1 UI: a file list with Add/Remove/Clear, an output-folder
-picker, three option checkboxes, a log widget, a progress bar, and a Run button.
+This is the single-window UI: a two-mode Input card (Upload PDFs / Select Folder),
+three option checkboxes, a log widget, a progress bar, and a Run button. The output
+location is not user-chosen (v0.11.0): every batch writes into a fresh auto-numbered
+`Downloads\\<novel>-x` folder — flat in upload mode, mirroring the selected folder's
+structure in folder mode — with original filenames kept.
 
-The Run button drives the real `core.batch_runner.run_batch` (Phase 3): extract each
-PDF and rebuild it as `EDITED_<name>.pdf`. The editorial rule pipeline is still a Phase 4
-no-op, so Phase 3 output is a clean extract -> rebuild round-trip. The worker runs on a
-daemon thread and posts every UI update back through `self.after(0, ...)`, so the window
-never freezes.
+The Run button drives the real `core.batch_runner.run_batch`: extract each PDF, run
+the editorial pipeline, and rebuild it under its original name. The worker runs on a
+daemon thread and posts every UI update back through `self.after(0, ...)`, so the
+window never freezes.
 
 Design note: the visual system (palette, spacing, type hierarchy, state feedback) applies
 the *principles* of the ui-design-system skill translated into native ttk — no web/CSS
@@ -27,7 +29,12 @@ from tkinter import filedialog, messagebox, ttk
 from core.batch_runner import run_batch
 from core.input_scanner import scan_folder
 from core.novel_registry import DEFAULT_NOVEL, available_novels
-from utils.file_utils import open_in_file_manager
+from utils.file_utils import (
+    downloads_dir,
+    kebab_case,
+    next_numbered_output_dir,
+    open_in_file_manager,
+)
 
 # ---------------------------------------------------------------------------
 # Design tokens (translated from the ui-design-system skill into ttk constants)
@@ -166,21 +173,21 @@ class WebnovelEditorApp(tk.Tk):
         root.columnconfigure(0, weight=1)
         # The log row expands; everything else is fixed height. The log sits at the
         # bottom (above only the thin status strip), with the run controls above it —
-        # mirroring the sibling web-novel-scraper's layout (Phase 7).
-        root.rowconfigure(6, weight=1)
+        # mirroring the sibling web-novel-scraper's layout (Phase 7). No output-folder
+        # card since v0.11.0: output goes to an auto-numbered Downloads folder.
+        root.rowconfigure(5, weight=1)
 
         self._build_header(root, row=0)
         self._build_novel_panel(root, row=1)
         self._build_file_panel(root, row=2)
-        self._build_output_panel(root, row=3)
-        self._build_options_panel(root, row=4)
-        self._build_run_row(root, row=5)
-        self._build_log_panel(root, row=6)
-        self._build_status_bar(root, row=7)
+        self._build_options_panel(root, row=3)
+        self._build_run_row(root, row=4)
+        self._build_log_panel(root, row=5)
+        self._build_status_bar(root, row=6)
 
         self._refresh_status()
-        self._log("Ready. Upload PDFs or select a folder to preview its processing "
-                  "order, then choose an output folder to begin.", "muted")
+        self._log("Ready. Upload PDFs or select a folder, then start the batch — "
+                  "results are saved to a new folder in your Downloads.", "muted")
 
     def _build_header(self, parent: ttk.Frame, row: int) -> None:
         header = ttk.Frame(parent, style="Header.TFrame")
@@ -282,18 +289,6 @@ class WebnovelEditorApp(tk.Tk):
                   anchor="w").grid(row=3, column=0, sticky="ew", pady=(PAD_S, 0))
 
         self._on_input_mode_changed(log=False)
-
-    def _build_output_panel(self, parent: ttk.Frame, row: int) -> None:
-        frame = ttk.Labelframe(parent, text="Output Folder", style="Card.TLabelframe",
-                               padding=PAD_M)
-        frame.grid(row=row, column=0, sticky="ew", pady=(0, PAD_M))
-        frame.columnconfigure(0, weight=1)
-
-        self.output_var = tk.StringVar(value="Not selected")
-        ttk.Label(frame, textvariable=self.output_var, style="PathValue.TLabel",
-                  anchor="w").grid(row=0, column=0, sticky="ew", padx=(0, PAD_M))
-        ttk.Button(frame, text="Choose Output Folder",
-                   command=self._choose_output).grid(row=0, column=1, sticky="e")
 
     def _build_options_panel(self, parent: ttk.Frame, row: int) -> None:
         frame = ttk.Labelframe(parent, text="Advanced Options", style="Card.TLabelframe",
@@ -443,39 +438,39 @@ class WebnovelEditorApp(tk.Tk):
         self._log(f"Cleared {count} file(s).", "info")
         self._refresh_status()
 
-    def _choose_output(self) -> None:
-        directory = filedialog.askdirectory(title="Choose output folder")
-        if directory:
-            self.output_dir = directory
-            self.output_var.set(directory)
-            self._log(f"Output folder set: {directory}", "info")
-            self._refresh_status()
-
     # -- run / worker -----------------------------------------------------------
     def _start_batch(self) -> None:
         if self._running:
             return
         if self.input_mode_var.get() == "folder":
-            # Phase 1 only resolves and displays the folder order; batch/output
-            # wiring for folder mode lands in Phase 2 of the GUI & Batch Overhaul.
-            messagebox.showinfo(
-                "Folder mode coming next",
-                "Folder mode currently previews the processing order only.\n"
-                "Running a batch from a folder arrives in the next update — "
-                "switch to Upload PDFs to process files now.",
-            )
-            return
-        if not self.file_paths:
-            messagebox.showwarning("No files", "Add at least one PDF file before running.")
-            return
-        if not getattr(self, "output_dir", ""):
-            messagebox.showwarning("No output folder",
-                                   "Choose an output folder before running.")
-            return
+            if not self.folder_files:
+                messagebox.showwarning(
+                    "No files",
+                    "Select a folder containing at least one PDF before running.")
+                return
+            files = [str(p) for p in self.folder_files]
+            mirror_root = self.input_folder
+        else:
+            files = list(self.file_paths)
+            mirror_root = None
+            if not files:
+                messagebox.showwarning("No files",
+                                       "Add at least one PDF file before running.")
+                return
+
+        # Forced output location: a fresh auto-numbered Downloads\<novel>-x folder,
+        # named for the current selection. Only named here — run_batch creates it
+        # when the batch actually starts (and not at all on a dry run).
+        name = kebab_case(self.novel_var.get()) or "output"
+        output_dir = str(next_numbered_output_dir(downloads_dir(), name))
+
+        self._batch_files = files
+        self._batch_output_dir = output_dir
+        self._batch_mirror_root = mirror_root
 
         self._running = True
         self.run_button.configure(state=tk.DISABLED)
-        self.progress.configure(maximum=len(self.file_paths), value=0)
+        self.progress.configure(maximum=len(files), value=0)
         dry = self.opt_dry_run.get()
         self._log(
             "--- Starting batch ---" + (" (dry run, no PDF output)" if dry else ""),
@@ -489,12 +484,13 @@ class WebnovelEditorApp(tk.Tk):
         """Runs on a daemon thread. All UI updates go through self.after(0, ...)."""
         try:
             summary = run_batch(
-                list(self.file_paths),
-                self.output_dir,
+                self._batch_files,
+                self._batch_output_dir,
                 write_replacement_log=self.opt_replacement_log.get(),
                 write_debug_text=self.opt_debug_text.get(),
                 dry_run=self.opt_dry_run.get(),
                 novel_name=self.novel_var.get(),  # always pass the selected novel explicitly
+                mirror_root=self._batch_mirror_root,
                 gui_log=lambda message, level="info": self.after(
                     0, self._log, message, level),
                 progress=lambda value: self.after(0, self._set_progress, value),
@@ -546,10 +542,10 @@ class WebnovelEditorApp(tk.Tk):
     def _refresh_status(self) -> None:
         if not hasattr(self, "status_var"):
             return  # called during panel construction, before the status bar exists
-        out = getattr(self, "output_dir", "")
-        out_label = out if out else "not selected"
         novel = getattr(self, "novel_var", None)
         novel_label = novel.get() if novel is not None else "—"
+        out_label = (f"Downloads\\{kebab_case(novel_label) or 'output'}-x (auto)"
+                     if novel is not None else "Downloads (auto)")
         if getattr(self, "input_mode_var", None) and self.input_mode_var.get() == "folder":
             mode_label = "folder"
             queued = len(self.folder_files)

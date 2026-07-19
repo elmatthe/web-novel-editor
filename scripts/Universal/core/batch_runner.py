@@ -1,9 +1,15 @@
-"""Batch runner — orchestrates the full per-file processing loop (Phase 3).
+"""Batch runner — orchestrates the full per-file processing loop.
 
-Phase 3 sequence per file: extract text -> (rules are Phase 4, skipped here) -> build
-EDITED_<name>.pdf into the chosen folder. Each file is wrapped in its own try/except so
-one failure (corrupt PDF, locked file, image-only scan) never stops the batch. Low-
-confidence extractions (< MIN_CHARS) are skipped + logged rather than written as garbage.
+Sequence per file: extract text -> editorial rule pipeline -> build <name>.pdf (the
+original filename, kept as-is since v0.11.0) into the output folder. Each file is
+wrapped in its own try/except so one failure (corrupt PDF, locked file, image-only
+scan) never stops the batch. Low-confidence extractions (< MIN_CHARS) are skipped +
+logged rather than written as garbage.
+
+Folder-input mode passes `mirror_root` (the selected input folder): each output then
+lands in a subfolder of `output_dir` mirroring the input tree, with the selected
+folder's own name as the root inside it. Without `mirror_root` (upload mode) all
+outputs land flat in `output_dir`.
 
 Output never overwrites: `unique_output_path` appends a numeric suffix on collision.
 The `dry_run` option runs extraction but skips PDF output (useful for the Phase-4 text
@@ -15,6 +21,7 @@ Originals are only ever opened for reading; this module never writes to an input
 from __future__ import annotations
 
 import os
+from pathlib import Path
 from typing import Callable, Optional, Sequence
 
 from core.edit_details import load_edit_details
@@ -38,10 +45,15 @@ def run_batch(
     write_debug_text: bool = False,
     dry_run: bool = False,
     novel_name: Optional[str] = None,
+    mirror_root: Optional[str] = None,
     gui_log: Callable[..., None] | None = None,
     progress: Callable[[int], None] | None = None,
 ) -> dict:
     """Process each PDF sequentially and return a run summary dict.
+
+    `mirror_root` (folder-input mode) is the selected input folder: each file's output
+    is written under `output_dir/<mirror_root's own name>/<relative subpath>`, so the
+    input tree is mirrored inside the output folder. None (upload mode) = flat output.
 
     `novel_name` selects the editorial pipeline via `core.novel_registry.resolve_dispatch`.
     A registered novel (e.g. "Shadow Slave") runs its real profile pipeline; any other
@@ -141,7 +153,19 @@ def run_batch(
                 succeeded += 1
                 continue
 
-            out_path = unique_output_path(output_dir, name)
+            # Folder mode: mirror the input tree (rooted at the selected folder's own
+            # name) inside output_dir; a file somehow outside mirror_root falls back
+            # to the flat output root rather than failing the batch.
+            file_out_dir = output_dir
+            if mirror_root:
+                try:
+                    rel = Path(src).parent.relative_to(Path(mirror_root).parent)
+                    file_out_dir = os.path.join(output_dir, *rel.parts)
+                except ValueError:
+                    pass
+                os.makedirs(file_out_dir, exist_ok=True)
+
+            out_path = unique_output_path(file_out_dir, name)
             build_pdf(text, out_path)
             outputs.append(out_path)
             log(f"  [{i}/{total}] Wrote: {os.path.basename(out_path)}", "success")

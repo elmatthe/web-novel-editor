@@ -27,21 +27,23 @@ def test_sanitize_strips_illegal_chars():
 
 
 def test_unique_output_path_collision(tmp_path):
+    # Phase 2 (v0.11.0): outputs keep the ORIGINAL filename — no EDITED_ prefix. The
+    # numeric collision suffix (_2, _3, ...) still guards against overwriting.
     out = str(tmp_path)
     p1 = file_utils.unique_output_path(out, "Chapter 1.pdf")
-    assert os.path.basename(p1) == "EDITED_Chapter 1.pdf"
+    assert os.path.basename(p1) == "Chapter 1.pdf"
     open(p1, "w").close()                      # simulate an existing output
     p2 = file_utils.unique_output_path(out, "Chapter 1.pdf")
-    assert os.path.basename(p2) == "EDITED_Chapter 1_2.pdf"
+    assert os.path.basename(p2) == "Chapter 1_2.pdf"
     open(p2, "w").close()
     p3 = file_utils.unique_output_path(out, "Chapter 1.pdf")
-    assert os.path.basename(p3) == "EDITED_Chapter 1_3.pdf"
+    assert os.path.basename(p3) == "Chapter 1_3.pdf"
 
 
 def test_debug_text_path_uses_debug_prefix(tmp_path):
     # The debug sidecar is DEBUG_<name>.txt (matches the GUI label + spec), keeping the
-    # same directory and numeric collision suffix as its EDITED_ PDF.
-    pdf = os.path.join(str(tmp_path), "EDITED_Chapter 1_2.pdf")
+    # same directory and numeric collision suffix as its prefix-less output PDF.
+    pdf = os.path.join(str(tmp_path), "Chapter 1_2.pdf")
     dbg = file_utils.debug_text_path(pdf)
     assert os.path.basename(dbg) == "DEBUG_Chapter 1_2.txt"
     assert os.path.dirname(dbg) == str(tmp_path)

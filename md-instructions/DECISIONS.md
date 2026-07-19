@@ -9,7 +9,59 @@ its original decision date. New decisions continue to be appended here (newest o
 
 ---
 
-## 028 — Plan 1 Phase 1: `natsort==8.4.0` adopted for natural-order folder scanning (not hand-rolled numeric sorting) — 2026-07-18 — Claude Code
+## 030 — Plan 1 Phase 2: forced output naming `Downloads\<name>-x` (kebab-case, max(N)+1) with original filenames — EDITED_ prefix dropped — 2026-07-18 — Claude Code
+
+**Status:** Accepted (folder-name source is provisional pending Phase 3)
+**Context:** The plan removes the user-chosen output folder entirely: every batch writes
+into a fresh folder in the user's Downloads, mirroring the input structure in folder mode
+(the selected folder's own name is the root inside it) and flat in upload mode. The old
+`EDITED_<name>.pdf` naming becomes redundant once outputs live in their own clearly-named
+folder, and it broke the "original filenames kept" mirroring contract.
+**Decision:** Output folder = `Downloads\<name>-x` where `<name>` is the kebab-cased novel
+selection (`kebab_case` in `utils/file_utils.py`) and `x` = max(N of existing `<name>-N`
+dirs, case-insensitive, numeric-suffix-only) + 1, starting at 1 — gaps are never reused, so
+a re-run never collides with or overwrites an earlier batch. `next_numbered_output_dir`
+only *names* the folder; `run_batch` creates it when the batch actually starts (dry runs
+create nothing). Output PDFs keep their original filenames; the per-file collision suffix
+(`_2`, `_3`, ...) stays; sidecars are now `<name>_replacements.jsonl` and `DEBUG_<name>.txt`
+beside each output (the JSONL name follows automatically since it derives from the output
+path). **Provisional note:** `<name>` currently kebab-cases the live dropdown selection
+(default "Shadow Slave" → `shadow-slave-x`); Phase 3 makes "Universal" the default entry,
+which will produce `universal-x` with no further code change here — deliberately NOT
+hardcoded ahead of that phase.
+**Alternatives considered:** Keeping the `EDITED_` prefix alongside the new folders —
+rejected: redundant marking, and mirrored trees must keep original names for 1:1
+correspondence with the source. Reusing numbering gaps (first free N) — rejected: max+1 is
+the plan's contract and keeps batch folders chronologically ordered. Creating the folder at
+selection time — rejected: an abandoned session would litter Downloads with empty folders.
+**Consequences:** The GUI's "Choose Output Folder" control and state are gone; `run_batch`
+gains an optional `mirror_root` param (folder mode) that routes each output into the
+mirrored subfolder. Tests asserting `EDITED_` names were updated in place
+(`test_pdf`/`test_batch`), and the Phase-1 folder-mode-deferred GUI test was replaced by
+tests pinning the real folder-mode batch wiring.
+
+## 029 — Plan 1 Phase 2: Downloads resolved via `SHGetKnownFolderPath` (ctypes) with `~/Downloads` fallback, behind one function — 2026-07-18 — Claude Code
+
+**Status:** Accepted
+**Context:** The forced output location writes into the user's Downloads. Assuming
+`%USERPROFILE%\Downloads` is wrong on Windows when the user has relocated the folder
+(Explorer's "Location" tab / OneDrive folder moves) — the plan explicitly requires proper
+known-folder resolution.
+**Decision:** `utils.file_utils.downloads_dir()` is the single resolution point. On Windows
+it calls `SHGetKnownFolderPath` with `FOLDERID_Downloads` (`{374DE290-123F-4565-9164-39C4925E467B}`)
+via `ctypes` — the canonical Win32 API for known folders, verified live on HOME-PC
+(resolves `C:\Users\ematthew\Downloads`, HRESULT 0) — freeing the returned buffer with
+`CoTaskMemFree`. Any failure (or a non-Windows platform) falls back to
+`Path.home()/"Downloads"`, which on macOS *is* the standard location — so macOS support
+later is exactly this one existing branch, per the plan.
+**Alternatives considered:** Registry `Shell Folders` `{374DE290-...}` value — viable (the
+plan offers it) but it's the legacy mechanism; `SHGetKnownFolderPath` is the API Microsoft
+documents as authoritative and needs no registry-layout assumptions. Third-party
+`platformdirs`/`knownpaths` packages — rejected: one small ctypes call doesn't justify a
+new pinned dependency.
+**Consequences:** No new dependency; pure-stdlib. The fallback branch is test-pinned
+(`test_output_layout.py`), and the Windows branch is asserted against the real machine
+(absolute, existing directory).
 
 **Status:** Accepted
 **Context:** The GUI & Batch Overhaul plan (target v0.11.0) adds a Select-Folder input mode

@@ -10,23 +10,29 @@ reconciled 2026-07-17 — authoritative; see also
 `files/qa-tools/scratch/plan1-reconciliation.md` for path/line references).
 Plan 2 (`plan-2-ai-editor-integration.md`) is a separate later drop — untouched.
 
-**Phase 1 (input model + natural-order scanning) is DONE** (2026-07-18, committed on the
-branch): `natsort==8.4.0` pinned (verified live on PyPI, DECISIONS #028); new
-`scripts/Universal/core/input_scanner.py` (`scan_upload` preserves upload order,
-`scan_folder` = depth-first recursive scan, own PDFs first in natural order then
-subfolders in natural order, non-PDFs ignored — contract pinned by
-`files/tests/test_input_scanner.py`); GUI input card gains the two-mode toggle
-(Upload PDFs / Select Folder radio pair enabling/disabling each other's controls),
-folder picker, and the shared listbox now previews the resolved processing order
-(relative paths in folder mode). **Folder-mode batch start is deliberately blocked with
-a friendly "arrives in the next update" dialog — order preview only; wiring folder mode
-into batch/output is Phase 2's job** (do not "fix" this as a bug). Upload-mode batch
-behavior is unchanged. Verify green: 401 passed, 0 skipped (was 383).
+**Phase 2 (output mirroring + naming) is DONE** (2026-07-18, committed on the branch):
+output location is no longer user-chosen — every batch writes to a fresh
+`Downloads\<name>-x` folder (`<name>` = kebab-cased novel selection, `x` = max(N)+1 over
+existing `<name>-N` dirs; DECISIONS #030). Downloads resolves via
+`SHGetKnownFolderPath`/ctypes with a `~/Downloads` fallback, one function in
+`utils/file_utils.py` (DECISIONS #029). Folder mode mirrors the selected folder (its own
+name as the root) inside `<name>-x` via `run_batch(mirror_root=...)`; upload mode is
+flat. **`EDITED_` prefix dropped** — outputs keep original filenames; collision `_2`/`_3`
+suffixes, `DEBUG_<name>.txt`, and `<name>_replacements.jsonl` (beside each output) all
+stay. The GUI output-folder picker card is removed; folder-mode Start (Phase 1's
+deliberate stub) is now wired for real. Verify green: 423 passed, 1 skipped (the
+pre-existing environmental `test_launchers.py` "No usable bash found" skip — bash wasn't
+on this session's PATH; not a Phase-2 regression, no launcher code touched).
 
-Next: **Phase 2 — output mirroring + naming** (Downloads resolution via known-folder
-lookup in `utils/file_utils.py`, `<name>-x` auto-increment, structure mirroring,
-original filenames / drop the `EDITED_` prefix, remove the output-folder picker,
-update every test asserting `EDITED_` names).
+**Phase 1 (input model + natural-order scanning) is DONE** (2026-07-18): `natsort==8.4.0`
+pinned (DECISIONS #028); `scripts/Universal/core/input_scanner.py` (`scan_upload`
+preserves upload order, `scan_folder` = depth-first natural-order recursive scan, contract
+pinned by `files/tests/test_input_scanner.py`); GUI two-mode Input toggle + folder picker
++ resolved-order preview.
+
+Next: **Phase 3 — "Universal" default entry + profile-less markers** (inject "Universal"
+as first/default roster entry, mark the 5 profile-less novels "no profile yet", GUI
+display→clean-name mapping, `universal-x` output naming follows automatically).
 
 ---
 
@@ -41,6 +47,52 @@ update every test asserting `EDITED_` names).
 ---
 
 ## Work Log (newest first)
+
+- 2026-07-18 — **Plan 1 (GUI & Batch Overhaul, v0.11.0) Phase 2 complete: output
+  mirroring + naming — forced `Downloads\<name>-x` output, `EDITED_` prefix dropped,
+  output-folder picker removed, folder-mode batch wired for real.** **Cleanup first:**
+  `md-instructions/kickoff-prompt.md` HAD been resurrected on this branch (Phase 1's
+  branch setup discarded the uncommitted deletion via checkout, un-deleting it) —
+  `git rm`'d and committed as its own commit (`d412cef`) before any Phase-2 work.
+  **Phase 2 work (TDD RED→GREEN: 26 new/updated tests watched fail before
+  implementation):** (1) `utils/file_utils.py` — new `downloads_dir()` (Windows:
+  `SHGetKnownFolderPath` + `FOLDERID_Downloads` via ctypes, verified live on HOME-PC;
+  fallback `Path.home()/"Downloads"`, which is also the future macOS branch — DECISIONS
+  #029), `kebab_case()`, and `next_numbered_output_dir()` (scan for `<base>-N`,
+  case-insensitive, dirs-only, numeric-suffix-only → max+1 starting at 1; names but
+  never creates the folder — DECISIONS #030); `unique_output_path` and `debug_text_path`
+  lose the `EDITED_` prefix (original filenames kept; collision `_2`/`_3` and `DEBUG_`
+  sidecar naming unchanged). (2) `core/batch_runner.py` — new optional
+  `mirror_root` param: each output lands under
+  `output_dir/<mirror_root's own name>/<relative subpath>` (subdirs created per file;
+  a file outside the root falls back flat instead of failing); the JSONL log name
+  needed no code change — it derives from the output path, so it became
+  `<name>_replacements.jsonl` automatically. (3) `gui/app.py` — Output Folder card,
+  "Choose Output Folder" button, `output_var`/`output_dir` state all removed (grid
+  renumbered); `_start_batch` now computes `Downloads\<kebab(selection)>-x` at click
+  time and runs BOTH modes for real (folder mode passes the scanned list +
+  `mirror_root`; Phase 1's "coming next" dialog is gone); worker uses per-batch
+  snapshot state (`_batch_files`/`_batch_output_dir`/`_batch_mirror_root`); status
+  strip shows `output: Downloads\<name>-x (auto)`. **Tests:** new
+  `files/tests/test_output_layout.py` (16 — downloads resolution incl. fallback
+  branch + real Windows known-folder, kebab-case table, `<name>-N` numbering: first/
+  max+1/ignores non-matching/case-insensitive/missing parent/never-creates);
+  `test_batch.py` +4 (mirrored tree under root name, flat without mirror_root,
+  sidecars beside mirrored outputs, collision suffix in subfolder) and the EDITED_
+  assertions updated to original-name assertions; `test_pdf.py` collision/debug tests
+  updated to prefix-less names; `test_app.py` — the Phase-1 folder-mode-deferred test
+  REPLACED by its Phase-2 successor (folder-mode Start runs a real mirrored batch into
+  the auto Downloads folder — same seam, inverted expectation, intent preserved) plus
+  upload-mode auto-output, folder-mode empty-warn, and output-picker-gone tests
+  (synchronous fake Thread + run_batch spy, no real sleeps). End-to-end smoke outside
+  pytest: real `scan_folder` → auto-increment past an existing `shadow-slave-1` →
+  mirrored `MyNovel/Volume 2/` tree with original filenames, 3/3 ok.
+  `python scripts/verify.py` → **PASS, 423 passed, 1 skipped** (pre-existing
+  environmental launcher `bash -n` skip — no bash on this session's PATH; ran and
+  passed in Phase 1's session, no launcher code touched this phase). DECISIONS #029 +
+  #030 appended (#030 notes the folder-name source is provisional until Phase 3 makes
+  "Universal" the default). CHANGELOG/BRIEFING untouched — Phase 6 per the drop.
+  — Claude Code
 
 - 2026-07-18 — **Plan 1 (GUI & Batch Overhaul, v0.11.0) Phase 1 complete: input model +
   natural-order scanning, on the new branch `feature/gui-batch-overhaul`.**
@@ -609,6 +661,33 @@ update every test asserting `EDITED_` names).
 ---
 
 ## Session Sync Log (newest first)
+
+### 2026-07-18 — HOME-PC — PUSHED (Plan 1 Phase 2: output mirroring + naming)
+- Branch:  feature/gui-batch-overhaul (2 commits this session: the kickoff-prompt.md
+           re-deletion `d412cef` + the Phase-2 commit)
+- Deleted: md-instructions/kickoff-prompt.md (user-intended deletion resurrected by
+           Phase 1's branch-setup checkout; `git rm`'d as its own commit first)
+- Added:   files/tests/test_output_layout.py (16 tests — Downloads resolution,
+           kebab_case, <name>-N auto-numbering)
+- Changed: scripts/Universal/utils/file_utils.py (downloads_dir/kebab_case/
+           next_numbered_output_dir added; EDITED_ prefix dropped from
+           unique_output_path + debug_text_path),
+           scripts/Universal/core/batch_runner.py (mirror_root param + docstring),
+           scripts/Universal/core/replacement_log.py (docstring name ripple),
+           scripts/Universal/gui/app.py (output picker removed; auto Downloads output;
+           folder-mode batch wired; per-batch worker state; status strip),
+           files/tests/test_batch.py (+4 mirroring tests; EDITED_ → original names),
+           files/tests/test_pdf.py (prefix-less collision/debug assertions),
+           files/tests/test_app.py (Phase-1 deferred-stub test replaced by real
+           folder-mode wiring test; +3 more: upload auto-output, empty-folder warn,
+           picker gone),
+           md-instructions/Decisions.md (appended #029 Downloads resolution,
+           #030 output naming/EDITED_ drop — provisional pending Phase 3),
+           md-instructions/Handoff.md (Current Focus + Work Log + this entry)
+- Result:  python scripts/verify.py → PASS (423 passed, 1 skipped — pre-existing
+           environmental launcher bash skip, not a regression; was 401/0 in Phase 1's
+           session where bash was on PATH). Phase 3 (Universal default entry +
+           profile-less markers) is next.
 
 ### 2026-07-18 — HOME-PC — PUSHED (Plan 1 Phase 1: input model + natural-order scanning)
 - Branch:  feature/gui-batch-overhaul — NEW, off main @ c424d30 (junk-strip-hardening merged
