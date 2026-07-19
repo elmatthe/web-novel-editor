@@ -10,6 +10,22 @@ reconciled 2026-07-17 — authoritative; see also
 `files/qa-tools/scratch/plan1-reconciliation.md` for path/line references).
 Plan 2 (`plan-2-ai-editor-integration.md`) is a separate later drop — untouched.
 
+**Phase 5 (TTS jargon sweep rule) is DONE** (2026-07-19, committed on the branch):
+`rules/junk_strip.py` gained a conservative Tier-1 **decorative-run rule**
+(`junk_strip.decorative_run`): a whitespace-delimited span made only of `~ \ - = * #`
+plus internal spaces, carrying **≥3 symbol characters**, is excised token-level with the
+existing domain-pass conventions (minimum-span seam cleanup, emptied-line drop, JSONL
+`_record`, `ProtectedLexicon` shield on the span). Everything glued to a word/punctuation
+(`*emphasis*`, `f*ck`, `Rule #1`, `well-known`, `~37`), every single symbol, and every
+two-symbol span (`**` footnotes, `--`, `~~`) survives — the ≥3 threshold is the deliberate
+margin around the ~810 legitimate corpus asterisks from the Phase-4 sweep (DECISIONS #034).
+A recon scan of all 7,979 cached raw extractions found **zero qualifying spans** — the rule
+is corpus-no-op insurance; the SS byte-no-op corpus test and a new corpus-marked
+asterisk/hash-preservation test pin that mechanically. EDITING-RULES.md gained the rule's
+section + a TTS-criteria addendum. Verify green: 512 passed, 1 skipped (the pre-existing
+environmental launcher bash skip — bash wasn't on this session's PATH; no launcher code
+touched).
+
 **Phase 4 (pause/continue + condensed log) is DONE** (2026-07-18, committed on the
 branch): `run_batch` gained an optional `pause_gate` `threading.Event` (SET = run,
 cleared = pause) consulted only BETWEEN files — the current file always finishes, so
@@ -61,11 +77,11 @@ preserves upload order, `scan_folder` = depth-first natural-order recursive scan
 pinned by `files/tests/test_input_scanner.py`); GUI two-mode Input toggle + folder picker
 + resolved-order preview.
 
-Next: **Phase 5 — TTS jargon sweep rule** (conservative universal junk_strip extension
-removing standalone decorative symbol runs — `~~~`, `-=-=-`, `***` etc. — token-level,
-protected terms shielded, every removal JSONL-logged; the ~810-asterisk FP hazard from
-the Phase-4 TTS sweep is real: censored profanity / authored emphasis / footnote
-markers must survive; EDITING-RULES.md section update rides along).
+Next: **Phase 6 — bug hunt + seam doc + docs** (systematic pass over everything this
+plan touched; name and document the post-pipeline / pre-build hook in `run_batch` in
+BRIEFING's architecture section — where Plan 2's AI stage will slot, do NOT build it;
+CHANGELOG v0.11.0 entry; BRIEFING updated to the new GUI/batch model; verify green;
+the plan drop is deleted at the end of the plan per the drop's Definition of Done).
 
 ---
 
@@ -80,6 +96,57 @@ markers must survive; EDITING-RULES.md section update rides along).
 ---
 
 ## Work Log (newest first)
+
+- 2026-07-19 — **Plan 1 (GUI & Batch Overhaul, v0.11.0) Phase 5 complete: TTS jargon
+  sweep — conservative Tier-1 decorative-run rule in `rules/junk_strip.py`, ~810
+  corpus asterisks proven untouchable, EDITING-RULES.md documented.** **Recon first
+  (before any test/code):** new scratch scan
+  `files/qa-tools/scratch/plan1_phase5_decorative_scan.py` over all **7,979** Phase-1
+  cached raw extractions with the proposed span shape → **ZERO qualifying spans in
+  every corpus** and the asterisk inventory confirmed (807 SM + 3 SS + 0 NQ/pinned =
+  810, none inside any candidate span; SM asterisks are mid-word censoring like
+  `f*ck`, structurally unmatchable). So the rule is pure insurance on current data —
+  same status the whole junk-strip stage has for the clean SS source — and the plan's
+  lightnovel-crawler reference wasn't needed (no code or text taken from it; the
+  plan's own examples + recon covered the pattern space). **TDD RED→GREEN:** 22 new
+  removal/logging tests watched fail (rule absent) while the 32 hostile-survival
+  tests passed pre-implementation as expected; then the rule went in and all pass.
+  **Work:** (1) `rules/junk_strip.py` — new `_DECORATIVE_RUN_RE` +
+  `_strip_decorative_runs_line()` wired into `strip_junk` between the domain pass
+  and Tier 2: a whitespace-delimited span of only `~ \ - = * #` + internal spaces
+  with **≥3 symbol chars** is removed (mixed runs `-=-=-`/`~-~-~` and spaced runs
+  `* * *`/`\ \ \` count as one span); reuses `_clean_removal_seam`, the
+  emptied-line-drop convention, and `_record` (JSONL `junk_strip.decorative_run`,
+  `category="fingerprint"`) — no new logging invented; span shielded if it matches a
+  `ProtectedLexicon` term; module docstring Tier-1 summary updated. Deliberately
+  outside the rule: glued symbols (`*emphasis*`, `f*ck`, `granted.*`, `Rule #1`,
+  `#TeamLith`, `well-known`, `~37`), single symbols (footnote `*`, `- ` dialogue
+  bullets, `3 - 1`, `=`), two-symbol spans (`**` footnote markers, `--`, `~~`), and
+  the chars `_ + . — |` (authored blanks `Mr. ___`, arithmetic, ellipses, em-dash
+  stage's territory). (DECISIONS #034.) (2) `files/tests/test_junk_strip_hardening.py`
+  — new Phase-5 section (+44 tests): 15 standalone-run line-drop cases, 6
+  run-adjacent-to-prose minimum-span cases, 9 hostile asterisk-survival cases
+  (real SM censored-profanity fragments + synthetic emphasis/footnote forms), 11
+  below-threshold/prose-symbol survival cases (real SM leading-hyphen dialogue
+  shape, Phase-4 `#`/`~` classes, arithmetic, symbol pairs), logging contract,
+  protected-term shield, idempotence, and a parametrized **fixture-derived** test:
+  `strip_junk` is a byte no-op (0 log entries) on the extracted text of each of the
+  10 committed pinned SS fixtures. (3) `files/tests/test_junk_strip_corpus.py` —
+  new corpus-marked `test_corpus_asterisks_and_hashes_survive_strip_junk` (NQ + SM
+  known-dirty samples: `*` and `#` counts byte-equal through `strip_junk`; `~`/`-`
+  excluded from the count because the domain pass legitimately removes them inside
+  `novel~fire~net`-class junk). The existing 810-asterisk guards re-ran green
+  unchanged: `test_novel_profiles.py::test_no_profanity_uncensor_was_ported`
+  (`f*ck` through the full SM pipeline verbatim) and the corpus layer's
+  `test_clean_shadow_slave_sample_is_untouched` byte no-op. (4)
+  `md-instructions/EDITING-RULES.md` — new "Decorative symbol runs — the TTS jargon
+  sweep" section under Stage 1.5 (targets / deliberately-left-alone / asterisk-safety
+  rationale) + a v0.11.0 addendum under TTS criterion 3 noting the
+  flagged-not-changed classes stay flagged. `python scripts/verify.py` → **PASS
+  (512 passed, 1 skipped — the pre-existing environmental launcher bash skip;
+  bash not on this session's PATH, no launcher code touched; was 457/0).**
+  DECISIONS #034 appended. CHANGELOG/BRIEFING untouched — Phase 6 per the drop.
+  Next: Phase 6 (bug hunt + seam doc + final docs). — Claude Code
 
 - 2026-07-18 — **Plan 1 (GUI & Batch Overhaul, v0.11.0) Phase 4 complete: pause/continue
   + condensed log — Event-gate pause between files, Pause ⇄ Continue button, one-line-
@@ -787,6 +854,26 @@ markers must survive; EDITING-RULES.md section update rides along).
 ---
 
 ## Session Sync Log (newest first)
+
+### 2026-07-19 — HOME-PC — PUSHED (Plan 1 Phase 5: TTS jargon sweep rule)
+- Branch:  feature/gui-batch-overhaul (1 commit this session on top of 04926d5)
+- Changed: scripts/Universal/rules/junk_strip.py (decorative-run Tier-1 rule:
+           _DECORATIVE_RUN_RE + _strip_decorative_runs_line wired between the domain
+           pass and Tier 2; docstring Tier-1 summary updated),
+           files/tests/test_junk_strip_hardening.py (+44 Phase-5 tests: standalone
+           runs, minimum-span adjacency, hostile asterisk/symbol survival, logging,
+           shield, idempotence, 10-fixture byte-no-op),
+           files/tests/test_junk_strip_corpus.py (+1 corpus-marked asterisk/hash
+           preservation test over the NQ+SM samples),
+           md-instructions/EDITING-RULES.md (Stage-1.5 decorative-run section +
+           TTS-criteria addendum),
+           md-instructions/Decisions.md (appended #034 decorative-run gates),
+           md-instructions/Handoff.md (Current Focus + Work Log + this entry)
+- Note:    files/qa-tools/scratch/plan1_phase5_decorative_scan.py (recon scan) is
+           gitignored scratch — not committed, listed for the record.
+- Result:  python scripts/verify.py → PASS (512 passed, 1 skipped — pre-existing
+           environmental launcher bash skip; was 457/0). Phase 6 (bug hunt + seam
+           doc + final docs) is next.
 
 ### 2026-07-18 — HOME-PC — PUSHED (Plan 1 Phase 4: pause/continue + condensed log)
 - Branch:  feature/gui-batch-overhaul (1 commit this session on top of 308f85e)

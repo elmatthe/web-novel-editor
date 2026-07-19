@@ -9,6 +9,35 @@ its original decision date. New decisions continue to be appended here (newest o
 
 ---
 
+## 034 — Plan 1 Phase 5: decorative-run sweep gated at ≥3 symbols of exactly `~ \ - = * #`, whitespace-delimited — 2026-07-19 — Claude Code
+
+**Status:** Accepted
+**Context:** The plan's TTS jargon sweep must remove decorative filler runs (`~~~`, `-=-=-`,
+`***`) that a TTS engine voices character by character, while the Phase-4 sweep proved the
+corpora carry ~810 legitimate asterisks (censored profanity `f*ck`, authored `*emphasis*`,
+footnote markers) plus authored `~`/`#`/`-` in prose that must survive untouched.
+**Decision:** The new Tier-1 rule (`junk_strip.decorative_run`) fires only when ALL of:
+(1) the span is whitespace-delimited on both sides (nothing glued to a word or punctuation);
+(2) it consists solely of the six symbols `~ \ - = * #` plus internal spaces (so `* * *` and
+`\ \ \` are one span); (3) it contains **≥3 symbol characters**. Removal follows the existing
+domain-pass conventions verbatim: `_clean_removal_seam` minimum-span excision, emptied-line
+drop, `_record(...)` → JSONL (`category="fingerprint"`), and a `ProtectedLexicon` shield on
+the span. A 2026-07-18 recon scan of all 7,979 cached raw extractions found **zero**
+qualifying spans and zero asterisks inside any candidate span — the rule is corpus-no-op
+insurance, and the SS byte-no-op corpus test plus a new asterisk/hash-preservation corpus
+test pin that.
+**Alternatives considered:** A ≥2 threshold — rejected: `**` is a real footnote-marker
+convention and `--`/`~~` are plausible authored marks; 3 keeps a safety margin. Including
+`_`/`+`/`.`/`—` in the symbol set — rejected: `___` is an authored blank ("Mr. ___"), `+`/`.`
+collide with arithmetic and ellipses, and em-dash runs belong to the em-dash stage. A
+line-level heuristic ("mostly symbols → drop line") — rejected: violates the minimum-span
+rule and risks prose loss. Skipping the lexicon shield (Tier 1 domain passes don't shield) —
+rejected: the plan explicitly requires protected terms shielded and the check is one line.
+**Consequences:** Scene-break dividers are removed as junk (correct for TTS — they would be
+voiced); a future "keep dividers as pauses" feature would need a superseding entry. Single
+and paired symbols always survive, so no censored word, emphasis pair, footnote marker,
+dialogue bullet, or numeric range can ever match structurally.
+
 ## 033 — Plan 1 Phase 4: session-only pause/continue via a between-files Event gate (the safe seam DECISIONS #020's deferred cancellation lacked) — 2026-07-18 — Claude Code
 
 **Status:** Accepted

@@ -21,7 +21,8 @@ dirtier sources / future novels.
 TIERS
 -----
 * Tier 1 (default ON, near-zero false positive): exact known markers, `@@...@@` markers,
-  bare URLs (http(s)://, www.), and the spaced/obfuscated panda-novel promo. Token-level
+  bare URLs (http(s)://, www.), the spaced/obfuscated panda-novel promo, and standalone
+  decorative symbol runs (`~~~`, `-=-=-`, `* * *` -- Plan 1 Phase 5). Token-level
   removal -- strip the junk, leave surrounding prose intact. Every removal is recorded to
   the ReplacementLog (rule="junk_strip", category="fingerprint").
 * Tier 2 (default OFF / log-only): heuristic promo LINES ("read the latest chapters
@@ -462,6 +463,54 @@ def _consume_template_tail(prev_line: str, repl_log) -> "Optional[str]":
     return trimmed if trimmed else None
 
 
+# --- Tier 1: standalone decorative symbol runs (Plan 1 Phase 5) ---------------
+# TTS voices a decorative divider character by character ("asterisk asterisk
+# asterisk"), so a run that is nothing but decoration is Tier-1 junk. The rule
+# is deliberately narrow: it fires only on a whitespace-delimited span made
+# entirely of the six decorative symbols below (internal spaces allowed, so
+# "* * *" and "\ \ \" count as one run) carrying at least THREE symbol
+# characters in total. Everything else survives: symbols glued to a word or
+# punctuation (*emphasis*, f*ck, footnote ".*", Rule #1, well-known), single
+# symbols (a lone "*" footnote marker, "3 - 1" odds, "~37 minutes"), and
+# two-symbol spans ("**" footnote markers, "--", "~~") — the threshold keeps a
+# deliberate safety margin around the corpus's ~810 legitimate asterisks
+# (censored profanity / authored emphasis / footnotes; Phase-4 TTS sweep). A
+# 2026-07-18 scan of all 7,979 cached raw extractions found ZERO qualifying
+# spans, so on the current corpora this rule is pure insurance.
+_DECORATIVE_CHARS = "~\\-=*#"
+_DECORATIVE_MIN_SYMBOLS = 3
+_DECORATIVE_RUN_RE = re.compile(r"(?<!\S)[~\\\-=*#](?:[~\\\-=*# \t]*[~\\\-=*#])?(?!\S)")
+
+
+def _strip_decorative_runs_line(line: str, term_lowers, repl_log) -> "Optional[str]":
+    """Remove standalone decorative symbol runs from one wrapped-stream line.
+
+    Returns the cleaned line, or None when a removal empties it (the run was
+    the whole line, so the line drops — same convention as the domain pass).
+    A span that matches a protected term is shielded and left untouched.
+    """
+    changed = False
+    pos = 0
+    while True:
+        m = _DECORATIVE_RUN_RE.search(line, pos)
+        if m is None:
+            break
+        span = m.group(0)
+        if (
+            sum(1 for c in span if c in _DECORATIVE_CHARS) < _DECORATIVE_MIN_SYMBOLS
+            or span.lower() in term_lowers
+        ):
+            pos = m.end()
+            continue
+        _record(repl_log, span, "junk_strip.decorative_run", line)
+        line = _clean_removal_seam(line, m.start(), m.end())
+        changed = True
+        pos = 0
+    if changed and not line:
+        return None
+    return line
+
+
 # --- Tier 2: heuristic promo lines (log-only by default) ---------------------
 _TIER2_PROMO_LINE_RE = re.compile(
     r"(read\s+(?:the\s+)?(?:latest|more|full)\s+chapter|"
@@ -550,8 +599,18 @@ def strip_junk(
             domain_lines.append(cleaned)
     text = "\n".join(domain_lines)
 
-    # --- Tier 2 (heuristic lines) -------------------------------------------
     term_lowers = lexicon.term_set_lower if lexicon is not None else frozenset()
+
+    # Standalone decorative symbol runs (Plan 1 Phase 5): per line, same
+    # minimum-span removal + empty-line-drop conventions as the domain pass.
+    decorative_lines: list[str] = []
+    for line in text.split("\n"):
+        cleaned = _strip_decorative_runs_line(line, term_lowers, repl_log)
+        if cleaned is not None:
+            decorative_lines.append(cleaned)
+    text = "\n".join(decorative_lines)
+
+    # --- Tier 2 (heuristic lines) -------------------------------------------
     out_lines: list[str] = []
     for line in text.split("\n"):
         if _TIER2_PROMO_LINE_RE.search(line):

@@ -222,6 +222,33 @@ def test_error_page_files_are_flagged_and_never_stripped_empty(request):
 
 
 @pytest.mark.local_corpus
+@pytest.mark.parametrize(
+    "corpus,known_dirty",
+    [(NQ, NQ_KNOWN_DIRTY), (SM, SM_KNOWN_DIRTY)],
+    ids=[NQ, SM],
+)
+def test_corpus_asterisks_and_hashes_survive_strip_junk(request, corpus, known_dirty):
+    # Phase-4 TTS sweep: the corpora carry ~810 legitimate asterisks (censored
+    # profanity / authored emphasis / footnote markers) plus authored raw `#`
+    # (Rule #1, #TeamLith). The Plan-1 Phase-5 decorative-run rule must leave
+    # every one untouched — only `*`/`#` are compared because the domain pass
+    # legitimately removes `~`/`-` inside junk like novel~fire~net.
+    path = require_corpus(request, corpus)
+    sample = _sample_files(path, known_dirty)
+    checked = 0
+    for name in sample:
+        raw = extractor.extract_text_from_pdf(os.path.join(path, name))
+        if junk_strip.detect_error_page(raw):
+            continue
+        cleaned = junk_strip.strip_junk(raw)
+        assert cleaned.count("*") == raw.count("*"), name
+        assert cleaned.count("#") == raw.count("#"), name
+        checked += 1
+    print(f"\n[{corpus}] asterisk/hash preservation verified on {checked} files")
+    assert checked, "sample unexpectedly empty"
+
+
+@pytest.mark.local_corpus
 def test_clean_shadow_slave_sample_is_untouched(request):
     # The SS corpus is confirmed clean: strip_junk must be a byte no-op on it.
     path = require_corpus(request, "webscraped_shadow_slave")
