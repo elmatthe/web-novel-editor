@@ -196,6 +196,40 @@ def test_condensed_done_line_singular_edit(tmp_path, monkeypatch):
     assert ("success", "[1/1] a.pdf — done (1 edit)") in logs
 
 
+def test_edit_count_excludes_integrity_flags(tmp_path, monkeypatch):
+    """Plan 1 Phase 6 regression: integrity_flag records (error pages #005,
+    heading-only pages #017) mark problems, not edits — an error-page file must
+    read "0 edits", not count its flag. Real edits still count normally."""
+
+    def _flagging_dispatch(real_edits):
+        def run_pipeline(text, lexicon, *, repl_log=None, gui_log=None, dry_run=False):
+            if repl_log is not None:
+                repl_log.record("Cloudflare error page detected",
+                                "[FLAGGED: whole-file error page - re-scrape needed]",
+                                "junk_strip.error_page_flag", "integrity_flag")
+                for k in range(real_edits):
+                    repl_log.record(f"orig{k}", f"new{k}", "fake_rule", "test")
+            return text
+
+        return NovelDispatch(
+            display_name="Universal", run_pipeline=run_pipeline,
+            canonical_names=frozenset(), index_filename="", has_profile=False)
+
+    monkeypatch.setattr(batch_runner, "extract_text_from_pdf", lambda _p: _LONG_TEXT)
+    monkeypatch.setattr(batch_runner, "build_pdf",
+                        lambda _t, path: open(path, "w").close())
+
+    monkeypatch.setattr(batch_runner, "resolve_dispatch",
+                        lambda _n: _flagging_dispatch(real_edits=0))
+    logs, _ = _run(_stub_pdfs(tmp_path, ["flag.pdf"]), tmp_path)
+    assert ("success", "[1/1] flag.pdf — done (0 edits)") in logs
+
+    monkeypatch.setattr(batch_runner, "resolve_dispatch",
+                        lambda _n: _flagging_dispatch(real_edits=1))
+    logs, _ = _run(_stub_pdfs(tmp_path, ["mix.pdf"]), tmp_path / "b")
+    assert ("success", "[1/1] mix.pdf — done (1 edit)") in logs
+
+
 def test_condensed_skipped_not_found_line(tmp_path, monkeypatch):
     _wire_fast_seams(monkeypatch)
     logs, summary = _run([str(tmp_path / "missing.pdf")], tmp_path)

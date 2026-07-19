@@ -483,17 +483,22 @@ class WebnovelEditorApp(tk.Tk):
         name = kebab_case(novel) or "output"
         output_dir = str(next_numbered_output_dir(downloads_dir(), name))
 
+        # Per-batch snapshot state: the worker thread reads only these plain
+        # attributes, never Tk variables (Tk objects are not thread-safe).
         self._batch_files = files
         self._batch_output_dir = output_dir
         self._batch_mirror_root = mirror_root
         self._batch_novel = novel
+        self._batch_replacement_log = self.opt_replacement_log.get()
+        self._batch_debug_text = self.opt_debug_text.get()
+        self._batch_dry_run = self.opt_dry_run.get()
 
         self._running = True
         self.run_button.configure(state=tk.DISABLED)
         self.pause_gate.set()  # a new batch always starts un-paused
         self.pause_button.configure(state=tk.NORMAL, text="Pause")
         self.progress.configure(maximum=len(files), value=0)
-        dry = self.opt_dry_run.get()
+        dry = self._batch_dry_run
         self._log(
             "--- Starting batch ---" + (" (dry run, no PDF output)" if dry else ""),
             "accent",
@@ -508,9 +513,9 @@ class WebnovelEditorApp(tk.Tk):
             summary = run_batch(
                 self._batch_files,
                 self._batch_output_dir,
-                write_replacement_log=self.opt_replacement_log.get(),
-                write_debug_text=self.opt_debug_text.get(),
-                dry_run=self.opt_dry_run.get(),
+                write_replacement_log=self._batch_replacement_log,
+                write_debug_text=self._batch_debug_text,
+                dry_run=self._batch_dry_run,
                 novel_name=self._batch_novel,  # the clean (marker-stripped) selection
                 mirror_root=self._batch_mirror_root,
                 pause_gate=self.pause_gate,

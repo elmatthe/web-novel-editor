@@ -9,6 +9,30 @@ its original decision date. New decisions continue to be appended here (newest o
 
 ---
 
+## 035 — Plan 1 Phase 6: condensed-log edit count excludes `integrity_flag` records — 2026-07-19 — Claude Code
+
+**Status:** Accepted
+**Context:** The Phase-4 condensed log shows `[i/N] name — done (X edits)` with X =
+`len(repl_log)`. But the pipeline also records **`integrity_flag`** entries into the same
+per-file `ReplacementLog` (Cloudflare error pages #005, heading-only pages #017) — these
+mark *problems*, not edits. An error-page file (chapter text missing, nothing edited)
+would have read "done (1 edit)", presenting a data-loss flag as a successful edit.
+**Decision:** `run_batch` counts only entries whose `category != "integrity_flag"` for
+the condensed line (and its "X edits" label). The flag records themselves stay in the
+JSONL unchanged — the count is display-only. The heading-only-page flag (recorded after
+the done line) and the error-page flag (recorded by the pipeline before it) now behave
+consistently: neither inflates the count, both remain in the JSONL, and the "⚠" GUI
+warning still surfaces the problem loudly. Pinned by
+`test_edit_count_excludes_integrity_flags`.
+**Alternatives considered:** Keeping `len(repl_log)` — rejected: it misreports a flagged
+problem as an edit on exactly the files a user most needs to scrutinize. A separate
+"flags" counter in the condensed line — rejected: the ⚠ warning line already surfaces
+the flag; adding a second number to every line clutters the condensed format for a
+3-known-files edge case.
+**Consequences:** JSONL content and schema unchanged; only the GUI count changed. Any
+future rule that records a non-edit marker should use `category="integrity_flag"` to
+stay out of the count.
+
 ## 034 — Plan 1 Phase 5: decorative-run sweep gated at ≥3 symbols of exactly `~ \ - = * #`, whitespace-delimited — 2026-07-19 — Claude Code
 
 **Status:** Accepted
@@ -174,6 +198,10 @@ new pinned dependency.
 **Consequences:** No new dependency; pure-stdlib. The fallback branch is test-pinned
 (`test_output_layout.py`), and the Windows branch is asserted against the real machine
 (absolute, existing directory).
+
+## 028 — Plan 1 Phase 1: `natsort==8.4.0` adopted for the natural-order folder-scan contract — 2026-07-18 — Claude Code
+<!-- Heading line restored in Phase 6: it was accidentally dropped when this entry was
+     appended; the entry body below is unchanged. -->
 
 **Status:** Accepted
 **Context:** The GUI & Batch Overhaul plan (target v0.11.0) adds a Select-Folder input mode

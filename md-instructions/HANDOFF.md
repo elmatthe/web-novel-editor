@@ -1,14 +1,21 @@
 # Web Novel Editor — Handoff
 
 ## Current Focus
-**Plan 1 — GUI & Batch Overhaul (target v0.11.0)** in progress on branch
-`feature/gui-batch-overhaul` — a NEW branch off `main` @ `c424d30`, created 2026-07-17
-after the user merged the completed junk-strip-hardening plan (v0.10.0) into `main`
-(merge `94999a8`; the old `feature/junk-strip-hardening` branch is history, do not build
-on it). Active instruction drop: `md-instructions/plan-1-gui-batch-overhaul.md` (v2,
-reconciled 2026-07-17 — authoritative; see also
-`files/qa-tools/scratch/plan1-reconciliation.md` for path/line references).
-Plan 2 (`plan-2-ai-editor-integration.md`) is a separate later drop — untouched.
+**Plan 1 — GUI & Batch Overhaul (v0.11.0) is COMPLETE** — all six phases implemented,
+verified, and committed on `feature/gui-batch-overhaul` (branched off `main` @ `c424d30`;
+the plan drop `plan-1-gui-batch-overhaul.md` has been **deleted** per its Definition of
+Done). The branch is pushed to origin and **NOT merged to `main` — awaiting the user's
+explicit end-of-plan sign-off** (per AI-WORKSPACE git habits, a finished phase is not
+approval). CHANGELOG has the v0.11.0 entry; BRIEFING reflects the new GUI/batch model and
+documents the **post-pipeline pre-build hook** (Plan 2's insertion seam in
+`core/batch_runner.py`, between `dispatch.run_pipeline(...)` and `build_pdf(...)`) —
+documented only, deliberately not built.
+
+**Next: Plan 2 (AI editor integration, `plan-2-ai-editor-integration.md`).** That drop
+was drafted against a much earlier repo state — it must be **rewritten/reconciled against
+the real v0.11.0 tree before any implementation** (the same treatment Plan 1 got in its
+v2 reconciliation). Its AI stage slots into the documented seam and must honor the
+contract in BRIEFING's architecture section.
 
 **Phase 5 (TTS jargon sweep rule) is DONE** (2026-07-19, committed on the branch):
 `rules/junk_strip.py` gained a conservative Tier-1 **decorative-run rule**
@@ -77,11 +84,10 @@ preserves upload order, `scan_folder` = depth-first natural-order recursive scan
 pinned by `files/tests/test_input_scanner.py`); GUI two-mode Input toggle + folder picker
 + resolved-order preview.
 
-Next: **Phase 6 — bug hunt + seam doc + docs** (systematic pass over everything this
-plan touched; name and document the post-pipeline / pre-build hook in `run_batch` in
-BRIEFING's architecture section — where Plan 2's AI stage will slot, do NOT build it;
-CHANGELOG v0.11.0 entry; BRIEFING updated to the new GUI/batch model; verify green;
-the plan drop is deleted at the end of the plan per the drop's Definition of Done).
+**Phase 6 (bug hunt + seam doc + final docs) is DONE** (2026-07-19) — see the Work Log
+entry below for the bug-hunt findings (no Criticals; three Minor fixes) and the full
+docs pass. Plan 1 is closed; the per-phase blocks above are retained as the plan's
+summary record.
 
 ---
 
@@ -96,6 +102,49 @@ the plan drop is deleted at the end of the plan per the drop's Definition of Don
 ---
 
 ## Work Log (newest first)
+
+- 2026-07-19 — **Plan 1 (GUI & Batch Overhaul, v0.11.0) Phase 6 complete — bug hunt +
+  seam doc + final docs. PLAN 1 IS COMPLETE; the drop is deleted; branch pushed,
+  awaiting the user's end-of-plan sign-off before merge to `main`.**
+  **Bug hunt (systematic cross-phase pass over everything Phases 1–5 touched):** read
+  `input_scanner.py`, `file_utils.py`, `batch_runner.py`, `novel_registry.py`,
+  `gui/app.py`, and the Phase-5 `junk_strip.py` section end-to-end for interaction
+  bugs, then proved the full chain with a real integration run (scratch
+  `phase6_e2e.py`, not committed): folder-mode scan of a nested tree with a 1/2/10
+  natural-order trap → `universal-<max+1>` numbering (past a pre-existing
+  `universal-3`) → mirrored output with original filenames → a REAL `threading.Event`
+  pause held between files 1 and 2 (exactly one file done while held, worker blocked,
+  resumed to 4/4) → decorative `* * *`/`~~~` dividers stripped from the real output
+  PDFs while `f*ck`/`*emphasis*` survived → condensed-line edit counts matching the
+  JSONL's non-flag records, `run_metadata: universal-only` header intact. **All 25
+  checks passed. NO Critical bugs. Three Minor findings, all fixed:** (1)
+  `batch_runner` counted `integrity_flag` records as "edits" in the condensed line —
+  an error-page file would read "done (1 edit)" with nothing edited; now only
+  non-flag records count (DECISIONS #035; regression
+  `test_edit_count_excludes_integrity_flags`). (2) `gui/app._start_batch` let the
+  worker thread read the three option `BooleanVar`s (Tk objects are not thread-safe;
+  pre-existing wart, not a Plan-1 regression) — options are now snapshotted per batch
+  like the rest of the batch state, zero behavior change. (3) Stale docs: the
+  `junk_strip.py` error-page comment said 4 pages (real count 3 per #027);
+  `Decisions.md` had lost the `## 028` heading line (restored, body untouched);
+  `README.md` still described the `EDITED_`/chosen-folder model. **Seam doc:**
+  BRIEFING gained an "Architecture — per-file batch loop and the Plan-2 seam"
+  section naming the **post-pipeline pre-build hook** (in `run_batch`'s per-file
+  loop, after `dispatch.run_pipeline(...)` ~L185–187, before `build_pdf` ~L214) with
+  the contract Plan 2 must honor (text-in/text-out + no I/O, dry-run participation,
+  pause-gate = between-files only, ReplacementLog/JSONL + ⚠-filter log conventions,
+  per-file failure semantics, protected-term preservation) — documented only, NOT
+  built. **Docs:** CHANGELOG v0.11.0 entry (all 6 phases); BRIEFING bumped to
+  v0.11.0 (new Current State, project description, git state, deferred-cancellation
+  note updated to reference the pause seam, Next Steps → Plan 2 reconciliation);
+  README rewritten to the new model + v0.11.0 Status; build-spec.md given a v0.11.0
+  reconciliation note (historical spec kept as written); DECISIONS #035 appended +
+  the #028 heading restored. **DoD walked item by item — all satisfied**; the drop
+  `plan-1-gui-batch-overhaul.md` deleted as the final step. `python scripts/verify.py`
+  → **PASS (514 passed, 0 skipped — was 513/0 at this session's baseline; +1 the
+  Phase-6 regression test; the environmental bash skip ran and passed).** Next:
+  **Plan 2**, whose drop must first be reconciled against the real v0.11.0 tree.
+  — Claude Code
 
 - 2026-07-19 — **Plan 1 (GUI & Batch Overhaul, v0.11.0) Phase 5 complete: TTS jargon
   sweep — conservative Tier-1 decorative-run rule in `rules/junk_strip.py`, ~810
@@ -854,6 +903,32 @@ the plan drop is deleted at the end of the plan per the drop's Definition of Don
 ---
 
 ## Session Sync Log (newest first)
+
+### 2026-07-19 — HOME-PC — PUSHED (Plan 1 Phase 6: bug hunt + seam doc + final docs — PLAN COMPLETE)
+- Branch:  feature/gui-batch-overhaul (1 commit this session on top of 12b62df)
+- Changed: scripts/Universal/core/batch_runner.py (edit count excludes integrity_flag
+           records — DECISIONS #035),
+           scripts/Universal/gui/app.py (per-batch snapshot of the three option
+           checkboxes; worker no longer reads Tk variables),
+           scripts/Universal/rules/junk_strip.py (comment-only: error-page count 4→3
+           per #027),
+           files/tests/test_pause_and_condensed_log.py (+1 regression:
+           test_edit_count_excludes_integrity_flags),
+           md-instructions/Changelog.md (new v0.11.0 entry),
+           md-instructions/Briefing.md (v0.11.0: new Current State + Architecture/
+           Plan-2-seam section + description/git-state/deferred/Next-Steps updates),
+           md-instructions/Decisions.md (appended #035; restored the lost ## 028
+           heading line),
+           md-instructions/build-spec.md (v0.11.0 reconciliation note),
+           README.md (new output/input model + v0.11.0 Status),
+           md-instructions/Handoff.md (Current Focus + Work Log + this entry)
+- Deleted: md-instructions/plan-1-gui-batch-overhaul.md (drop complete per its
+           Definition of Done — read, implemented, verified, deleted)
+- Note:    scratchpad phase6_e2e.py (end-to-end integration proof) ran outside the
+           repo — not committed, listed for the record.
+- Result:  python scripts/verify.py → PASS (514 passed, 0 skipped). Plan 1 complete;
+           branch pushed, NOT merged — awaiting the user's end-of-plan sign-off.
+           Next: Plan 2 (reconcile its drop against the real v0.11.0 tree first).
 
 ### 2026-07-19 — HOME-PC — PUSHED (Plan 1 Phase 5: TTS jargon sweep rule)
 - Branch:  feature/gui-batch-overhaul (1 commit this session on top of 04926d5)

@@ -185,7 +185,12 @@ def run_batch(
             text = dispatch.run_pipeline(
                 text, lexicon, repl_log=repl_log, gui_log=pipe_log, dry_run=dry_run
             )
-            edits = len(repl_log)
+            # Edit count for the condensed line: real edits only. integrity_flag
+            # records (error pages #005, heading-only pages #017) mark problems,
+            # not edits — they stay in the JSONL but must not inflate this count.
+            edits = sum(
+                1 for e in repl_log.entries if e.category != "integrity_flag"
+            )
             edits_label = f"{edits} edit" + ("" if edits == 1 else "s")
 
             if dry_run:

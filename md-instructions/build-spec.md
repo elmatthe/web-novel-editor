@@ -6,6 +6,17 @@
 **Maintained at:** `md-instructions/build-spec.md`
 **Companion log:** `md-instructions/BRIEFING.md` — Claude Code must keep this updated after every session.
 
+> **v0.11.0 reconciliation note (2026-07-19).** The GUI input/output model described in
+> this spec was superseded by Plan 1 (GUI & Batch Overhaul — CHANGELOG v0.11.0): there
+> is no user-chosen output folder and no `EDITED_` filename prefix anymore. The GUI now
+> has two input modes (upload PDFs / select folder with natural-order recursive
+> scanning), writes into an auto-numbered `Downloads\<novel>-x` folder (mirrored tree in
+> folder mode) with **original filenames** (`_2`/`_3` collision suffixes kept, sidecars
+> now `<name>_replacements.jsonl` / `DEBUG_<name>.txt`), defaults the dropdown to
+> **"Universal"**, and adds pause/continue plus a condensed one-line-per-file log.
+> Sections 6–7 and the output-naming references below are historical spec, kept as
+> written; BRIEFING.md describes the current model.
+
 ---
 
 ## Table of Contents

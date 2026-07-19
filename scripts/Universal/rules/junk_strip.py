@@ -525,8 +525,8 @@ _TIER2_PROMO_LINE_RE = re.compile(
 
 
 # --- Whole-file CDN error pages: DETECT-AND-FLAG ONLY, never auto-strip ------
-# Supreme_Magus-v2 contains 4 whole-file Cloudflare error-1015 pages (ch 1423,
-# 1424, 1427, +1): the chapter text is MISSING, so silently stripping the junk
+# Supreme_Magus-v2 contains 3 whole-file Cloudflare error-1015 pages (ch 1423,
+# 1424, 1427 — DECISIONS #027): the chapter text is MISSING, so stripping the junk
 # would yield an empty chapter. These files need a re-scrape, so the pipeline
 # flags them (gui warning + integrity_flag log entry) and leaves the text alone.
 # Two independent signals are required, so prose mentioning one phrase can

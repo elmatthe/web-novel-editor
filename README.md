@@ -4,13 +4,17 @@ Web Novel Editor is a local desktop app that turns webscraped webnovel chapter P
 clean, TTS-ready PDFs. It is designed for listening with text-to-speech tools such as
 Kokoro or Microsoft voices (the primary target is the Microsoft Edge Neural voice).
 
-The app extracts text from selected PDFs, applies a careful mechanical editing pipeline,
-and writes `EDITED_<original_name>.pdf` files to the folder you choose. It never changes
-your original PDFs.
+The app extracts text from your chapter PDFs, applies a careful mechanical editing
+pipeline, and saves the cleaned copies — under their original filenames — into a fresh,
+automatically numbered folder in your Downloads (for example `Downloads\universal-1`).
+It never changes your original PDFs, and a re-run never overwrites an earlier batch.
 
-The app has a Tkinter window where you pick a novel from a dropdown, choose chapter PDFs,
-select an output folder, optionally enable replacement logs or debug text, and start a
-batch. A progress bar and live log show what happened to each file.
+The app has a Tkinter window where you pick an editing profile from a dropdown
+("Universal" is the default and works for any novel), then either upload individual
+PDFs or select a whole folder — folders are processed in natural reading order
+(1, 2, 10 — not 1, 10, 2) and the output mirrors the folder's structure. You can pause
+and continue a batch between files. A progress bar and a one-line-per-file log show
+what happened to each file, with a summary at the end.
 
 **Shadow Slave, Supreme Magus, and The Noble Queen** are fully supported and apply their own
 editing profiles (protected names + novel-specific fixes). The dropdown also lists other
@@ -49,14 +53,21 @@ only (there is no macOS-exclusive code today).
 
 ## Status
 
-Version 0.10.0 includes the complete editing pipeline with **three real per-novel profiles**
-(Shadow Slave, Supreme Magus, The Noble Queen), Basic Edit Mode (universal-only) for every
-other novel, hardened scraper-junk/URL/watermark removal, protected-term support, the desktop
-batch-processing GUI with a novel-selection dropdown, output PDFs, audit logs, and the
-verification gate. The dropdown is driven by a novel → pipeline dispatch registry: a profiled
-novel runs its full profile, and any other novel falls back to universal-only editing. Adding a
-real profile for another novel is a data exercise, not a code change. The two dirtier local
-corpora (Noble Queen, Supreme Magus) are local QA evidence, not files that ship with the app.
+Version 0.11.0 adds the overhauled batch flow: two input modes (upload PDFs / select a
+folder with natural-order recursive scanning), automatic mirrored output into an
+auto-numbered Downloads folder with original filenames, **"Universal" as the default
+dropdown choice** (novels without their own profile are marked "no profile yet"),
+a pause/continue control, a condensed one-line-per-file log, and a decorative-divider
+sweep (`* * *`, `~~~`) so TTS never reads symbol runs aloud.
+
+The editing pipeline itself is unchanged from 0.10.0: **three real per-novel profiles**
+(Shadow Slave, Supreme Magus, The Noble Queen), universal-only editing for every other
+novel, hardened scraper-junk/URL/watermark removal, protected-term support, audit logs,
+and the verification gate. The dropdown is driven by a novel → pipeline dispatch
+registry: a profiled novel runs its full profile, and any other novel (and "Universal")
+runs universal-only editing. Adding a real profile for another novel is a data exercise,
+not a code change. The two dirtier local corpora (Noble Queen, Supreme Magus) are local
+QA evidence, not files that ship with the app.
 
 ## For developers
 
