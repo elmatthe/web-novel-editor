@@ -28,7 +28,7 @@ from tkinter import filedialog, messagebox, ttk
 
 from core.batch_runner import run_batch
 from core.input_scanner import scan_folder
-from core.novel_registry import DEFAULT_NOVEL, available_novels
+from core.novel_registry import DEFAULT_NOVEL, available_novels, clean_novel_name
 from utils.file_utils import (
     downloads_dir,
     kebab_case,
@@ -208,9 +208,11 @@ class WebnovelEditorApp(tk.Tk):
         ttk.Label(frame, text="Editing profile:", style="Panel.TLabel").grid(
             row=0, column=0, sticky="w", padx=(0, PAD_S))
 
-        # Roster derived from scripts/Universal/resources/novel-index/ (one entry per index file). The selection
-        # drives run_batch's novel_name -> pipeline dispatch (universal-only fallback for
-        # novels without a real profile).
+        # Roster: "Universal" first (the default), then one entry per index file under
+        # scripts/Universal/resources/novel-index/, profile-less novels marked "no
+        # profile yet". Display strings may carry that marker, so every selection is
+        # passed through clean_novel_name before it reaches run_batch's novel_name ->
+        # pipeline dispatch or the output-folder naming.
         roster = available_novels()
         default = DEFAULT_NOVEL if DEFAULT_NOVEL in roster else (roster[0] if roster else "")
         self.novel_var = tk.StringVar(value=default)
@@ -223,8 +225,9 @@ class WebnovelEditorApp(tk.Tk):
 
         ttk.Label(
             frame,
-            text="Shadow Slave applies its full profile; other novels use universal-only "
-                 "cleanup until a profile is added.",
+            text="Universal applies the standard cleanup to any novel. Choosing a novel "
+                 "layers its specific edits on top; novels marked “no profile yet” "
+                 "run the same universal cleanup until a profile is added.",
             style="PathValue.TLabel", wraplength=720, justify="left",
         ).grid(row=1, column=0, columnspan=2, sticky="w", pady=(PAD_S, 0))
 
@@ -458,15 +461,21 @@ class WebnovelEditorApp(tk.Tk):
                                        "Add at least one PDF file before running.")
                 return
 
+        # Map the display selection to its clean novel name BEFORE it reaches dispatch
+        # or folder naming: the "no profile yet" marker is display-only ("Universal"
+        # passes through and kebab-cases to universal-x).
+        novel = clean_novel_name(self.novel_var.get())
+
         # Forced output location: a fresh auto-numbered Downloads\<novel>-x folder,
         # named for the current selection. Only named here — run_batch creates it
         # when the batch actually starts (and not at all on a dry run).
-        name = kebab_case(self.novel_var.get()) or "output"
+        name = kebab_case(novel) or "output"
         output_dir = str(next_numbered_output_dir(downloads_dir(), name))
 
         self._batch_files = files
         self._batch_output_dir = output_dir
         self._batch_mirror_root = mirror_root
+        self._batch_novel = novel
 
         self._running = True
         self.run_button.configure(state=tk.DISABLED)
@@ -489,7 +498,7 @@ class WebnovelEditorApp(tk.Tk):
                 write_replacement_log=self.opt_replacement_log.get(),
                 write_debug_text=self.opt_debug_text.get(),
                 dry_run=self.opt_dry_run.get(),
-                novel_name=self.novel_var.get(),  # always pass the selected novel explicitly
+                novel_name=self._batch_novel,  # the clean (marker-stripped) selection
                 mirror_root=self._batch_mirror_root,
                 gui_log=lambda message, level="info": self.after(
                     0, self._log, message, level),
@@ -543,7 +552,9 @@ class WebnovelEditorApp(tk.Tk):
         if not hasattr(self, "status_var"):
             return  # called during panel construction, before the status bar exists
         novel = getattr(self, "novel_var", None)
-        novel_label = novel.get() if novel is not None else "—"
+        # Status shows the clean name; the output label kebabs the clean name too, so a
+        # marked selection never leaks "-no-profile-yet" into the folder preview.
+        novel_label = clean_novel_name(novel.get()) if novel is not None else "—"
         out_label = (f"Downloads\\{kebab_case(novel_label) or 'output'}-x (auto)"
                      if novel is not None else "Downloads (auto)")
         if getattr(self, "input_mode_var", None) and self.input_mode_var.get() == "folder":

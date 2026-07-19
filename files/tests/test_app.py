@@ -40,9 +40,15 @@ def test_app_constructs_and_has_widgets():
         assert app.opt_dry_run.get() is False
         assert app.opt_replacement_log.get() is False
         assert app.opt_debug_text.get() is False
-        # Novel dropdown exists, defaults to Shadow Slave, and offers the full roster.
-        assert app.novel_var.get() == "Shadow Slave"
-        assert "Shadow Slave" in app.novel_combo["values"]
+        # Novel dropdown exists, defaults to Universal (Plan 1 Phase 3), and offers
+        # the full roster — Shadow Slave stays selectable, profile-less novels carry
+        # the "no profile yet" marker.
+        from core.novel_registry import NO_PROFILE_MARKER
+        assert app.novel_var.get() == "Universal"
+        values = list(app.novel_combo["values"])
+        assert values[0] == "Universal"
+        assert "Shadow Slave" in values
+        assert "Re Monster" + NO_PROFILE_MARKER in values
         assert str(app.novel_combo["state"]) == "readonly"
         # The log and progress helpers drive the real widgets without a mainloop.
         app._log("hello", "info")
@@ -336,6 +342,108 @@ def test_app_folder_mode_start_with_no_folder_warns(tmp_path, monkeypatch):
         assert calls == []
         assert warnings
         assert app._running is False
+    finally:
+        app.destroy()
+
+
+def test_app_default_universal_start_passes_clean_name_and_universal_folder(
+        tmp_path, monkeypatch):
+    """Plan 1 Phase 3: with the default "Universal" selection, Start passes the clean
+    name "Universal" to run_batch and the output folder comes out as universal-1."""
+    tk = pytest.importorskip("tkinter")
+    from gui import app as appmod
+
+    pdf = tmp_path / "a.pdf"
+    pdf.write_bytes(b"%PDF-stub")
+
+    try:
+        app = appmod.WebnovelEditorApp()
+    except tk.TclError:
+        pytest.skip("no display available for Tk")
+    try:
+        app.withdraw()
+        app.update_idletasks()
+        calls = _wire_batch_spy(appmod, monkeypatch, tmp_path)
+
+        assert app.novel_var.get() == "Universal"
+        app.file_paths.append(str(pdf))
+        app._refresh_file_list()
+        app._start_batch()
+        app.update()
+
+        assert len(calls) == 1
+        call = calls[0]
+        assert call["novel_name"] == "Universal"
+        assert call["output_dir"] == str(tmp_path / "DL" / "universal-1")
+    finally:
+        app.destroy()
+
+
+def test_app_marked_selection_strips_marker_before_batch_and_naming(
+        tmp_path, monkeypatch):
+    """Selecting a marked profile-less novel must reach run_batch (and the output-folder
+    kebab-casing) as the CLEAN name — the display marker never leaks downstream."""
+    tk = pytest.importorskip("tkinter")
+    from core.novel_registry import NO_PROFILE_MARKER
+    from gui import app as appmod
+
+    pdf = tmp_path / "a.pdf"
+    pdf.write_bytes(b"%PDF-stub")
+
+    try:
+        app = appmod.WebnovelEditorApp()
+    except tk.TclError:
+        pytest.skip("no display available for Tk")
+    try:
+        app.withdraw()
+        app.update_idletasks()
+        calls = _wire_batch_spy(appmod, monkeypatch, tmp_path)
+
+        marked = "Re Monster" + NO_PROFILE_MARKER
+        assert marked in app.novel_combo["values"]  # still selectable
+        app.novel_var.set(marked)
+        app.file_paths.append(str(pdf))
+        app._refresh_file_list()
+        app._start_batch()
+        app.update()
+
+        assert len(calls) == 1
+        call = calls[0]
+        assert call["novel_name"] == "Re Monster"
+        assert call["output_dir"] == str(tmp_path / "DL" / "re-monster-1")
+    finally:
+        app.destroy()
+
+
+def test_app_real_profile_selection_passes_through_unchanged(tmp_path, monkeypatch):
+    """Selecting a real-profile novel (Shadow Slave) is unaffected by the Phase-3
+    mapping: its unmarked name reaches run_batch and its folder naming as before."""
+    tk = pytest.importorskip("tkinter")
+    from gui import app as appmod
+
+    pdf = tmp_path / "a.pdf"
+    pdf.write_bytes(b"%PDF-stub")
+
+    try:
+        app = appmod.WebnovelEditorApp()
+    except tk.TclError:
+        pytest.skip("no display available for Tk")
+    try:
+        app.withdraw()
+        app.update_idletasks()
+        calls = _wire_batch_spy(appmod, monkeypatch, tmp_path)
+
+        assert "Shadow Slave" in app.novel_combo["values"]
+        app.novel_var.set("Shadow Slave")
+        app.file_paths.append(str(pdf))
+        app._refresh_file_list()
+        app._start_batch()
+        app.update()
+
+        assert len(calls) == 1
+        call = calls[0]
+        assert call["novel_name"] == "Shadow Slave"
+        assert call["output_dir"] == str(tmp_path / "DL" / "shadow-slave-1")
     finally:
         app.destroy()
 

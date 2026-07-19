@@ -9,6 +9,55 @@ its original decision date. New decisions continue to be appended here (newest o
 
 ---
 
+## 032 — Plan 1 Phase 3: default dropdown selection changed Shadow Slave → "Universal" — 2026-07-18 — Claude Code
+
+**Status:** Accepted
+**Context:** Since v0.9.0 the GUI dropdown pre-selected "Shadow Slave", making one novel's
+full profile the implicit default for every batch. The plan promotes universal-only
+editing — which every novel receives anyway as its baseline — to an explicit, named,
+default choice, so a user who just wants generic cleanup never accidentally runs Shadow
+Slave's forced substitutions on another novel's text.
+**Decision:** `novel_registry.DEFAULT_NOVEL` is now `"Universal"`; the GUI pre-selects it.
+Shadow Slave stays in the roster (alphabetical with the other index-derived novels), just
+no longer pre-selected. This also finalizes the DECISIONS #030 provisional note: the
+default output folder is now `Downloads\universal-x`, produced by the existing Phase-2
+`kebab_case(<selection>)` with zero Phase-2 code change (pinned by test).
+**Alternatives considered:** Keeping Shadow Slave as default — rejected: a novel-specific
+profile is the wrong implicit choice for a multi-novel tool, and the plan's goal is
+universal-first. A `None`/blank default — rejected: the dropdown must never be empty and
+"Universal" names the behavior honestly.
+**Consequences:** Tests asserting the Shadow Slave default were updated in place
+(`test_app`, `test_novel_registry`, `test_novel_profiles`). Selecting Shadow Slave (or any
+real profile) behaves exactly as before — only the pre-selection changed.
+
+## 031 — Plan 1 Phase 3: "Universal" roster entry injected outside the registry + display-only "no profile yet" markers stripped in the GUI — 2026-07-18 — Claude Code
+
+**Status:** Accepted
+**Context:** The plan requires "Universal" as a first-class roster entry and a visible
+marker on the 5 profile-less novels (Circle of Inevitability, Lord of the Mysteries,
+Re Monster, Renegade Immortal, Reverend Insanity), without rebuilding the shipped v0.9.0
+dispatch registry or disturbing the LOTM-stub universal-fallback invariant (#009/#014).
+**Decision:** `available_novels()` injects `"Universal"` as the first entry (it is not
+index-derived and has **no** `_REGISTRY` entry) and appends `NO_PROFILE_MARKER`
+(" — no profile yet") to any index-derived name not in `_REGISTRY`. "Universal"
+dispatches through `resolve_dispatch`'s **existing** unregistered-name fallback —
+universal pipeline, empty floor — so the dispatch layer is byte-for-byte untouched. The
+marker is **display-only**: `_norm_key` would not strip it, so a new
+`clean_novel_name()` (same module) maps display → clean name and the **GUI calls it in
+`_start_batch`** before the selection reaches `run_batch` or the output-folder
+kebab-casing (a marked selection can never leak `-no-profile-yet` into a folder name;
+pinned by test both at the registry and GUI-spy level).
+**Alternatives considered:** Registering "Universal" in `_REGISTRY` — rejected: the
+registry is for real per-novel profiles, and the fallback already does exactly this.
+Stripping markers inside `resolve_dispatch`/`_norm_key` — rejected: it would push GUI
+display concerns into the dispatch layer and mask genuine lookup mismatches. A separate
+marker-to-name dict in the GUI — rejected: two sources of truth for one convention;
+keeping marker + stripper beside the roster builder in `novel_registry` keeps it one.
+**Consequences:** Roster length is now index-file count + 1; `available_novels()`'s
+missing/empty-folder fallback returns `["Universal"]`. Adding a real profile later
+automatically drops that novel's marker (the roster consults `_REGISTRY`). The 5 marked
+novels still dispatch universal-only exactly as before.
+
 ## 030 — Plan 1 Phase 2: forced output naming `Downloads\<name>-x` (kebab-case, max(N)+1) with original filenames — EDITED_ prefix dropped — 2026-07-18 — Claude Code
 
 **Status:** Accepted (folder-name source is provisional pending Phase 3)

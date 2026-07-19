@@ -59,6 +59,14 @@ def test_kebab_case(raw, expected):
     assert file_utils.kebab_case(raw) == expected
 
 
+def test_universal_selection_yields_universal_x_folder(tmp_path):
+    # Plan 1 Phase 3 contract: the default "Universal" selection names its output
+    # folder universal-x purely through the existing Phase-2 helpers — no special case.
+    base = file_utils.kebab_case("Universal")
+    assert base == "universal"
+    assert file_utils.next_numbered_output_dir(tmp_path, base) == tmp_path / "universal-1"
+
+
 # --- next_numbered_output_dir ------------------------------------------------
 def test_first_output_dir_is_name_dash_one(tmp_path):
     target = file_utils.next_numbered_output_dir(tmp_path, "shadow-slave")

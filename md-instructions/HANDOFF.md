@@ -10,6 +10,19 @@ reconciled 2026-07-17 — authoritative; see also
 `files/qa-tools/scratch/plan1-reconciliation.md` for path/line references).
 Plan 2 (`plan-2-ai-editor-integration.md`) is a separate later drop — untouched.
 
+**Phase 3 ("Universal" default entry + profile-less markers) is DONE** (2026-07-18,
+committed on the branch): the dropdown roster now leads with an injected **"Universal"**
+entry — the new default selection (DECISIONS #032) — dispatching through the EXISTING
+`resolve_dispatch` unregistered-name fallback (registry untouched; LOTM-stub invariant
+#009/#014 intact). The 5 profile-less novels (Circle of Inevitability, Lord of the
+Mysteries, Re Monster, Renegade Immortal, Reverend Insanity) carry a display-only
+" — no profile yet" marker (`NO_PROFILE_MARKER`); the GUI strips markers via the new
+`clean_novel_name()` in `_start_batch` BEFORE the selection reaches `run_batch` or the
+Phase-2 output-folder kebab-casing, so the default now produces `Downloads\universal-x`
+with zero Phase-2 code change (closing #030's provisional note; DECISIONS #031). Shadow
+Slave stays in the roster, no longer pre-selected. Verify green: 437 passed, 1 skipped
+(same pre-existing environmental bash skip as Phase 2).
+
 **Phase 2 (output mirroring + naming) is DONE** (2026-07-18, committed on the branch):
 output location is no longer user-chosen — every batch writes to a fresh
 `Downloads\<name>-x` folder (`<name>` = kebab-cased novel selection, `x` = max(N)+1 over
@@ -30,9 +43,9 @@ preserves upload order, `scan_folder` = depth-first natural-order recursive scan
 pinned by `files/tests/test_input_scanner.py`); GUI two-mode Input toggle + folder picker
 + resolved-order preview.
 
-Next: **Phase 3 — "Universal" default entry + profile-less markers** (inject "Universal"
-as first/default roster entry, mark the 5 profile-less novels "no profile yet", GUI
-display→clean-name mapping, `universal-x` output naming follows automatically).
+Next: **Phase 4 — pause/continue + condensed log** (Event-based between-files pause,
+Pause ⇄ Continue button state machine, one-line-per-file condensed log format +
+end-of-batch summary; tests drive the worker callbacks deterministically).
 
 ---
 
@@ -47,6 +60,48 @@ display→clean-name mapping, `universal-x` output naming follows automatically)
 ---
 
 ## Work Log (newest first)
+
+- 2026-07-18 — **Plan 1 (GUI & Batch Overhaul, v0.11.0) Phase 3 complete: "Universal"
+  default roster entry + profile-less "no profile yet" markers — dispatch registry
+  untouched, `universal-x` naming fell out of Phase 2 as designed.** TDD RED→GREEN
+  (registry/app tests watched fail on the missing `NO_PROFILE_MARKER` /
+  Shadow-Slave-default before implementation). **Work:** (1)
+  `core/novel_registry.py` — `DEFAULT_NOVEL` "Shadow Slave" → **"Universal"**; new
+  `NO_PROFILE_MARKER = " — no profile yet"` + `clean_novel_name()` (display → clean
+  name; strips the marker, everything else passes through); `available_novels()`
+  rewritten to inject "Universal" first (NOT index-derived, NOT in `_REGISTRY` — it
+  rides `resolve_dispatch`'s existing unregistered-name fallback), then the
+  index-derived names alphabetically, appending the marker to any name without a
+  `_REGISTRY` entry (so authoring a real profile later auto-drops its marker);
+  missing/empty index folder now falls back to `["Universal"]`. `resolve_dispatch`,
+  `_REGISTRY`, and the LOTM-stub fallback invariant (#009/#014) are byte-for-byte
+  untouched. (2) `gui/app.py` — `_start_batch` maps the display selection through
+  `clean_novel_name` ONCE, snapshots it (`_batch_novel`), and uses the clean name for
+  BOTH `kebab_case` folder naming and `run_batch(novel_name=...)` (the worker no
+  longer re-reads `novel_var`); `_refresh_status` kebabs/shows the clean name (a
+  marked selection can't leak `-no-profile-yet` into the folder preview); dropdown
+  helper text rewritten for the Universal-first model. Confirmed with **no Phase-2
+  code change**: `kebab_case("Universal")` → `universal` was already pinned, so the
+  default folder is `universal-x` (closes #030's provisional note). **Tests
+  (437 passed, was 423; +14):** `test_novel_registry.py` — default-is-Universal pin;
+  synthetic + shipped roster expectations updated (Universal first, exactly the 5
+  expected markers, none on the 3 real profiles, roster = index count + 1);
+  `clean_novel_name` table; every-roster-entry-cleans-to-dispatchable sweep;
+  `resolve_dispatch("Universal")` = existing fallback; real-`run_batch`
+  universal-only log for `novel_name="Universal"`. `test_app.py` — construct test
+  updated (defaults to Universal, marked entries offered, Shadow Slave still
+  selectable) + 3 GUI-spy tests: default Universal start passes clean name +
+  `universal-1` output dir; marked "Re Monster — no profile yet" reaches run_batch as
+  "Re Monster" → `re-monster-1`; Shadow Slave selection unaffected.
+  `test_novel_profiles.py` roster[0] pin updated; `test_output_layout.py` +1
+  universal→`universal-1` contract test. End-to-end smoke outside pytest: real
+  roster (9 entries, Universal first, 5 marked), real `run_batch` on a pinned
+  fixture as "Universal" → `universal-1`, universal-only log, `profile_applied:
+  False`, original filename kept; marked selection cleans to `re-monster-1`.
+  `python scripts/verify.py` → **PASS (437 passed, 1 skipped — same pre-existing
+  environmental bash skip as Phase 2).** DECISIONS #031 (Universal entry + marker
+  approach) + #032 (default-selection change) appended. CHANGELOG/BRIEFING untouched
+  — Phase 6 per the drop. — Claude Code
 
 - 2026-07-18 — **Plan 1 (GUI & Batch Overhaul, v0.11.0) Phase 2 complete: output
   mirroring + naming — forced `Downloads\<name>-x` output, `EDITED_` prefix dropped,
@@ -661,6 +716,27 @@ display→clean-name mapping, `universal-x` output naming follows automatically)
 ---
 
 ## Session Sync Log (newest first)
+
+### 2026-07-18 — HOME-PC — PUSHED (Plan 1 Phase 3: "Universal" default entry + markers)
+- Branch:  feature/gui-batch-overhaul (1 commit this session on top of 7eeab8f)
+- Changed: scripts/Universal/core/novel_registry.py (DEFAULT_NOVEL → "Universal";
+           NO_PROFILE_MARKER + clean_novel_name added; available_novels injects
+           Universal first + marks profile-less novels; dispatch/_REGISTRY untouched),
+           scripts/Universal/gui/app.py (_start_batch maps display → clean name before
+           run_batch + folder naming; status strip uses clean name; dropdown helper
+           text),
+           files/tests/test_novel_registry.py (roster/marker/clean-name/dispatch/
+           run_batch-Universal tests added, existing roster + default pins updated),
+           files/tests/test_app.py (default-Universal construct pins + 3 GUI-spy
+           mapping tests),
+           files/tests/test_novel_profiles.py (roster[0] pin → "Universal"),
+           files/tests/test_output_layout.py (+1 universal→universal-1 contract test),
+           md-instructions/Decisions.md (appended #031 Universal entry/markers,
+           #032 default-selection change),
+           md-instructions/Handoff.md (Current Focus + Work Log + this entry)
+- Result:  python scripts/verify.py → PASS (437 passed, 1 skipped — same pre-existing
+           environmental launcher bash skip as Phase 2; was 423/1). Phase 4
+           (pause/continue + condensed log) is next.
 
 ### 2026-07-18 — HOME-PC — PUSHED (Plan 1 Phase 2: output mirroring + naming)
 - Branch:  feature/gui-batch-overhaul (2 commits this session: the kickoff-prompt.md
