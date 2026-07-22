@@ -1,78 +1,93 @@
 # Web Novel Editor — Handoff
 
 ## Current Focus
-Phase-10 instruction drop (`Instructions_Phase10_JunkStrip_And_QA.md`) in progress on
-branch `feature/junk-strip-hardening`, re-based per Phase 0.5 onto `origin/main @ 319f523`
-(v0.9.0 — the dispatch registry is real and merged; the earlier "registry missing" finding
-only reflected a stale local clone). Phase 0 (baseline), Phase 0.5 (branch reconciliation,
-user-confirmed base), Phase 1 recon + addendum, Phase 2 (junk-strip Tier 1
-hardening + two-layer test infrastructure + fixture commit), **Phase 3
-(grammar/editorial QA pass), **Phase 4 (TTS-readiness sweep), **Phase 5
-(dual-mode dispatch confirmed at the registry/provenance level), and **Phase 5b
-(real Noble Queen + Supreme Magus profiles authored from files/study-examples/,
-registered and proven against the corpora) are done**; next is Phase 6
-(PDF-build alignment with web-novel-scraper, safety-first).
-User decisions on record: 10 pinned fixtures committed
-(Phase 2 — done);
-Noble Queen + Supreme Magus profiles authored in Phase 5b (NO profanity-uncensor map —
-honored, not ported);
-Renegade Immortal / Reverend Insanity stay universal-fallback placeholders; re-track
-AI-WORKSPACE.md; Setup_and_Run-template.* are study copies only — Phase 9 builds the
-single launcher per OS from them, then deletes them.
-Phase 6 (PDF-build alignment, safety-first) is now DONE: orphan-page handling is
-prevention (`keepWithNext`) + detection-only logging, automatic deletion DEFERRED (the
-defect is not reproducible — all 7,979 cached extractions are single-chapter); no `pypdf`
-added; PDF typography confirmed already aligned with the scraper.
-Phase 7 (GUI consistency with web-novel-scraper) is now DONE: terminology/layout/workflow
-alignment ONLY (paired "Web Novel Editor" naming, log moved to the bottom, "Advanced
-Options" grouping) with the editor's ttk design system fully preserved; NO Stop
-button / no cancellation (no safe seam — deferred), editor's daemon-thread lifecycle
-kept (scraper threading NOT ported).
-Phase 8 (repo/scripts-folder cross-platform reorganization) is now DONE, **including the
-runtime-data decision the user resolved as Option B**: all program code moved under
-`scripts/Universal/` (git mv, history preserved), `scripts/tests/` → `files/tests/`,
-repo-root `test-files/` → `files/test-files/`, `scripts/Windows|MacOS/` added as `.gitkeep`
-placeholders; resolver depth + conftest + verify + launcher + `.gitattributes`/`.gitignore`
-paths all updated. **Runtime-data conflict RESOLVED (user chose Option B):**
-`files/novel-index/` + `files/Novel-Edits-Details/` were relocated to
-`scripts/Universal/resources/{novel-index,Novel-Edits-Details}/`, so `files/` is now purely
-dev-only with no exceptions and a clean release ships only `scripts/` + launchers. Verify
-green (369); the release-ZIP proof was re-run with `files/` **entirely absent** and the app
-is fully functional. Ledger #023 supersedes #022. This relocation is the build-spec change
-the Phase-10 `DECISIONS.md` entry will formalize.
-Phase 9 (single hardened launcher per OS) is now DONE: one `Setup_and_Run.bat` and one
-`Setup_and_Run.command` rebuilt from the study templates, targeting
-`scripts/Universal/main.py` — 4 numbered steps, self-healing venv, health-GATED idempotent
-install (lock + `pip check` + import smoke; venv interpreter preferred on repeat launch),
-consent-gated base-runtime install, Windows `pythonw` windowless launch with a `--check`
-console preflight. Editor behavioral choices deliberately KEPT over the template's:
-Python-version gate **blocks** (does not warn) below 3.10; floor stays 3.10 (from-scratch
-winget install still pulls 3.11). The untracked `Setup_and_Run-template.*` study copies were
-deleted (root now has exactly one launcher per OS). Verify green (381).
-Phase 10 (docs & changelog) is now DONE: all four permanent docs + README + build-spec +
-EDITING-RULES + UNIVERSAL.md updated to v0.10.0; the new `md-instructions/DECISIONS.md` was
-created from `decisions-template.md` and transcribed from the running ledger (27 entries).
-Version confirmed **v0.10.0** (minor bump, not patch — ledger #026 / DECISIONS #026).
-**Phase 11 (final verify & wrap-up) is now DONE — the whole junk-strip-hardening plan
-(Phases 0–11) is COMPLETE.** This session: pushed the user-reviewed Phase-10 state to
-origin; ran the corpus-hash compare vs the Phase-0 baseline (**7,979/7,979 PDFs match, 0
-mismatch, 0 missing** — the only intended diff is the Phase-8 fixture-path remap
-`test-files/ → files/test-files/`, contents unchanged); deleted the instruction drop
-`Instructions_Phase10_JunkStrip_And_QA.md`; ran `python scripts/verify.py` against the
-post-delete tree → **PASS (383 passed, 0 skipped)**; updated this handoff + ledger #028;
-re-ran verify after the handoff edit to reconcile → still PASS; committed and pushed the
-Phase-11 commit. **The branch `feature/junk-strip-hardening` is pushed to origin and left
-UNMERGED for the user's end-of-plan review/merge — do NOT merge to `main` automatically.**
-No DECISIONS.md entry was added for Phase 11 (mechanical wrap-up, no non-obvious design
-choice — ledger #028 explains); DECISIONS.md stays at 27 entries.
-Standing instruction (2026-07-12 through Phase 10): the running decisions ledger in gitignored
-scratch (files/qa-tools/scratch/decisions-ledger.md, ADR format) was appended at the end of
-every phase; Phase 10's DECISIONS.md is a transcription of that ledger (not a reconstruction).
-RECONCILED in Phase 10: the Supreme Magus Cloudflare error-page count — the Phase-1 recon
-estimate of 4 (3 named + an unconfirmed "+1 more") is superseded by the committed/detected
-truth of **3** (SM_ERROR_PAGES = Ch. 1423/1424/1427; Phase-5 run flagged 3/3). Docs fixed to
-3; code unchanged (it was already correct). See DECISIONS #027. Historical Work Log entries
-below that say "4" are append-only history, left as written.
+**Plan 1 — GUI & Batch Overhaul (v0.11.0) is COMPLETE** — all six phases implemented,
+verified, and committed on `feature/gui-batch-overhaul` (branched off `main` @ `c424d30`;
+the plan drop `plan-1-gui-batch-overhaul.md` has been **deleted** per its Definition of
+Done). The branch is pushed to origin and **NOT merged to `main` — awaiting the user's
+explicit end-of-plan sign-off** (per AI-WORKSPACE git habits, a finished phase is not
+approval). CHANGELOG has the v0.11.0 entry; BRIEFING reflects the new GUI/batch model and
+documents the **post-pipeline pre-build hook** (Plan 2's insertion seam in
+`core/batch_runner.py`, between `dispatch.run_pipeline(...)` and `build_pdf(...)`) —
+documented only, deliberately not built.
+
+**Next: Plan 2 (AI editor integration, `plan-2-ai-editor-integration.md`).** That drop
+was drafted against a much earlier repo state — it must be **rewritten/reconciled against
+the real v0.11.0 tree before any implementation** (the same treatment Plan 1 got in its
+v2 reconciliation). Its AI stage slots into the documented seam and must honor the
+contract in BRIEFING's architecture section.
+
+**Phase 5 (TTS jargon sweep rule) is DONE** (2026-07-19, committed on the branch):
+`rules/junk_strip.py` gained a conservative Tier-1 **decorative-run rule**
+(`junk_strip.decorative_run`): a whitespace-delimited span made only of `~ \ - = * #`
+plus internal spaces, carrying **≥3 symbol characters**, is excised token-level with the
+existing domain-pass conventions (minimum-span seam cleanup, emptied-line drop, JSONL
+`_record`, `ProtectedLexicon` shield on the span). Everything glued to a word/punctuation
+(`*emphasis*`, `f*ck`, `Rule #1`, `well-known`, `~37`), every single symbol, and every
+two-symbol span (`**` footnotes, `--`, `~~`) survives — the ≥3 threshold is the deliberate
+margin around the ~810 legitimate corpus asterisks from the Phase-4 sweep (DECISIONS #034).
+A recon scan of all 7,979 cached raw extractions found **zero qualifying spans** — the rule
+is corpus-no-op insurance; the SS byte-no-op corpus test and a new corpus-marked
+asterisk/hash-preservation test pin that mechanically. EDITING-RULES.md gained the rule's
+section + a TTS-criteria addendum. Verify green: 512 passed, 1 skipped (the pre-existing
+environmental launcher bash skip — bash wasn't on this session's PATH; no launcher code
+touched).
+
+**Phase 4 (pause/continue + condensed log) is DONE** (2026-07-18, committed on the
+branch): `run_batch` gained an optional `pause_gate` `threading.Event` (SET = run,
+cleared = pause) consulted only BETWEEN files — the current file always finishes, so
+pausing can never interrupt a PDF write (the safe seam DECISIONS #020's deferred
+cancellation lacked; DECISIONS #033 — session-only, no persistence, deliberate). The
+GUI has a Pause ⇄ Continue button next to Start (enabled only while running); the
+worker logs "Paused after chapter N of M." on hold and a continue line on resume. The
+GUI log is now condensed: ONE line per file — `[i/N] name — done (X edits)` /
+`— done (dry run, X edits)` / `— skipped (not found)` / `— skipped (image-only/empty)` /
+`— FAILED (Type: reason)` — plus an end-of-batch summary block (totals + Failed:/
+Skipped: name lists, omitted when empty). Verbose pipeline stage chatter stays in the
+JSONL only; pipeline "⚠" integrity warnings still surface as GUI warnings. The per-file
+`ReplacementLog` is now always constructed so the edit count shows even with the JSONL
+option off (the file is only written when enabled). The Phase-3-noted log oddity is
+fixed: an explicit "Universal" selection logs "Universal editing selected — …" instead
+of "No novel-specific profile for 'Universal'" (log-string-only; dispatch untouched).
+Verify green: 457 passed, 0 skipped.
+
+**Phase 3 ("Universal" default entry + profile-less markers) is DONE** (2026-07-18,
+committed on the branch): the dropdown roster now leads with an injected **"Universal"**
+entry — the new default selection (DECISIONS #032) — dispatching through the EXISTING
+`resolve_dispatch` unregistered-name fallback (registry untouched; LOTM-stub invariant
+#009/#014 intact). The 5 profile-less novels (Circle of Inevitability, Lord of the
+Mysteries, Re Monster, Renegade Immortal, Reverend Insanity) carry a display-only
+" — no profile yet" marker (`NO_PROFILE_MARKER`); the GUI strips markers via the new
+`clean_novel_name()` in `_start_batch` BEFORE the selection reaches `run_batch` or the
+Phase-2 output-folder kebab-casing, so the default now produces `Downloads\universal-x`
+with zero Phase-2 code change (closing #030's provisional note; DECISIONS #031). Shadow
+Slave stays in the roster, no longer pre-selected. Verify green: 437 passed, 1 skipped
+(same pre-existing environmental bash skip as Phase 2).
+
+**Phase 2 (output mirroring + naming) is DONE** (2026-07-18, committed on the branch):
+output location is no longer user-chosen — every batch writes to a fresh
+`Downloads\<name>-x` folder (`<name>` = kebab-cased novel selection, `x` = max(N)+1 over
+existing `<name>-N` dirs; DECISIONS #030). Downloads resolves via
+`SHGetKnownFolderPath`/ctypes with a `~/Downloads` fallback, one function in
+`utils/file_utils.py` (DECISIONS #029). Folder mode mirrors the selected folder (its own
+name as the root) inside `<name>-x` via `run_batch(mirror_root=...)`; upload mode is
+flat. **`EDITED_` prefix dropped** — outputs keep original filenames; collision `_2`/`_3`
+suffixes, `DEBUG_<name>.txt`, and `<name>_replacements.jsonl` (beside each output) all
+stay. The GUI output-folder picker card is removed; folder-mode Start (Phase 1's
+deliberate stub) is now wired for real. Verify green: 423 passed, 1 skipped (the
+pre-existing environmental `test_launchers.py` "No usable bash found" skip — bash wasn't
+on this session's PATH; not a Phase-2 regression, no launcher code touched).
+
+**Phase 1 (input model + natural-order scanning) is DONE** (2026-07-18): `natsort==8.4.0`
+pinned (DECISIONS #028); `scripts/Universal/core/input_scanner.py` (`scan_upload`
+preserves upload order, `scan_folder` = depth-first natural-order recursive scan, contract
+pinned by `files/tests/test_input_scanner.py`); GUI two-mode Input toggle + folder picker
++ resolved-order preview.
+
+**Phase 6 (bug hunt + seam doc + final docs) is DONE** (2026-07-19) — see the Work Log
+entry below for the bug-hunt findings (no Criticals; three Minor fixes) and the full
+docs pass. Plan 1 is closed; the per-phase blocks above are retained as the plan's
+summary record.
 
 ---
 
@@ -87,6 +102,277 @@ below that say "4" are append-only history, left as written.
 ---
 
 ## Work Log (newest first)
+
+- 2026-07-19 — **Plan 1 (GUI & Batch Overhaul, v0.11.0) Phase 6 complete — bug hunt +
+  seam doc + final docs. PLAN 1 IS COMPLETE; the drop is deleted; branch pushed,
+  awaiting the user's end-of-plan sign-off before merge to `main`.**
+  **Bug hunt (systematic cross-phase pass over everything Phases 1–5 touched):** read
+  `input_scanner.py`, `file_utils.py`, `batch_runner.py`, `novel_registry.py`,
+  `gui/app.py`, and the Phase-5 `junk_strip.py` section end-to-end for interaction
+  bugs, then proved the full chain with a real integration run (scratch
+  `phase6_e2e.py`, not committed): folder-mode scan of a nested tree with a 1/2/10
+  natural-order trap → `universal-<max+1>` numbering (past a pre-existing
+  `universal-3`) → mirrored output with original filenames → a REAL `threading.Event`
+  pause held between files 1 and 2 (exactly one file done while held, worker blocked,
+  resumed to 4/4) → decorative `* * *`/`~~~` dividers stripped from the real output
+  PDFs while `f*ck`/`*emphasis*` survived → condensed-line edit counts matching the
+  JSONL's non-flag records, `run_metadata: universal-only` header intact. **All 25
+  checks passed. NO Critical bugs. Three Minor findings, all fixed:** (1)
+  `batch_runner` counted `integrity_flag` records as "edits" in the condensed line —
+  an error-page file would read "done (1 edit)" with nothing edited; now only
+  non-flag records count (DECISIONS #035; regression
+  `test_edit_count_excludes_integrity_flags`). (2) `gui/app._start_batch` let the
+  worker thread read the three option `BooleanVar`s (Tk objects are not thread-safe;
+  pre-existing wart, not a Plan-1 regression) — options are now snapshotted per batch
+  like the rest of the batch state, zero behavior change. (3) Stale docs: the
+  `junk_strip.py` error-page comment said 4 pages (real count 3 per #027);
+  `Decisions.md` had lost the `## 028` heading line (restored, body untouched);
+  `README.md` still described the `EDITED_`/chosen-folder model. **Seam doc:**
+  BRIEFING gained an "Architecture — per-file batch loop and the Plan-2 seam"
+  section naming the **post-pipeline pre-build hook** (in `run_batch`'s per-file
+  loop, after `dispatch.run_pipeline(...)` ~L185–187, before `build_pdf` ~L214) with
+  the contract Plan 2 must honor (text-in/text-out + no I/O, dry-run participation,
+  pause-gate = between-files only, ReplacementLog/JSONL + ⚠-filter log conventions,
+  per-file failure semantics, protected-term preservation) — documented only, NOT
+  built. **Docs:** CHANGELOG v0.11.0 entry (all 6 phases); BRIEFING bumped to
+  v0.11.0 (new Current State, project description, git state, deferred-cancellation
+  note updated to reference the pause seam, Next Steps → Plan 2 reconciliation);
+  README rewritten to the new model + v0.11.0 Status; build-spec.md given a v0.11.0
+  reconciliation note (historical spec kept as written); DECISIONS #035 appended +
+  the #028 heading restored. **DoD walked item by item — all satisfied**; the drop
+  `plan-1-gui-batch-overhaul.md` deleted as the final step. `python scripts/verify.py`
+  → **PASS (514 passed, 0 skipped — was 513/0 at this session's baseline; +1 the
+  Phase-6 regression test; the environmental bash skip ran and passed).** Next:
+  **Plan 2**, whose drop must first be reconciled against the real v0.11.0 tree.
+  — Claude Code
+
+- 2026-07-19 — **Plan 1 (GUI & Batch Overhaul, v0.11.0) Phase 5 complete: TTS jargon
+  sweep — conservative Tier-1 decorative-run rule in `rules/junk_strip.py`, ~810
+  corpus asterisks proven untouchable, EDITING-RULES.md documented.** **Recon first
+  (before any test/code):** new scratch scan
+  `files/qa-tools/scratch/plan1_phase5_decorative_scan.py` over all **7,979** Phase-1
+  cached raw extractions with the proposed span shape → **ZERO qualifying spans in
+  every corpus** and the asterisk inventory confirmed (807 SM + 3 SS + 0 NQ/pinned =
+  810, none inside any candidate span; SM asterisks are mid-word censoring like
+  `f*ck`, structurally unmatchable). So the rule is pure insurance on current data —
+  same status the whole junk-strip stage has for the clean SS source — and the plan's
+  lightnovel-crawler reference wasn't needed (no code or text taken from it; the
+  plan's own examples + recon covered the pattern space). **TDD RED→GREEN:** 22 new
+  removal/logging tests watched fail (rule absent) while the 32 hostile-survival
+  tests passed pre-implementation as expected; then the rule went in and all pass.
+  **Work:** (1) `rules/junk_strip.py` — new `_DECORATIVE_RUN_RE` +
+  `_strip_decorative_runs_line()` wired into `strip_junk` between the domain pass
+  and Tier 2: a whitespace-delimited span of only `~ \ - = * #` + internal spaces
+  with **≥3 symbol chars** is removed (mixed runs `-=-=-`/`~-~-~` and spaced runs
+  `* * *`/`\ \ \` count as one span); reuses `_clean_removal_seam`, the
+  emptied-line-drop convention, and `_record` (JSONL `junk_strip.decorative_run`,
+  `category="fingerprint"`) — no new logging invented; span shielded if it matches a
+  `ProtectedLexicon` term; module docstring Tier-1 summary updated. Deliberately
+  outside the rule: glued symbols (`*emphasis*`, `f*ck`, `granted.*`, `Rule #1`,
+  `#TeamLith`, `well-known`, `~37`), single symbols (footnote `*`, `- ` dialogue
+  bullets, `3 - 1`, `=`), two-symbol spans (`**` footnote markers, `--`, `~~`), and
+  the chars `_ + . — |` (authored blanks `Mr. ___`, arithmetic, ellipses, em-dash
+  stage's territory). (DECISIONS #034.) (2) `files/tests/test_junk_strip_hardening.py`
+  — new Phase-5 section (+44 tests): 15 standalone-run line-drop cases, 6
+  run-adjacent-to-prose minimum-span cases, 9 hostile asterisk-survival cases
+  (real SM censored-profanity fragments + synthetic emphasis/footnote forms), 11
+  below-threshold/prose-symbol survival cases (real SM leading-hyphen dialogue
+  shape, Phase-4 `#`/`~` classes, arithmetic, symbol pairs), logging contract,
+  protected-term shield, idempotence, and a parametrized **fixture-derived** test:
+  `strip_junk` is a byte no-op (0 log entries) on the extracted text of each of the
+  10 committed pinned SS fixtures. (3) `files/tests/test_junk_strip_corpus.py` —
+  new corpus-marked `test_corpus_asterisks_and_hashes_survive_strip_junk` (NQ + SM
+  known-dirty samples: `*` and `#` counts byte-equal through `strip_junk`; `~`/`-`
+  excluded from the count because the domain pass legitimately removes them inside
+  `novel~fire~net`-class junk). The existing 810-asterisk guards re-ran green
+  unchanged: `test_novel_profiles.py::test_no_profanity_uncensor_was_ported`
+  (`f*ck` through the full SM pipeline verbatim) and the corpus layer's
+  `test_clean_shadow_slave_sample_is_untouched` byte no-op. (4)
+  `md-instructions/EDITING-RULES.md` — new "Decorative symbol runs — the TTS jargon
+  sweep" section under Stage 1.5 (targets / deliberately-left-alone / asterisk-safety
+  rationale) + a v0.11.0 addendum under TTS criterion 3 noting the
+  flagged-not-changed classes stay flagged. `python scripts/verify.py` → **PASS
+  (512 passed, 1 skipped — the pre-existing environmental launcher bash skip;
+  bash not on this session's PATH, no launcher code touched; was 457/0).**
+  DECISIONS #034 appended. CHANGELOG/BRIEFING untouched — Phase 6 per the drop.
+  Next: Phase 6 (bug hunt + seam doc + final docs). — Claude Code
+
+- 2026-07-18 — **Plan 1 (GUI & Batch Overhaul, v0.11.0) Phase 4 complete: pause/continue
+  + condensed log — Event-gate pause between files, Pause ⇄ Continue button, one-line-
+  per-file log + end-of-batch summary, explicit-Universal log line fixed.** TDD
+  RED→GREEN (new test file + 2 GUI tests watched fail — unexpected `pause_gate` kwarg /
+  missing `pause_button` / old log format — before implementation). **Work:** (1)
+  `core/batch_runner.py` — new optional `pause_gate: threading.Event` param (SET = run,
+  cleared = pause), consulted at the top of each per-file iteration for files 2..N only
+  (never before the first file or after the last; the in-flight file always completes —
+  the safe between-files seam #020's cancellation discussion described; DECISIONS #033).
+  On hold: `"Paused after chapter N of M."` (warn) → `pause_gate.wait()` → `"Continuing
+  with chapter i of M."` (accent). Condensed per-file logging: the old Extracting/Wrote/
+  SKIP/Dry-run/FAILED multi-line chatter replaced by exactly one line per file
+  (`[i/N] name — done (X edits)` success / `— done (dry run, X edits)` info /
+  `— skipped (not found)` + `— skipped (image-only/empty)` warn / `— FAILED (Type:
+  reason)` error); per-file sidecar log lines dropped (sidecars written silently);
+  end-of-batch summary block = totals line (`Batch complete: S done, F failed, K skipped
+  of N.`) + `Failed:`/`Skipped:` name-and-reason lists (omitted when empty, error/warn
+  tags). `ReplacementLog` is now ALWAYS constructed per file (feeds the edit count);
+  JSONL still written only when the option is on. Pipeline `gui_log` seam filtered:
+  verbose `✓` stage lines no longer reach the GUI, `⚠` integrity warnings (error pages
+  #005, heading-only pages #017) still do. Explicit-Universal fix (log-string-only,
+  Phase-3 deviation): `novel_name` = "Universal" logs `"Universal editing selected —
+  applying the standard universal-only editing (no novel-specific layer)."`; genuinely
+  profile-less novels keep the honest `"No novel-specific profile for '<name>'"` line;
+  dispatch/registry untouched. (2) `gui/app.py` — `self.pause_gate` Event (set at
+  construction and at every batch start), Pause button beside Start (disabled while
+  idle; `_toggle_pause` clears the gate + relabels "Continue" + logs "Pause requested —
+  the current file will finish first.", sets it back on Continue; no-op when idle);
+  `_reset_pause_control()` on done/error restores gate + disabled "Pause";
+  `_process_worker` passes the gate to `run_batch`. No threading-model change (same
+  daemon worker + `after(0, ...)`). **Tests (457 passed, 0 skipped; was 437+1):** new
+  `files/tests/test_pause_and_condensed_log.py` (17 — scripted fake gate proving hold-
+  after-current/before-next + resume ordering, a real set Event never pauses, no gate
+  check before first/after last file, gate optional; exact condensed line contracts for
+  done/singular-edit/dry-run/not-found/image-only/FAILED with their color tags; edit
+  count shown with JSONL option off + no `.jsonl` written / still written when on;
+  summary-block totals + Failed:/Skipped: lists + empty-section omission; verbose-✓
+  filtered while ⚠ surfaces as warn; explicit-Universal line + profile-less line
+  regression) + `test_app.py` +2 (pause-button state machine incl. idle no-op;
+  Start passes the app's gate to `run_batch` and completion resets button/gate — the
+  synchronous-fake-Thread + spy idiom, no real sleeps). All monkeypatched at the same
+  seams as `test_robustness` (`extract_text_from_pdf`/`resolve_dispatch`/`build_pdf`)
+  so every case is deterministic. End-to-end smoke outside pytest (scratchpad, real
+  `threading.Event`, 3 real fixtures as "Universal"): pause requested during file 1 →
+  exactly 1 file done at hold, worker alive+blocked, Continue → 3/3 done, condensed
+  lines + summary block + "Universal editing selected" confirmed in the captured log.
+  `python scripts/verify.py` → **PASS (457 passed, 0 skipped — the previously-skipped
+  environmental launcher bash check RAN this session and passed).** DECISIONS #033
+  appended (session-only pause, relating #020). CHANGELOG/BRIEFING untouched — Phase 6
+  per the drop. Next: Phase 5 (TTS jargon sweep). — Claude Code
+
+- 2026-07-18 — **Plan 1 (GUI & Batch Overhaul, v0.11.0) Phase 3 complete: "Universal"
+  default roster entry + profile-less "no profile yet" markers — dispatch registry
+  untouched, `universal-x` naming fell out of Phase 2 as designed.** TDD RED→GREEN
+  (registry/app tests watched fail on the missing `NO_PROFILE_MARKER` /
+  Shadow-Slave-default before implementation). **Work:** (1)
+  `core/novel_registry.py` — `DEFAULT_NOVEL` "Shadow Slave" → **"Universal"**; new
+  `NO_PROFILE_MARKER = " — no profile yet"` + `clean_novel_name()` (display → clean
+  name; strips the marker, everything else passes through); `available_novels()`
+  rewritten to inject "Universal" first (NOT index-derived, NOT in `_REGISTRY` — it
+  rides `resolve_dispatch`'s existing unregistered-name fallback), then the
+  index-derived names alphabetically, appending the marker to any name without a
+  `_REGISTRY` entry (so authoring a real profile later auto-drops its marker);
+  missing/empty index folder now falls back to `["Universal"]`. `resolve_dispatch`,
+  `_REGISTRY`, and the LOTM-stub fallback invariant (#009/#014) are byte-for-byte
+  untouched. (2) `gui/app.py` — `_start_batch` maps the display selection through
+  `clean_novel_name` ONCE, snapshots it (`_batch_novel`), and uses the clean name for
+  BOTH `kebab_case` folder naming and `run_batch(novel_name=...)` (the worker no
+  longer re-reads `novel_var`); `_refresh_status` kebabs/shows the clean name (a
+  marked selection can't leak `-no-profile-yet` into the folder preview); dropdown
+  helper text rewritten for the Universal-first model. Confirmed with **no Phase-2
+  code change**: `kebab_case("Universal")` → `universal` was already pinned, so the
+  default folder is `universal-x` (closes #030's provisional note). **Tests
+  (437 passed, was 423; +14):** `test_novel_registry.py` — default-is-Universal pin;
+  synthetic + shipped roster expectations updated (Universal first, exactly the 5
+  expected markers, none on the 3 real profiles, roster = index count + 1);
+  `clean_novel_name` table; every-roster-entry-cleans-to-dispatchable sweep;
+  `resolve_dispatch("Universal")` = existing fallback; real-`run_batch`
+  universal-only log for `novel_name="Universal"`. `test_app.py` — construct test
+  updated (defaults to Universal, marked entries offered, Shadow Slave still
+  selectable) + 3 GUI-spy tests: default Universal start passes clean name +
+  `universal-1` output dir; marked "Re Monster — no profile yet" reaches run_batch as
+  "Re Monster" → `re-monster-1`; Shadow Slave selection unaffected.
+  `test_novel_profiles.py` roster[0] pin updated; `test_output_layout.py` +1
+  universal→`universal-1` contract test. End-to-end smoke outside pytest: real
+  roster (9 entries, Universal first, 5 marked), real `run_batch` on a pinned
+  fixture as "Universal" → `universal-1`, universal-only log, `profile_applied:
+  False`, original filename kept; marked selection cleans to `re-monster-1`.
+  `python scripts/verify.py` → **PASS (437 passed, 1 skipped — same pre-existing
+  environmental bash skip as Phase 2).** DECISIONS #031 (Universal entry + marker
+  approach) + #032 (default-selection change) appended. CHANGELOG/BRIEFING untouched
+  — Phase 6 per the drop. — Claude Code
+
+- 2026-07-18 — **Plan 1 (GUI & Batch Overhaul, v0.11.0) Phase 2 complete: output
+  mirroring + naming — forced `Downloads\<name>-x` output, `EDITED_` prefix dropped,
+  output-folder picker removed, folder-mode batch wired for real.** **Cleanup first:**
+  `md-instructions/kickoff-prompt.md` HAD been resurrected on this branch (Phase 1's
+  branch setup discarded the uncommitted deletion via checkout, un-deleting it) —
+  `git rm`'d and committed as its own commit (`d412cef`) before any Phase-2 work.
+  **Phase 2 work (TDD RED→GREEN: 26 new/updated tests watched fail before
+  implementation):** (1) `utils/file_utils.py` — new `downloads_dir()` (Windows:
+  `SHGetKnownFolderPath` + `FOLDERID_Downloads` via ctypes, verified live on HOME-PC;
+  fallback `Path.home()/"Downloads"`, which is also the future macOS branch — DECISIONS
+  #029), `kebab_case()`, and `next_numbered_output_dir()` (scan for `<base>-N`,
+  case-insensitive, dirs-only, numeric-suffix-only → max+1 starting at 1; names but
+  never creates the folder — DECISIONS #030); `unique_output_path` and `debug_text_path`
+  lose the `EDITED_` prefix (original filenames kept; collision `_2`/`_3` and `DEBUG_`
+  sidecar naming unchanged). (2) `core/batch_runner.py` — new optional
+  `mirror_root` param: each output lands under
+  `output_dir/<mirror_root's own name>/<relative subpath>` (subdirs created per file;
+  a file outside the root falls back flat instead of failing); the JSONL log name
+  needed no code change — it derives from the output path, so it became
+  `<name>_replacements.jsonl` automatically. (3) `gui/app.py` — Output Folder card,
+  "Choose Output Folder" button, `output_var`/`output_dir` state all removed (grid
+  renumbered); `_start_batch` now computes `Downloads\<kebab(selection)>-x` at click
+  time and runs BOTH modes for real (folder mode passes the scanned list +
+  `mirror_root`; Phase 1's "coming next" dialog is gone); worker uses per-batch
+  snapshot state (`_batch_files`/`_batch_output_dir`/`_batch_mirror_root`); status
+  strip shows `output: Downloads\<name>-x (auto)`. **Tests:** new
+  `files/tests/test_output_layout.py` (16 — downloads resolution incl. fallback
+  branch + real Windows known-folder, kebab-case table, `<name>-N` numbering: first/
+  max+1/ignores non-matching/case-insensitive/missing parent/never-creates);
+  `test_batch.py` +4 (mirrored tree under root name, flat without mirror_root,
+  sidecars beside mirrored outputs, collision suffix in subfolder) and the EDITED_
+  assertions updated to original-name assertions; `test_pdf.py` collision/debug tests
+  updated to prefix-less names; `test_app.py` — the Phase-1 folder-mode-deferred test
+  REPLACED by its Phase-2 successor (folder-mode Start runs a real mirrored batch into
+  the auto Downloads folder — same seam, inverted expectation, intent preserved) plus
+  upload-mode auto-output, folder-mode empty-warn, and output-picker-gone tests
+  (synchronous fake Thread + run_batch spy, no real sleeps). End-to-end smoke outside
+  pytest: real `scan_folder` → auto-increment past an existing `shadow-slave-1` →
+  mirrored `MyNovel/Volume 2/` tree with original filenames, 3/3 ok.
+  `python scripts/verify.py` → **PASS, 423 passed, 1 skipped** (pre-existing
+  environmental launcher `bash -n` skip — no bash on this session's PATH; ran and
+  passed in Phase 1's session, no launcher code touched this phase). DECISIONS #029 +
+  #030 appended (#030 notes the folder-name source is provisional until Phase 3 makes
+  "Universal" the default). CHANGELOG/BRIEFING untouched — Phase 6 per the drop.
+  — Claude Code
+
+- 2026-07-18 — **Plan 1 (GUI & Batch Overhaul, v0.11.0) Phase 1 complete: input model +
+  natural-order scanning, on the new branch `feature/gui-batch-overhaul`.**
+  **Branch setup first (2026-07-17):** verified `feature/junk-strip-hardening` is merged
+  into `main` (`94999a8`) and `main` == `origin/main` == `c424d30`; backed up the on-disk
+  gitignored `AI-WORKSPACE.md` outside the repo; discarded the stale uncommitted tracked
+  changes on the merged branch (the `AI-WORKSPACE.md` modification and the user-confirmed
+  `md-instructions/kickoff-prompt.md` deletion); checked out `main` (`git pull --ff-only`
+  → already up to date) and created `feature/gui-batch-overhaul`; restored
+  `AI-WORKSPACE.md` (untracked+ignored here, correct) — both plan drops preserved
+  untouched. **Phase 1 work (TDD RED→GREEN throughout):** (1) `scripts/requirements.txt`
+  += `natsort==8.4.0` — latest stable verified live on PyPI 2026-07-17, not pinned from
+  memory (Context7 confirmed the API surface; DECISIONS #028). (2) New
+  `scripts/Universal/core/input_scanner.py`: `scan_upload(paths)` (flat, caller order
+  preserved exactly, non-PDFs dropped) and `scan_folder(root)` (depth-first recursion;
+  at each level the directory's OWN PDFs first in natural order, then subfolders in
+  natural order; case-insensitive `.pdf` match; unreadable subdirs skipped;
+  `NotADirectoryError` on a missing root) — one shared
+  `natsort_keygen(alg=ns.IGNORECASE)` key. (3) GUI (`scripts/Universal/gui/app.py`):
+  the "PDF Files" card became an "Input" card with a mutually exclusive radio pair
+  (Upload PDFs / Select Folder) that enables/disables each mode's controls
+  (`add/remove/clear` vs `Choose Folder…`); folder selection runs `scan_folder` and the
+  shared listbox previews the resolved processing order (relative POSIX paths in folder
+  mode, basenames in upload mode); status strip shows the active input mode + queued
+  count; ttk design system untouched (added only a `TRadiobutton` style on the existing
+  tokens). **Folder-mode Start is intentionally a no-op behind an explanatory dialog —
+  Phase 1 only resolves and displays the order; batch/output wiring is Phase 2** (pinned
+  by test so it can't silently regress). Upload-mode batch flow unchanged (list
+  rendering consolidated into one `_refresh_file_list` helper). **Tests:** new
+  `files/tests/test_input_scanner.py` (14 — numeric/mixed/case ordering, depth-first
+  contract, nested numeric dirs, empty folder, non-PDF ignore, case-insensitive
+  extension, missing-folder raise, upload order preserved) + 4 new GUI tests in
+  `test_app.py` (toggle default + both radios, enablement flip both directions,
+  folder-scan resolved-order display, folder-mode Start deferred) — each watched RED
+  before implementation. `python scripts/verify.py` → **PASS, 401 passed, 0 skipped**
+  (was 383; +18). DECISIONS #028 appended (natsort adoption). Docs beyond
+  Handoff/DECISIONS untouched — CHANGELOG v0.11.0 entry is this plan's Phase 6 per the
+  drop. — Claude Code
 
 - 2026-07-16 — **Phase 11 complete: final verify & wrap-up — the entire junk-strip-hardening
   plan (Phases 0–11) is DONE; branch pushed to origin, left UNMERGED for the user's review.**
@@ -617,6 +903,135 @@ below that say "4" are append-only history, left as written.
 ---
 
 ## Session Sync Log (newest first)
+
+### 2026-07-19 — HOME-PC — PUSHED (Plan 1 Phase 6: bug hunt + seam doc + final docs — PLAN COMPLETE)
+- Branch:  feature/gui-batch-overhaul (1 commit this session on top of 12b62df)
+- Changed: scripts/Universal/core/batch_runner.py (edit count excludes integrity_flag
+           records — DECISIONS #035),
+           scripts/Universal/gui/app.py (per-batch snapshot of the three option
+           checkboxes; worker no longer reads Tk variables),
+           scripts/Universal/rules/junk_strip.py (comment-only: error-page count 4→3
+           per #027),
+           files/tests/test_pause_and_condensed_log.py (+1 regression:
+           test_edit_count_excludes_integrity_flags),
+           md-instructions/Changelog.md (new v0.11.0 entry),
+           md-instructions/Briefing.md (v0.11.0: new Current State + Architecture/
+           Plan-2-seam section + description/git-state/deferred/Next-Steps updates),
+           md-instructions/Decisions.md (appended #035; restored the lost ## 028
+           heading line),
+           md-instructions/build-spec.md (v0.11.0 reconciliation note),
+           README.md (new output/input model + v0.11.0 Status),
+           md-instructions/Handoff.md (Current Focus + Work Log + this entry)
+- Deleted: md-instructions/plan-1-gui-batch-overhaul.md (drop complete per its
+           Definition of Done — read, implemented, verified, deleted)
+- Note:    scratchpad phase6_e2e.py (end-to-end integration proof) ran outside the
+           repo — not committed, listed for the record.
+- Result:  python scripts/verify.py → PASS (514 passed, 0 skipped). Plan 1 complete;
+           branch pushed, NOT merged — awaiting the user's end-of-plan sign-off.
+           Next: Plan 2 (reconcile its drop against the real v0.11.0 tree first).
+
+### 2026-07-19 — HOME-PC — PUSHED (Plan 1 Phase 5: TTS jargon sweep rule)
+- Branch:  feature/gui-batch-overhaul (1 commit this session on top of 04926d5)
+- Changed: scripts/Universal/rules/junk_strip.py (decorative-run Tier-1 rule:
+           _DECORATIVE_RUN_RE + _strip_decorative_runs_line wired between the domain
+           pass and Tier 2; docstring Tier-1 summary updated),
+           files/tests/test_junk_strip_hardening.py (+44 Phase-5 tests: standalone
+           runs, minimum-span adjacency, hostile asterisk/symbol survival, logging,
+           shield, idempotence, 10-fixture byte-no-op),
+           files/tests/test_junk_strip_corpus.py (+1 corpus-marked asterisk/hash
+           preservation test over the NQ+SM samples),
+           md-instructions/EDITING-RULES.md (Stage-1.5 decorative-run section +
+           TTS-criteria addendum),
+           md-instructions/Decisions.md (appended #034 decorative-run gates),
+           md-instructions/Handoff.md (Current Focus + Work Log + this entry)
+- Note:    files/qa-tools/scratch/plan1_phase5_decorative_scan.py (recon scan) is
+           gitignored scratch — not committed, listed for the record.
+- Result:  python scripts/verify.py → PASS (512 passed, 1 skipped — pre-existing
+           environmental launcher bash skip; was 457/0). Phase 6 (bug hunt + seam
+           doc + final docs) is next.
+
+### 2026-07-18 — HOME-PC — PUSHED (Plan 1 Phase 4: pause/continue + condensed log)
+- Branch:  feature/gui-batch-overhaul (1 commit this session on top of 308f85e)
+- Added:   files/tests/test_pause_and_condensed_log.py (17 tests — pause gate contract,
+           condensed line formats + tags, summary block, ⚠-filter, Universal log line)
+- Changed: scripts/Universal/core/batch_runner.py (pause_gate param + between-files
+           hold; condensed one-line-per-file log + end-of-batch summary block;
+           ReplacementLog always built for edit counts, JSONL still option-gated;
+           pipeline gui_log filtered to ⚠-only; explicit-Universal log line),
+           scripts/Universal/gui/app.py (pause_gate Event + Pause ⇄ Continue button,
+           _toggle_pause/_reset_pause_control, worker passes the gate),
+           files/tests/test_app.py (+2 pause-button/gate-wiring tests),
+           md-instructions/Decisions.md (appended #033 session-only pause, rel. #020),
+           md-instructions/Handoff.md (Current Focus + Work Log + this entry)
+- Result:  python scripts/verify.py → PASS (457 passed, 0 skipped — the environmental
+           launcher bash skip of Phases 2/3 ran and passed this session; was 437/1).
+           Phase 5 (TTS jargon sweep rule) is next.
+
+### 2026-07-18 — HOME-PC — PUSHED (Plan 1 Phase 3: "Universal" default entry + markers)
+- Branch:  feature/gui-batch-overhaul (1 commit this session on top of 7eeab8f)
+- Changed: scripts/Universal/core/novel_registry.py (DEFAULT_NOVEL → "Universal";
+           NO_PROFILE_MARKER + clean_novel_name added; available_novels injects
+           Universal first + marks profile-less novels; dispatch/_REGISTRY untouched),
+           scripts/Universal/gui/app.py (_start_batch maps display → clean name before
+           run_batch + folder naming; status strip uses clean name; dropdown helper
+           text),
+           files/tests/test_novel_registry.py (roster/marker/clean-name/dispatch/
+           run_batch-Universal tests added, existing roster + default pins updated),
+           files/tests/test_app.py (default-Universal construct pins + 3 GUI-spy
+           mapping tests),
+           files/tests/test_novel_profiles.py (roster[0] pin → "Universal"),
+           files/tests/test_output_layout.py (+1 universal→universal-1 contract test),
+           md-instructions/Decisions.md (appended #031 Universal entry/markers,
+           #032 default-selection change),
+           md-instructions/Handoff.md (Current Focus + Work Log + this entry)
+- Result:  python scripts/verify.py → PASS (437 passed, 1 skipped — same pre-existing
+           environmental launcher bash skip as Phase 2; was 423/1). Phase 4
+           (pause/continue + condensed log) is next.
+
+### 2026-07-18 — HOME-PC — PUSHED (Plan 1 Phase 2: output mirroring + naming)
+- Branch:  feature/gui-batch-overhaul (2 commits this session: the kickoff-prompt.md
+           re-deletion `d412cef` + the Phase-2 commit)
+- Deleted: md-instructions/kickoff-prompt.md (user-intended deletion resurrected by
+           Phase 1's branch-setup checkout; `git rm`'d as its own commit first)
+- Added:   files/tests/test_output_layout.py (16 tests — Downloads resolution,
+           kebab_case, <name>-N auto-numbering)
+- Changed: scripts/Universal/utils/file_utils.py (downloads_dir/kebab_case/
+           next_numbered_output_dir added; EDITED_ prefix dropped from
+           unique_output_path + debug_text_path),
+           scripts/Universal/core/batch_runner.py (mirror_root param + docstring),
+           scripts/Universal/core/replacement_log.py (docstring name ripple),
+           scripts/Universal/gui/app.py (output picker removed; auto Downloads output;
+           folder-mode batch wired; per-batch worker state; status strip),
+           files/tests/test_batch.py (+4 mirroring tests; EDITED_ → original names),
+           files/tests/test_pdf.py (prefix-less collision/debug assertions),
+           files/tests/test_app.py (Phase-1 deferred-stub test replaced by real
+           folder-mode wiring test; +3 more: upload auto-output, empty-folder warn,
+           picker gone),
+           md-instructions/Decisions.md (appended #029 Downloads resolution,
+           #030 output naming/EDITED_ drop — provisional pending Phase 3),
+           md-instructions/Handoff.md (Current Focus + Work Log + this entry)
+- Result:  python scripts/verify.py → PASS (423 passed, 1 skipped — pre-existing
+           environmental launcher bash skip, not a regression; was 401/0 in Phase 1's
+           session where bash was on PATH). Phase 3 (Universal default entry +
+           profile-less markers) is next.
+
+### 2026-07-18 — HOME-PC — PUSHED (Plan 1 Phase 1: input model + natural-order scanning)
+- Branch:  feature/gui-batch-overhaul — NEW, off main @ c424d30 (junk-strip-hardening merged
+           by the user via 94999a8; old feature branch abandoned as history). First push of
+           this branch to origin as the in-progress backup.
+- Added:   scripts/Universal/core/input_scanner.py (ordered-list builder, both input modes),
+           files/tests/test_input_scanner.py (14 tests — ordering contract pinned)
+- Changed: scripts/requirements.txt (+ natsort==8.4.0, pinned, comment),
+           scripts/Universal/gui/app.py (Input card: two-mode toggle, folder picker,
+           resolved-order preview; folder-mode Start deferred to Phase 2 behind a dialog),
+           files/tests/test_app.py (+4 GUI tests),
+           md-instructions/Decisions.md (appended #028 — natsort adoption),
+           md-instructions/Handoff.md (Current Focus rewritten for Plan 1 + this entry)
+- Local-only (untracked/gitignored by design): AI-WORKSPACE.md (restored on-disk copy,
+           gitignored on this branch), .claude/, the two plan drops stay untracked as drops
+           (plan-1-gui-batch-overhaul.md is the ACTIVE drop — deleted only at end of plan).
+- Result:  python scripts/verify.py → PASS (401 passed, 0 skipped; was 383). Phase 2
+           (output mirroring + naming) is next.
 
 ### 2026-07-16 — HOME-PC — PUSHED (Phase 11: final verify & wrap-up; plan COMPLETE, branch UNMERGED)
 - Branch:  feature/junk-strip-hardening (Phase 11, 1 commit on top of 9865297); pushed to

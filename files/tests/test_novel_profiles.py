@@ -87,7 +87,7 @@ def test_new_profiles_appear_in_shipped_roster() -> None:
     roster = available_novels(NOVEL_INDEX_DIR)
     assert "The Noble Queen" in roster
     assert "Supreme Magus" in roster
-    assert roster[0] == "Shadow Slave"  # default-first ordering unchanged
+    assert roster[0] == "Universal"  # Plan 1 Phase 3: Universal is the default entry
 
 
 def test_unauthored_novels_still_fall_back_to_universal_only() -> None:

@@ -22,8 +22,10 @@ import pytest
 
 from core.novel_registry import (
     DEFAULT_NOVEL,
+    NO_PROFILE_MARKER,
     NOVEL_INDEX_DIR,
     available_novels,
+    clean_novel_name,
     display_name_from_index_filename,
     index_filename_for,
     resolve_dispatch,
@@ -80,7 +82,14 @@ def test_available_novels_derived_from_synthetic_index_dir(tmp_path: Path) -> No
     for fn in ["shadow-slave.txt", "lord-of-the-mysteries.txt", "re-monster.txt"]:
         (tmp_path / fn).write_text("", encoding="utf-8")
     roster = available_novels(tmp_path)
-    assert roster == ["Shadow Slave", "Lord of the Mysteries", "Re Monster"]
+    # "Universal" is injected first (the default); index-derived novels follow
+    # alphabetically, profile-less ones carrying the "no profile yet" marker.
+    assert roster == [
+        "Universal",
+        "Lord of the Mysteries" + NO_PROFILE_MARKER,
+        "Re Monster" + NO_PROFILE_MARKER,
+        "Shadow Slave",
+    ]
     assert roster[0] == DEFAULT_NOVEL  # default listed first
 
 
@@ -89,20 +98,74 @@ def test_available_novels_includes_empty_placeholder_files(tmp_path: Path) -> No
     (tmp_path / "shadow-slave.txt").write_text("real terms\n", encoding="utf-8")
     (tmp_path / "reverend-insanity.txt").write_text("", encoding="utf-8")  # placeholder
     roster = available_novels(tmp_path)
-    assert "Reverend Insanity" in roster
+    assert "Reverend Insanity" + NO_PROFILE_MARKER in roster
 
 
 def test_available_novels_falls_back_when_folder_missing(tmp_path: Path) -> None:
-    assert available_novels(tmp_path / "nope") == [DEFAULT_NOVEL]
+    assert available_novels(tmp_path / "nope") == ["Universal"]
 
 
-def test_shipped_roster_has_known_novels_with_default_first() -> None:
+def test_default_novel_is_universal() -> None:
+    """Plan 1 Phase 3: the default dropdown selection is "Universal", not Shadow Slave."""
+    assert DEFAULT_NOVEL == "Universal"
+
+
+def test_shipped_roster_has_known_novels_with_universal_first() -> None:
     roster = available_novels(NOVEL_INDEX_DIR)
-    assert roster[0] == "Shadow Slave"
-    for expected in ["Shadow Slave", "Lord of the Mysteries", "Reverend Insanity"]:
+    assert roster[0] == "Universal"
+    for expected in ["Universal", "Shadow Slave",
+                     "Lord of the Mysteries" + NO_PROFILE_MARKER,
+                     "Reverend Insanity" + NO_PROFILE_MARKER]:
         assert expected in roster
-    # One entry per committed *.txt index file.
-    assert len(roster) == len(list(NOVEL_INDEX_DIR.glob("*.txt")))
+    # One entry per committed *.txt index file, plus the injected "Universal".
+    assert len(roster) == len(list(NOVEL_INDEX_DIR.glob("*.txt"))) + 1
+
+
+def test_shipped_roster_marks_exactly_the_five_profileless_novels() -> None:
+    """The marker sits on exactly the 5 profile-less novels — and never on the 3 real
+    profiles or on "Universal"."""
+    roster = available_novels(NOVEL_INDEX_DIR)
+    marked = {n for n in roster if n.endswith(NO_PROFILE_MARKER)}
+    unmarked = set(roster) - marked
+    assert marked == {
+        "Circle of Inevitability" + NO_PROFILE_MARKER,
+        "Lord of the Mysteries" + NO_PROFILE_MARKER,
+        "Re Monster" + NO_PROFILE_MARKER,
+        "Renegade Immortal" + NO_PROFILE_MARKER,
+        "Reverend Insanity" + NO_PROFILE_MARKER,
+    }
+    assert unmarked == {"Universal", "Shadow Slave", "Supreme Magus", "The Noble Queen"}
+
+
+# -- display string -> clean novel name (the GUI-side mapping) --------------------------
+
+@pytest.mark.parametrize(
+    "display, expected",
+    [
+        ("Universal", "Universal"),                                # default passes through
+        ("Shadow Slave", "Shadow Slave"),                          # real profile untouched
+        ("Re Monster" + NO_PROFILE_MARKER, "Re Monster"),          # marker stripped
+        ("Lord of the Mysteries" + NO_PROFILE_MARKER, "Lord of the Mysteries"),
+        ("Some Unlisted Novel", "Some Unlisted Novel"),            # unmarked passthrough
+    ],
+)
+def test_clean_novel_name(display: str, expected: str) -> None:
+    assert clean_novel_name(display) == expected
+
+
+def test_every_roster_entry_cleans_to_a_dispatchable_name() -> None:
+    """Cleaning any shipped roster entry yields a name resolve_dispatch handles: real
+    profiles resolve to themselves; marked entries and "Universal" go universal-only."""
+    for entry in available_novels(NOVEL_INDEX_DIR):
+        clean = clean_novel_name(entry)
+        assert NO_PROFILE_MARKER not in clean
+        d = resolve_dispatch(clean)
+        if entry.endswith(NO_PROFILE_MARKER) or clean == "Universal":
+            assert d.has_profile is False
+            assert d.run_pipeline is lord_of_mysteries.run_pipeline
+        else:
+            assert d.has_profile is True
+            assert d.display_name == clean
 
 
 # -- dispatch ---------------------------------------------------------------------------
@@ -131,6 +194,16 @@ def test_resolve_dispatch_unknown_or_empty_is_universal_only(name) -> None:
     assert d.has_profile is False
     assert d.run_pipeline is lord_of_mysteries.run_pipeline
     assert d.canonical_names == frozenset()
+
+
+def test_resolve_dispatch_universal_uses_existing_fallback() -> None:
+    """Selecting "Universal" rides the same unregistered-name fallback as today — no
+    registry entry, the LOTM-stub universal pipeline, an empty floor."""
+    d = resolve_dispatch("Universal")
+    assert d.has_profile is False
+    assert d.run_pipeline is lord_of_mysteries.run_pipeline
+    assert d.canonical_names == frozenset()
+    assert d.display_name == "Universal"
 
 
 def test_universal_fallback_applies_no_special_fixes() -> None:
@@ -238,3 +311,11 @@ def test_run_batch_profileless_novel_logs_universal_only(tmp_path: Path) -> None
     logs = _run_batch_logs({"novel_name": "Lord of the Mysteries"}, tmp_path)
     text = " ".join(m for _, m in logs)
     assert "universal-only editing" in text
+
+
+def test_run_batch_universal_selection_logs_universal_only(tmp_path: Path) -> None:
+    """The new explicit "Universal" selection runs the same universal-only path."""
+    logs = _run_batch_logs({"novel_name": "Universal"}, tmp_path)
+    text = " ".join(m for _, m in logs)
+    assert "universal-only editing" in text
+    assert "novel-specific editing layer" not in text

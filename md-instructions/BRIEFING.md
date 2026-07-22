@@ -1,12 +1,101 @@
 # Webnovel Editor — Project Briefing
 
-## Version: v0.10.0
+## Version: v0.11.0
 
 ## Last Updated
-2026-07-16 — v0.10.0: junk-strip hardening, new profiles (Noble Queen + Supreme Magus),
-PDF/GUI alignment, cross-platform repo reorg, launcher rebuild, docs pass (Phase 10)
+2026-07-19 — v0.11.0: GUI & Batch Overhaul (Plan 1, Phases 1–6): two-mode input +
+natural-order folder scanning, auto-numbered mirrored Downloads output, "Universal"
+default dropdown entry, pause/continue + condensed log, decorative-run TTS sweep,
+Plan-2 seam documented
 
-## Current State (v0.10.0)
+## Current State (v0.11.0)
+The "GUI & Batch Overhaul" plan (Plan 1, Phases 1–6) is complete on
+`feature/gui-batch-overhaul`. Headlines:
+- **Two-mode input (Phase 1):** the GUI's Input card offers mutually exclusive
+  **Upload PDFs** / **Select Folder** radio modes. Folder mode runs
+  `core/input_scanner.scan_folder` — a depth-first recursive scan where each
+  directory's own PDFs come first in **natural order** (1, 2, 10 — `natsort==8.4.0`,
+  case-insensitive) followed by its subfolders in natural order; the listbox previews
+  the resolved processing order. Upload mode preserves the user's upload order exactly.
+- **Forced, mirrored output (Phase 2):** no output-folder picker. Every batch writes
+  into a fresh **`Downloads\<name>-x`** folder (`<name>` = kebab-cased novel selection,
+  `x` = max(N)+1 over existing `<name>-N` dirs — never reused, never overwritten).
+  Downloads resolves via `SHGetKnownFolderPath` (ctypes) with a `~/Downloads` fallback
+  (`utils/file_utils.downloads_dir`). Folder mode mirrors the selected folder's tree
+  (its own name as the root) inside `<name>-x`; upload mode is flat. **Original
+  filenames are kept** (the `EDITED_` prefix is gone); collision `_2`/`_3` suffixes,
+  `DEBUG_<name>.txt`, and `<name>_replacements.jsonl` sidecars remain.
+- **"Universal" default (Phase 3):** the dropdown roster leads with an injected
+  **"Universal"** entry — the default selection — dispatching through the existing
+  unregistered-name fallback (universal-only editing; registry untouched). The 5
+  profile-less novels carry a display-only " — no profile yet" marker, stripped by
+  `clean_novel_name()` in the GUI before any name reaches dispatch or folder naming
+  (default output is therefore `Downloads\universal-x`).
+- **Pause/continue + condensed log (Phase 4):** `run_batch` takes an optional
+  `pause_gate` `threading.Event` consulted only BETWEEN files — the in-flight file
+  always finishes, so pausing can never corrupt an output (the safe seam DECISIONS
+  #020's deferred cancellation lacked; session-only, no persistence — #033). The GUI
+  has a Pause ⇄ Continue button enabled only while running. The log is condensed: one
+  line per file (`[i/N] name — done (X edits)` / `— skipped (…)` / `— FAILED (…)`)
+  plus an end-of-batch summary block; verbose stage chatter lives only in the JSONL;
+  "⚠" integrity warnings still surface. The per-file `ReplacementLog` is always
+  constructed (feeds the edit count); `integrity_flag` records never count as edits.
+- **Decorative-run TTS sweep (Phase 5):** `rules/junk_strip.py` Tier 1 removes
+  whitespace-delimited runs of `~ \ - = * #` (≥3 symbols, internal spaces allowed —
+  `* * *`, `-=-=-`, `~~~`) that TTS would voice character by character. Everything
+  glued to a word, single symbols, and two-symbol spans survive — the corpus's ~810
+  legitimate asterisks (censored profanity, authored emphasis, footnotes) are
+  test-pinned untouchable (DECISIONS #034). Corpus-no-op insurance on current data.
+- **Phase 6 bug hunt:** no Critical bugs. Fixed: edit counts no longer include
+  `integrity_flag` records; GUI worker no longer reads Tk variables off-thread
+  (per-batch snapshots); stale docs/comments reconciled. A real end-to-end run
+  proved the full chain (folder scan → mirrored `universal-x` → Universal dispatch →
+  mid-batch pause → decorative-run stripping) works together.
+
+## Architecture — per-file batch loop and the Plan-2 seam
+`core/batch_runner.run_batch` processes files sequentially; per file:
+**extract** (`pdf/extractor.extract_text_from_pdf`, low-confidence skip) →
+**editorial rule pipeline** (`dispatch.run_pipeline` via `core/novel_registry`) →
+**build** (`pdf/builder.build_pdf` into the mirrored/flat output path). Each file is
+wrapped in its own try/except (continue-on-failure), and the pause gate is consulted
+only between files.
+
+**The post-pipeline pre-build hook (Plan 2's insertion seam).** There is exactly one
+clean structural seam for a future AI editing stage: inside the per-file loop of
+`scripts/Universal/core/batch_runner.py`, **after** `text = dispatch.run_pipeline(...)`
+returns (currently lines ~185–187) and **before** `build_pdf(text, out_path)`
+(currently line ~214). At that point the file's fully rule-edited text exists as a
+plain string, its `ReplacementLog` is live, and nothing has been written to disk.
+Plan 2's Ollama/Qwen stage slots in there as a text-in/text-out call — ideally
+immediately after the rule pipeline and **before the edit count / dry-run check**, so
+its edits appear in the condensed "X edits" count and dry runs exercise the full text
+path without writing PDFs. The hook is **documented only — deliberately not built**
+(no empty callback exists in the code). A Plan-2 implementation must honor this
+contract:
+- **Text-in/text-out, no I/O:** transform the string; never touch the input file;
+  `build_pdf` stays the only writer, so output naming/mirroring/collision handling
+  are inherited unchanged.
+- **Dry-run:** with `dry_run=True` the loop skips PDF output but still runs the text
+  path — an AI stage placed at the seam runs in dry runs too (in-memory only), which
+  is the intended preview behavior.
+- **Pause-gate interaction:** the Phase-4 gate holds only BETWEEN files, so the AI
+  stage runs to completion for the in-flight file — AI latency lengthens the "current
+  file will finish first" window; do not add a mid-file hold without a superseding
+  DECISIONS entry.
+- **Logging conventions:** record every AI change into the same per-file
+  `ReplacementLog` (own rule prefix, e.g. `ai_editor.*`) so JSONL provenance and the
+  edit count work; keep the GUI log condensed (one line per file) — verbose detail
+  goes to the JSONL; surface problems as `⚠`-prefixed `gui_log` lines (the runner's
+  filter forwards only `⚠` lines to the GUI); `category="integrity_flag"` records are
+  excluded from edit counts by design.
+- **Failure semantics:** raising inside the seam marks that one file FAILED and the
+  batch continues (existing per-file try/except); a graceful skip-AI fallback must be
+  logged honestly, not silently.
+- **Protected terms:** the run's `ProtectedLexicon` is in scope at the seam — AI
+  editing must preserve protected terms (mask before / verify counts after), matching
+  the pipeline's guarantee.
+
+## Prior: v0.10.0
 The "junk-strip-hardening" plan (Phases 0–10) is complete. Headlines:
 - **Two new real per-novel profiles: Supreme Magus and The Noble Queen** (Phase 5b), joining
   Shadow Slave. Each is selectable in the dropdown, applies only its own edits, and does not
@@ -97,17 +186,20 @@ v0.6.1 to its two-case form: numeric slash -> "out of"; every other slash preser
 ## What This Project Is
 A local desktop (Tkinter) tool that batch-cleans messy webscraped webnovel chapter PDFs into
 clean, **TTS-ready** PDFs for listening as audiobooks (Kokoro / Microsoft TTS). It extracts
-text, runs a deterministic rule-based editorial pipeline (no AI rewriting), and writes
-`EDITED_<name>.pdf` to a user-chosen folder. Originals are never modified. First novel:
-Shadow Slave (plus Supreme Magus and The Noble Queen as of v0.10.0); multi-novel by design.
-Tech stack: Python 3.10+ (built on 3.12.10), Tkinter, pdfplumber, reportlab, pytest.
+text, runs a deterministic rule-based editorial pipeline (no AI rewriting), and writes each
+edited PDF **under its original filename** into a fresh auto-numbered
+`Downloads\<novel>-x` folder (v0.11.0 — mirrored tree in folder-input mode, flat in
+upload mode). Originals are never modified. First novel: Shadow Slave (plus Supreme Magus
+and The Noble Queen as of v0.10.0); multi-novel by design; "Universal" (universal-only
+editing) is the default dropdown choice as of v0.11.0.
+Tech stack: Python 3.10+ (built on 3.12.10), Tkinter, pdfplumber, reportlab, natsort, pytest.
 (`PyPDF2`/`pypdf` is intentionally NOT a dependency — see Deferred Features.)
 
 ## Repo / Git State
-- Under git. Current work is on branch **`feature/junk-strip-hardening`** (the v0.10.0
-  junk-strip-hardening plan, Phases 0–10). The registry work was reused from `origin/main`
-  (v0.9.0) rather than rebuilt; the pre-reconcile WIP is archived as
-  `archive/junk-strip-hardening-pre-0.5`.
+- Under git. Current work is on branch **`feature/gui-batch-overhaul`** (the v0.11.0
+  GUI & Batch Overhaul plan — Plan 1, Phases 1–6 complete), branched off `main` @
+  `c424d30` after the junk-strip-hardening plan (v0.10.0) was merged into `main`
+  (`94999a8`). Awaiting the user's end-of-plan sign-off before any merge to `main`.
 - **Layout (post Phase-8 reorg):** all program code under `scripts/Universal/`; shipped
   runtime data under `scripts/Universal/resources/{novel-index,Novel-Edits-Details}/`;
   `scripts/requirements.txt` + `scripts/verify.py` at the `scripts/` root;
@@ -137,8 +229,10 @@ Tech stack: Python 3.10+ (built on 3.12.10), Tkinter, pdfplumber, reportlab, pyt
   reproducible (all inputs are single-chapter). No PDF-rewrite path exists, so **`pypdf` is not
   a dependency**; it would be re-added + pinned only if deletion is ever built. (DECISIONS.md
   #017/#018.)
-- **Cooperative Stop/Cancel in the GUI** (Phase 7): deferred — `run_batch` has no safe
-  cancellation seam; killing a worker mid-PDF-write risks a corrupt output. (DECISIONS.md #020.)
+- **Cooperative Stop/Cancel in the GUI**: still deferred (DECISIONS.md #020) — but as of
+  v0.11.0 the **pause/continue** feature built exactly the safe between-files checkpoint
+  that discussion described (`run_batch`'s `pause_gate`, DECISIONS #033). A future Stop
+  can reuse that same seam; killing a worker mid-PDF-write remains the hazard to avoid.
 - **Tier 2 junk-strip** is built but log-only / default-off (heuristic promo lines).
 - **Real per-novel profiles beyond the three shipped** (Shadow Slave, Supreme Magus, The Noble
   Queen). Renegade Immortal / Reverend Insanity and other dataless novels remain universal-only
@@ -286,10 +380,14 @@ Inspecting the real extracted fixtures this session refined the prior recon:
 - Docs: `md-instructions/CHANGELOG.md`, `md-instructions/BRIEFING.md`.
 
 ## Next Steps
-- **v0.10.0 is complete and committed on `feature/junk-strip-hardening` (local only — not
-  pushed; awaiting the user's review before it hits origin).** The instruction drop
-  (`Instructions_Phase10_JunkStrip_And_QA.md`) is Phase 11's to delete + final-verify + the
-  user's end-of-plan sign-off before any merge to `main`.
+- **v0.11.0 (Plan 1 — GUI & Batch Overhaul) is complete and pushed on
+  `feature/gui-batch-overhaul`, awaiting the user's end-of-plan sign-off before merge
+  to `main`.** The plan drop has been deleted per its Definition of Done.
+- **Plan 2 (AI editor integration, `plan-2-ai-editor-integration.md`) is next.** It was
+  drafted against a much earlier repo state and must be **rewritten/reconciled against
+  the real v0.11.0 tree first** (same as Plan 1's v2 reconciliation). Its stage slots
+  into the documented **post-pipeline pre-build hook** (see Architecture above) and
+  must honor that seam's contract.
 - **Authoring more real per-novel profiles** is a data/porting exercise on the validated seam:
   populate `scripts/Universal/profiles/<novel>/canonical_names.py` + `special_fixes.py` and
   `scripts/Universal/resources/novel-index/<novel>.txt`, add a `<Novel-Name>.md`, register in

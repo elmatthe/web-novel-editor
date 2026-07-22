@@ -9,6 +9,223 @@ its original decision date. New decisions continue to be appended here (newest o
 
 ---
 
+## 035 — Plan 1 Phase 6: condensed-log edit count excludes `integrity_flag` records — 2026-07-19 — Claude Code
+
+**Status:** Accepted
+**Context:** The Phase-4 condensed log shows `[i/N] name — done (X edits)` with X =
+`len(repl_log)`. But the pipeline also records **`integrity_flag`** entries into the same
+per-file `ReplacementLog` (Cloudflare error pages #005, heading-only pages #017) — these
+mark *problems*, not edits. An error-page file (chapter text missing, nothing edited)
+would have read "done (1 edit)", presenting a data-loss flag as a successful edit.
+**Decision:** `run_batch` counts only entries whose `category != "integrity_flag"` for
+the condensed line (and its "X edits" label). The flag records themselves stay in the
+JSONL unchanged — the count is display-only. The heading-only-page flag (recorded after
+the done line) and the error-page flag (recorded by the pipeline before it) now behave
+consistently: neither inflates the count, both remain in the JSONL, and the "⚠" GUI
+warning still surfaces the problem loudly. Pinned by
+`test_edit_count_excludes_integrity_flags`.
+**Alternatives considered:** Keeping `len(repl_log)` — rejected: it misreports a flagged
+problem as an edit on exactly the files a user most needs to scrutinize. A separate
+"flags" counter in the condensed line — rejected: the ⚠ warning line already surfaces
+the flag; adding a second number to every line clutters the condensed format for a
+3-known-files edge case.
+**Consequences:** JSONL content and schema unchanged; only the GUI count changed. Any
+future rule that records a non-edit marker should use `category="integrity_flag"` to
+stay out of the count.
+
+## 034 — Plan 1 Phase 5: decorative-run sweep gated at ≥3 symbols of exactly `~ \ - = * #`, whitespace-delimited — 2026-07-19 — Claude Code
+
+**Status:** Accepted
+**Context:** The plan's TTS jargon sweep must remove decorative filler runs (`~~~`, `-=-=-`,
+`***`) that a TTS engine voices character by character, while the Phase-4 sweep proved the
+corpora carry ~810 legitimate asterisks (censored profanity `f*ck`, authored `*emphasis*`,
+footnote markers) plus authored `~`/`#`/`-` in prose that must survive untouched.
+**Decision:** The new Tier-1 rule (`junk_strip.decorative_run`) fires only when ALL of:
+(1) the span is whitespace-delimited on both sides (nothing glued to a word or punctuation);
+(2) it consists solely of the six symbols `~ \ - = * #` plus internal spaces (so `* * *` and
+`\ \ \` are one span); (3) it contains **≥3 symbol characters**. Removal follows the existing
+domain-pass conventions verbatim: `_clean_removal_seam` minimum-span excision, emptied-line
+drop, `_record(...)` → JSONL (`category="fingerprint"`), and a `ProtectedLexicon` shield on
+the span. A 2026-07-18 recon scan of all 7,979 cached raw extractions found **zero**
+qualifying spans and zero asterisks inside any candidate span — the rule is corpus-no-op
+insurance, and the SS byte-no-op corpus test plus a new asterisk/hash-preservation corpus
+test pin that.
+**Alternatives considered:** A ≥2 threshold — rejected: `**` is a real footnote-marker
+convention and `--`/`~~` are plausible authored marks; 3 keeps a safety margin. Including
+`_`/`+`/`.`/`—` in the symbol set — rejected: `___` is an authored blank ("Mr. ___"), `+`/`.`
+collide with arithmetic and ellipses, and em-dash runs belong to the em-dash stage. A
+line-level heuristic ("mostly symbols → drop line") — rejected: violates the minimum-span
+rule and risks prose loss. Skipping the lexicon shield (Tier 1 domain passes don't shield) —
+rejected: the plan explicitly requires protected terms shielded and the check is one line.
+**Consequences:** Scene-break dividers are removed as junk (correct for TTS — they would be
+voiced); a future "keep dividers as pauses" feature would need a superseding entry. Single
+and paired symbols always survive, so no censored word, emphasis pair, footnote marker,
+dialogue bullet, or numeric range can ever match structurally.
+
+## 033 — Plan 1 Phase 4: session-only pause/continue via a between-files Event gate (the safe seam DECISIONS #020's deferred cancellation lacked) — 2026-07-18 — Claude Code
+
+**Status:** Accepted
+**Context:** DECISIONS #020 deferred Stop/Cancel because `run_batch` had no cooperative
+seam — killing the daemon worker mid-PDF-write risks a corrupt output, and the scraper's
+cancellation machinery was out of scope to port. The plan's pause feature builds exactly
+the between-files checkpoint that discussion described: pause is safe where cancellation
+wasn't, because it only ever holds *between* files — the file in flight always finishes
+and is fully written before the loop can stop moving.
+**Decision:** `run_batch` gains an optional `pause_gate: threading.Event` (SET = run,
+cleared = pause requested), consulted only at the top of each iteration for files 2..N —
+never before the first file or after the last. On a cleared gate it logs "Paused after
+chapter N of M." and blocks on `pause_gate.wait()` until Continue sets it. The GUI owns
+one gate per app (`self.pause_gate`) wired to a Pause ⇄ Continue button that is enabled
+only while a batch runs; `_start_batch` re-sets the gate so a new batch always starts
+un-paused. **Pause state is session-only — deliberately no persistence across GUI
+restarts:** the gate is in-memory only, and closing the app while paused simply ends the
+daemon worker with the partial batch's completed outputs intact (re-running later is a
+fresh `<name>-x` folder by the Phase-2 numbering, so nothing is overwritten). The batch
+also gained the always-constructed per-file `ReplacementLog` so the condensed log line
+can show an edit count even when the JSONL option is off (the JSONL file itself is still
+written only when enabled).
+**Alternatives considered:** A polling loop on a "paused" flag — rejected: `Event.wait()`
+blocks without busy-waiting and needs no poll interval. Persisting pause/queue state to
+disk for resume-after-restart — rejected: heavy machinery for a session tool, and the
+numbered-output contract already makes a re-run safe. Extending pause into full
+cancellation — rejected: still out of scope; #020's corruption analysis stands, and a
+future Stop can now reuse this same between-files seam as its checkpoint.
+**Consequences:** No threading-model change (same daemon worker + `after(0, ...)`
+marshalling); headless callers that pass no gate are byte-identical in behavior. The
+condensed-log rewrite in the same phase means pipeline "⚠" integrity warnings
+(DECISIONS #005/#017) are explicitly forwarded to the GUI while verbose stage chatter
+stays in the JSONL.
+
+## 032 — Plan 1 Phase 3: default dropdown selection changed Shadow Slave → "Universal" — 2026-07-18 — Claude Code
+
+**Status:** Accepted
+**Context:** Since v0.9.0 the GUI dropdown pre-selected "Shadow Slave", making one novel's
+full profile the implicit default for every batch. The plan promotes universal-only
+editing — which every novel receives anyway as its baseline — to an explicit, named,
+default choice, so a user who just wants generic cleanup never accidentally runs Shadow
+Slave's forced substitutions on another novel's text.
+**Decision:** `novel_registry.DEFAULT_NOVEL` is now `"Universal"`; the GUI pre-selects it.
+Shadow Slave stays in the roster (alphabetical with the other index-derived novels), just
+no longer pre-selected. This also finalizes the DECISIONS #030 provisional note: the
+default output folder is now `Downloads\universal-x`, produced by the existing Phase-2
+`kebab_case(<selection>)` with zero Phase-2 code change (pinned by test).
+**Alternatives considered:** Keeping Shadow Slave as default — rejected: a novel-specific
+profile is the wrong implicit choice for a multi-novel tool, and the plan's goal is
+universal-first. A `None`/blank default — rejected: the dropdown must never be empty and
+"Universal" names the behavior honestly.
+**Consequences:** Tests asserting the Shadow Slave default were updated in place
+(`test_app`, `test_novel_registry`, `test_novel_profiles`). Selecting Shadow Slave (or any
+real profile) behaves exactly as before — only the pre-selection changed.
+
+## 031 — Plan 1 Phase 3: "Universal" roster entry injected outside the registry + display-only "no profile yet" markers stripped in the GUI — 2026-07-18 — Claude Code
+
+**Status:** Accepted
+**Context:** The plan requires "Universal" as a first-class roster entry and a visible
+marker on the 5 profile-less novels (Circle of Inevitability, Lord of the Mysteries,
+Re Monster, Renegade Immortal, Reverend Insanity), without rebuilding the shipped v0.9.0
+dispatch registry or disturbing the LOTM-stub universal-fallback invariant (#009/#014).
+**Decision:** `available_novels()` injects `"Universal"` as the first entry (it is not
+index-derived and has **no** `_REGISTRY` entry) and appends `NO_PROFILE_MARKER`
+(" — no profile yet") to any index-derived name not in `_REGISTRY`. "Universal"
+dispatches through `resolve_dispatch`'s **existing** unregistered-name fallback —
+universal pipeline, empty floor — so the dispatch layer is byte-for-byte untouched. The
+marker is **display-only**: `_norm_key` would not strip it, so a new
+`clean_novel_name()` (same module) maps display → clean name and the **GUI calls it in
+`_start_batch`** before the selection reaches `run_batch` or the output-folder
+kebab-casing (a marked selection can never leak `-no-profile-yet` into a folder name;
+pinned by test both at the registry and GUI-spy level).
+**Alternatives considered:** Registering "Universal" in `_REGISTRY` — rejected: the
+registry is for real per-novel profiles, and the fallback already does exactly this.
+Stripping markers inside `resolve_dispatch`/`_norm_key` — rejected: it would push GUI
+display concerns into the dispatch layer and mask genuine lookup mismatches. A separate
+marker-to-name dict in the GUI — rejected: two sources of truth for one convention;
+keeping marker + stripper beside the roster builder in `novel_registry` keeps it one.
+**Consequences:** Roster length is now index-file count + 1; `available_novels()`'s
+missing/empty-folder fallback returns `["Universal"]`. Adding a real profile later
+automatically drops that novel's marker (the roster consults `_REGISTRY`). The 5 marked
+novels still dispatch universal-only exactly as before.
+
+## 030 — Plan 1 Phase 2: forced output naming `Downloads\<name>-x` (kebab-case, max(N)+1) with original filenames — EDITED_ prefix dropped — 2026-07-18 — Claude Code
+
+**Status:** Accepted (folder-name source is provisional pending Phase 3)
+**Context:** The plan removes the user-chosen output folder entirely: every batch writes
+into a fresh folder in the user's Downloads, mirroring the input structure in folder mode
+(the selected folder's own name is the root inside it) and flat in upload mode. The old
+`EDITED_<name>.pdf` naming becomes redundant once outputs live in their own clearly-named
+folder, and it broke the "original filenames kept" mirroring contract.
+**Decision:** Output folder = `Downloads\<name>-x` where `<name>` is the kebab-cased novel
+selection (`kebab_case` in `utils/file_utils.py`) and `x` = max(N of existing `<name>-N`
+dirs, case-insensitive, numeric-suffix-only) + 1, starting at 1 — gaps are never reused, so
+a re-run never collides with or overwrites an earlier batch. `next_numbered_output_dir`
+only *names* the folder; `run_batch` creates it when the batch actually starts (dry runs
+create nothing). Output PDFs keep their original filenames; the per-file collision suffix
+(`_2`, `_3`, ...) stays; sidecars are now `<name>_replacements.jsonl` and `DEBUG_<name>.txt`
+beside each output (the JSONL name follows automatically since it derives from the output
+path). **Provisional note:** `<name>` currently kebab-cases the live dropdown selection
+(default "Shadow Slave" → `shadow-slave-x`); Phase 3 makes "Universal" the default entry,
+which will produce `universal-x` with no further code change here — deliberately NOT
+hardcoded ahead of that phase.
+**Alternatives considered:** Keeping the `EDITED_` prefix alongside the new folders —
+rejected: redundant marking, and mirrored trees must keep original names for 1:1
+correspondence with the source. Reusing numbering gaps (first free N) — rejected: max+1 is
+the plan's contract and keeps batch folders chronologically ordered. Creating the folder at
+selection time — rejected: an abandoned session would litter Downloads with empty folders.
+**Consequences:** The GUI's "Choose Output Folder" control and state are gone; `run_batch`
+gains an optional `mirror_root` param (folder mode) that routes each output into the
+mirrored subfolder. Tests asserting `EDITED_` names were updated in place
+(`test_pdf`/`test_batch`), and the Phase-1 folder-mode-deferred GUI test was replaced by
+tests pinning the real folder-mode batch wiring.
+
+## 029 — Plan 1 Phase 2: Downloads resolved via `SHGetKnownFolderPath` (ctypes) with `~/Downloads` fallback, behind one function — 2026-07-18 — Claude Code
+
+**Status:** Accepted
+**Context:** The forced output location writes into the user's Downloads. Assuming
+`%USERPROFILE%\Downloads` is wrong on Windows when the user has relocated the folder
+(Explorer's "Location" tab / OneDrive folder moves) — the plan explicitly requires proper
+known-folder resolution.
+**Decision:** `utils.file_utils.downloads_dir()` is the single resolution point. On Windows
+it calls `SHGetKnownFolderPath` with `FOLDERID_Downloads` (`{374DE290-123F-4565-9164-39C4925E467B}`)
+via `ctypes` — the canonical Win32 API for known folders, verified live on HOME-PC
+(resolves `C:\Users\ematthew\Downloads`, HRESULT 0) — freeing the returned buffer with
+`CoTaskMemFree`. Any failure (or a non-Windows platform) falls back to
+`Path.home()/"Downloads"`, which on macOS *is* the standard location — so macOS support
+later is exactly this one existing branch, per the plan.
+**Alternatives considered:** Registry `Shell Folders` `{374DE290-...}` value — viable (the
+plan offers it) but it's the legacy mechanism; `SHGetKnownFolderPath` is the API Microsoft
+documents as authoritative and needs no registry-layout assumptions. Third-party
+`platformdirs`/`knownpaths` packages — rejected: one small ctypes call doesn't justify a
+new pinned dependency.
+**Consequences:** No new dependency; pure-stdlib. The fallback branch is test-pinned
+(`test_output_layout.py`), and the Windows branch is asserted against the real machine
+(absolute, existing directory).
+
+## 028 — Plan 1 Phase 1: `natsort==8.4.0` adopted for the natural-order folder-scan contract — 2026-07-18 — Claude Code
+<!-- Heading line restored in Phase 6: it was accidentally dropped when this entry was
+     appended; the entry body below is unchanged. -->
+
+**Status:** Accepted
+**Context:** The GUI & Batch Overhaul plan (target v0.11.0) adds a Select-Folder input mode
+with a recursive scan whose ordering contract is depth-first traversal with natural
+(numeric-aware) ordering at every level — `1, 2, 10`, not `1, 10, 2` — so chapter files
+numbered by a person process in reading order. Numeric-aware sorting has real edge cases
+(multi-number names, mixed case, embedded text), and the plan explicitly forbids
+hand-rolling it.
+**Decision:** Add **`natsort==8.4.0`** to `scripts/requirements.txt` — the latest stable
+release, verified live against PyPI on 2026-07-17 (8.4.0, published 2023; the project is
+mature and stable, not stale) rather than pinned from training memory. The scanner
+(`scripts/Universal/core/input_scanner.py`) uses one shared `natsort_keygen(alg=ns.IGNORECASE)`
+key so ordering is case-insensitive (matching Windows filename semantics) and identical for
+files and directories. The ordering contract is pinned by `files/tests/test_input_scanner.py`.
+**Alternatives considered:** Hand-rolled `re.split`-based numeric key — rejected: the plan
+forbids it and natsort's handling of edge cases (multiple numbers, unicode digits, case
+folding) is well-tested upstream. `os_sorted` (natsort's OS-file-explorer emulation) —
+rejected: it varies by platform/locale, while the ordering contract must be identical on
+Windows and macOS.
+**Consequences:** One new pinned runtime dependency (pure-Python, no binaries — no launcher
+change needed; installed via the existing `requirements.txt` flow). Both input modes route
+through `input_scanner` (`scan_upload` preserves upload order; `scan_folder` applies the
+contract), giving Phase 2's output mirroring a single ordered-list source of truth.
+
 ## 027 — Phase 10: Supreme Magus Cloudflare error-page count reconciled to 3 (committed/detected truth), not the Phase-1 recon estimate of 4 — 2026-07-16 — Claude Code
 
 **Status:** Accepted

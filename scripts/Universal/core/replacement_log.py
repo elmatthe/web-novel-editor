@@ -5,7 +5,7 @@ the dataclass shapes so other modules can type against them; serialization and t
 recording API are fleshed out in Phase 4.
 
 One JSONL record per replacement, written alongside each output PDF as
-`EDITED_<name>_replacements.jsonl` when the option is enabled. Every junk_strip
+`<name>_replacements.jsonl` when the option is enabled. Every junk_strip
 removal (Stage 1.5) is logged here too.
 """
 

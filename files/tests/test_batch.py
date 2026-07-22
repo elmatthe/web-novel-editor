@@ -59,10 +59,12 @@ def test_batch_round_trip(tmp_path):
     assert summary["succeeded"] >= 1
     assert progress == list(range(1, len(pdfs) + 1))
 
-    # Outputs exist, are named EDITED_*, and live in the chosen folder.
+    # Outputs exist, keep the ORIGINAL filenames (Phase 2: no EDITED_ prefix), and
+    # live in the chosen folder.
+    src_names = {os.path.basename(p) for p in pdfs}
     for out in summary["outputs"]:
         assert os.path.isfile(out)
-        assert os.path.basename(out).startswith("EDITED_")
+        assert os.path.basename(out) in src_names
         assert os.path.dirname(out) == out_dir
 
     # Originals untouched (hash + mtime unchanged).
@@ -193,3 +195,86 @@ def test_batch_single_chapter_skips_detection(tmp_path, monkeypatch):
     summary = run_batch([src], out_dir, gui_log=lambda *a, **k: None)
     assert summary["succeeded"] == 1
     assert calls == [], "detector ran on a single-chapter build"
+
+
+# --- Phase 2 (v0.11.0): folder-mode output mirroring ------------------------
+_CHAPTER = f"Chapter 1: The Long Walk.\n\n{_P6_BODY}"
+
+
+def _make_source_tree(root):
+    """Build a small input tree: root/1.pdf + root/arc-2/2.pdf (real PDFs)."""
+    (root / "arc-2").mkdir(parents=True)
+    _make_source_pdf(root / "1.pdf", _CHAPTER)
+    _make_source_pdf(root / "arc-2" / "2.pdf", _CHAPTER)
+    return [str(root / "1.pdf"), str(root / "arc-2" / "2.pdf")]
+
+
+def test_batch_mirrors_input_tree_under_root_folder_name(tmp_path):
+    # Folder mode: inside <name>-x the output root is the selected folder's OWN name,
+    # with the identical subfolder structure beneath it and original filenames.
+    src_root = tmp_path / "MyNovel"
+    pdfs = _make_source_tree(src_root)
+    out_dir = tmp_path / "shadow-slave-1"
+
+    summary = run_batch(pdfs, str(out_dir), mirror_root=str(src_root),
+                        gui_log=lambda *a, **k: None)
+
+    assert summary["succeeded"] == 2
+    assert (out_dir / "MyNovel" / "1.pdf").is_file()
+    assert (out_dir / "MyNovel" / "arc-2" / "2.pdf").is_file()
+    assert sorted(os.path.relpath(o, out_dir) for o in summary["outputs"]) == [
+        os.path.join("MyNovel", "1.pdf"),
+        os.path.join("MyNovel", "arc-2", "2.pdf"),
+    ]
+
+
+def test_batch_without_mirror_root_stays_flat(tmp_path):
+    # Upload mode passes no mirror_root: everything lands flat in output_dir.
+    src_root = tmp_path / "MyNovel"
+    pdfs = _make_source_tree(src_root)
+    out_dir = tmp_path / "shadow-slave-1"
+
+    summary = run_batch(pdfs, str(out_dir), gui_log=lambda *a, **k: None)
+
+    assert summary["succeeded"] == 2
+    assert (out_dir / "1.pdf").is_file()
+    assert (out_dir / "2.pdf").is_file()
+    assert all(os.path.dirname(o) == str(out_dir) for o in summary["outputs"])
+
+
+def test_batch_mirrored_sidecars_sit_beside_their_output(tmp_path):
+    # The <name>_replacements.jsonl log and DEBUG_<name>.txt sidecar follow the
+    # mirrored output into its subfolder (beside the PDF, not at the output root).
+    src_root = tmp_path / "MyNovel"
+    _make_source_tree(src_root)
+    out_dir = tmp_path / "shadow-slave-1"
+
+    summary = run_batch(
+        [str(src_root / "arc-2" / "2.pdf")], str(out_dir),
+        mirror_root=str(src_root),
+        write_replacement_log=True, write_debug_text=True,
+        gui_log=lambda *a, **k: None,
+    )
+
+    assert summary["succeeded"] == 1
+    nested = out_dir / "MyNovel" / "arc-2"
+    assert (nested / "2.pdf").is_file()
+    assert (nested / "2_replacements.jsonl").is_file()
+    assert (nested / "DEBUG_2.txt").is_file()
+
+
+def test_batch_mirrored_collision_suffix_in_subfolder(tmp_path):
+    # Re-running the same mirrored batch never overwrites: _2 suffix in the subfolder.
+    src_root = tmp_path / "MyNovel"
+    _make_source_tree(src_root)
+    out_dir = tmp_path / "shadow-slave-1"
+    src = [str(src_root / "arc-2" / "2.pdf")]
+
+    s1 = run_batch(src, str(out_dir), mirror_root=str(src_root),
+                   gui_log=lambda *a, **k: None)
+    s2 = run_batch(src, str(out_dir), mirror_root=str(src_root),
+                   gui_log=lambda *a, **k: None)
+
+    assert s1["succeeded"] == 1 and s2["succeeded"] == 1
+    assert os.path.basename(s2["outputs"][0]) == "2_2.pdf"
+    assert (out_dir / "MyNovel" / "arc-2" / "2_2.pdf").is_file()

@@ -1,5 +1,101 @@
 # Webnovel Editor — Changelog
 
+## v0.11.0 — 2026-07-19 — GUI & Batch Overhaul (Plan 1): Two-Mode Input, Auto-Numbered Mirrored Output, "Universal" Default, Pause/Continue + Condensed Log, Decorative-Run TTS Sweep
+
+The "GUI & Batch Overhaul" plan (Plan 1, Phases 1–6) on `feature/gui-batch-overhaul`,
+modernizing the GUI input/output model and batch flow. The editorial pipeline's rule
+logic is unchanged except one additive junk-strip rule (Phase 5). Design reasoning is
+in DECISIONS.md #028–#035.
+
+### Added — two-mode input + natural-order folder scanning (Phase 1)
+- The GUI "PDF Files" card became an **Input** card with two mutually exclusive radio
+  modes: **Upload PDFs** (flat list, upload order preserved exactly) and **Select
+  Folder** (recursive scan). New `core/input_scanner.py` (`scan_upload` / `scan_folder`);
+  the shared listbox previews the resolved processing order.
+- Folder scanning follows a pinned ordering contract: depth-first; each directory's own
+  PDFs first in **natural order** (1, 2, 10 — not 1, 10, 2), then its subfolders in
+  natural order; case-insensitive `.pdf` match; non-PDFs ignored. New dependency
+  **`natsort==8.4.0`** (exact-pinned; verified latest stable) — numeric-aware sorting
+  was deliberately not hand-rolled. (DECISIONS #028.)
+
+### Changed — forced output location, mirroring, original filenames (Phase 2)
+- The output-folder picker is **gone**: every batch writes into a fresh
+  **`Downloads\<name>-x`** folder — `<name>` = kebab-cased novel selection, `x` =
+  max(N)+1 over existing `<name>-N` dirs (gaps never reused; a re-run never overwrites).
+  The folder is named at Start but created only when the batch runs (dry runs create
+  nothing). (DECISIONS #030.)
+- Downloads resolves via **`SHGetKnownFolderPath`** (`FOLDERID_Downloads`, ctypes) with
+  a `~/Downloads` fallback — one function (`utils/file_utils.downloads_dir`), so macOS
+  support later is that one branch. No new dependency. (DECISIONS #029.)
+- Folder mode **mirrors the input tree** inside `<name>-x` (the selected folder's own
+  name as the root); upload mode outputs flat. **The `EDITED_` prefix was dropped** —
+  outputs keep their original filenames; collision `_2`/`_3` suffixes, `DEBUG_<name>.txt`,
+  and the (now `<name>_replacements.jsonl`) sidecar remain, written beside each output.
+
+### Changed — "Universal" default dropdown entry + profile-less markers (Phase 3)
+- The roster now leads with an injected **"Universal"** entry — the **new default
+  selection** (was Shadow Slave) — an explicit, named choice for universal-only editing.
+  It dispatches through the existing unregistered-name fallback: **the dispatch registry
+  is byte-for-byte untouched** and the LOTM-stub fallback invariant (#009/#014) holds.
+  Default output folder is therefore `Downloads\universal-x`. (DECISIONS #031/#032.)
+- The 5 profile-less novels (Circle of Inevitability, Lord of the Mysteries, Re Monster,
+  Renegade Immortal, Reverend Insanity) carry a display-only **" — no profile yet"**
+  marker; the GUI strips it via new `clean_novel_name()` before a selection reaches
+  dispatch or folder naming. Authoring a real profile later auto-drops the marker.
+
+### Added — pause/continue + condensed log (Phase 4)
+- `run_batch` gained an optional **`pause_gate`** (`threading.Event`, SET = run)
+  consulted only **between** files: the in-flight file always finishes, so pausing can
+  never corrupt an output — the safe seam the deferred cancellation (#020) lacked.
+  Session-only by design (no persistence). GUI: a **Pause ⇄ Continue** button beside
+  Start, enabled only while a batch runs. (DECISIONS #033.)
+- The GUI log is **condensed**: exactly one line per file (`[i/N] name — done (X edits)`
+  / `— done (dry run, X edits)` / `— skipped (not found)` / `— skipped (image-only/empty)`
+  / `— FAILED (Type: reason)`) plus an end-of-batch summary block (totals +
+  Failed:/Skipped: lists, omitted when empty). Verbose stage chatter stays in the JSONL;
+  pipeline "⚠" integrity warnings still surface. The per-file `ReplacementLog` is always
+  constructed so the edit count shows even with the JSONL option off. An explicit
+  "Universal" selection logs an intentional-choice line.
+
+### Added — decorative-run TTS jargon sweep (Phase 5)
+- New conservative Tier-1 junk-strip rule (`junk_strip.decorative_run`): a
+  whitespace-delimited span made only of **`~ \ - = * #`** plus internal spaces,
+  carrying **≥3 symbol characters** (`~~~`, `-=-=-`, `* * *`, `\ \ \`), is excised
+  token-level with the existing minimum-span/emptied-line/JSONL conventions, protected
+  terms shielded. Symbols glued to words (`f*ck`, `*emphasis*`, `Rule #1`,
+  `well-known`), single symbols, and two-symbol spans (`**`, `--`, `~~`) always
+  survive — the ~810 legitimate corpus asterisks are test-pinned untouchable. A scan of
+  all 7,979 cached extractions found zero qualifying spans (corpus-no-op insurance).
+  EDITING-RULES.md documents the rule. (DECISIONS #034.)
+
+### Fixed — Phase 6 bug hunt (cross-phase integration pass)
+- **No Critical bugs.** A real end-to-end run proved the full chain (folder scan →
+  mirrored `universal-x` output → Universal dispatch → mid-batch pause →
+  decorative-run stripping) works together. Three Minor fixes:
+  - The condensed line's edit count no longer counts `integrity_flag` records (an
+    error-page file now honestly reads "done (0 edits)"; regression-tested).
+  - The GUI worker thread no longer reads Tk `BooleanVar`s: the three option
+    checkboxes are snapshotted per batch like the rest of the batch state (Tk objects
+    are not thread-safe; zero behavior change).
+  - Stale docs reconciled: `junk_strip.py`'s error-page comment said 4 pages (real
+    count 3, DECISIONS #027); README described the old `EDITED_`/chosen-folder model;
+    DECISIONS.md's #028 entry had lost its heading line; build-spec.md gained a
+    v0.11.0 reconciliation note.
+
+### Docs
+- **BRIEFING.md** updated to the new GUI/batch model and now documents the **Plan-2
+  seam**: the *post-pipeline pre-build hook* in `run_batch`'s per-file loop (between
+  `dispatch.run_pipeline(...)` and `build_pdf(...)`) where Plan 2's AI editing stage
+  will slot, with the contract it must honor (text-in/text-out, dry-run behavior,
+  pause-gate interaction, logging conventions). Documented only — not built.
+- CHANGELOG v0.11.0 (this entry); DECISIONS #028–#035 appended across the phases;
+  Handoff.md work/sync logs updated per phase; the plan drop deleted at completion.
+
+### Verified
+- `python scripts/verify.py` → PASS after every phase; final: **514 passed** (401 →
+  514 over the plan), deps exact-pinned (incl. `natsort==8.4.0`), CHANGELOG/BRIEFING
+  at v0.11.0. End-to-end integration proof run in Phase 6 (all 25 checks passed).
+
 ## v0.10.0 — 2026-07-16 — Junk-Strip Hardening, Editorial QA, New Per-Novel Profiles, PDF/GUI Alignment, Repo Reorg & Launcher Rebuild
 
 A large multi-phase release (the "junk-strip-hardening" plan, Phases 0–10) bundling

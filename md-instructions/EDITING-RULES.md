@@ -129,6 +129,43 @@ several shapes the original patterns could not see:
   in every clone; optional `@pytest.mark.local_corpus` tests exercise the full corpora when
   present (with a `--require-local-corpora` strict mode).
 
+### Decorative symbol runs — the TTS jargon sweep (v0.11.0, Plan 1 Phase 5)
+
+A Tier-1 rule removing **standalone runs of decorative symbols** that a TTS engine would voice
+character by character ("asterisk asterisk asterisk"): scene dividers and filler like `~~~`,
+`***`, `####`, `===`, `-=-=-`, `~-~-~`, `\ \ \`, `* * *`.
+
+**What it targets — all three gates must hold:**
+- The span is **whitespace-delimited on both sides** (never glued to a word or to punctuation).
+- It consists **only** of the six decorative symbols `~ \ - = * #` plus internal spaces
+  (mixed-symbol runs like `-=-=-` and spaced runs like `* * *` count as one span).
+- It carries **at least 3 symbol characters** in total.
+A qualifying run is excised token-level with the same minimum-span seam cleanup as the domain
+pass; a line the removal empties is dropped so the wrapped stream rejoins (pre-existing blank
+lines are untouched). Every removal is logged (`rule="junk_strip.decorative_run"`,
+`category="fingerprint"`). A span matching a `ProtectedLexicon` term is shielded.
+
+**What it deliberately leaves alone:**
+- **Anything glued to other content:** `*emphasis*`, censored profanity (`f*ck`, `bullsh*t`),
+  trailing footnote stars (`granted.*`), `well-known`, `Rule #1`, `#TeamLith`, `~37 minutes`.
+- **Single symbols:** a lone `*` footnote marker, `- ` dialogue bullets, `3 - 1` odds,
+  `2 + 2 = 4`.
+- **Two-symbol spans:** `**` footnote markers, `--`, `~~`, `==` — the ≥3 threshold is a
+  deliberate safety margin.
+- Symbols outside the six (`_`, `+`, `.`, `—`, `|`, brackets) — ellipses, em-dashes, and
+  authored blanks (`Mr. ___`) belong to other stages or to the prose.
+
+**Asterisk-safety rationale.** The Phase-4 TTS sweep counted **~810 legitimate asterisks** in
+the corpora (807 Supreme Magus + 3 Shadow Slave): censored profanity, authored `*emphasis*`,
+and footnote markers — none may be altered (uncensoring is spec-excluded content alteration).
+Every one of those asterisks is either glued to a word or a single/paired mark, so the
+standalone-span + ≥3-symbol gates make them structurally unmatchable. A recon scan of all
+7,979 cached raw extractions (2026-07-18) found **zero qualifying spans and zero asterisks
+inside any candidate span** — on the current corpora the rule is pure insurance (the same
+status the whole junk-strip stage has for the clean Shadow Slave source), guarded by hostile
+tests (emphasis / censoring / footnotes / sub-threshold runs) plus a corpus-marked
+asterisk-and-hash preservation test.
+
 ---
 
 ## Stage 1 — Unicode Cleanup
@@ -271,3 +308,8 @@ censored-profanity asterisks (uncensoring is spec-excluded), unconverted `~` and
 authored contexts, letter-tight apostrophe-misuse (`don't`/`l'm` — Edge Neural voices it
 correctly today), and unspaced numeric-range dashes (`10-20`, betting odds) whose spoken form is
 not inferable.
+
+**v0.11.0 (Plan 1 Phase 5) addendum to criterion 3:** standalone decorative symbol runs
+(`~~~`, `-=-=-`, `* * *`, …) are now removed by the Stage-1.5 decorative-run sweep (see above).
+The flagged-but-not-changed classes stay exactly as flagged — single/paired/glued asterisks,
+authored `~` and `#`, and numeric-range dashes are structurally outside the new rule's reach.

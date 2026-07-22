@@ -820,3 +820,167 @@ def test_empty_and_whitespace_inputs_are_safe():
 def test_numeric_slash_content_is_untouched():
     text = "He scored 6/7 today, a 10/20 split."
     assert strip(text) == text
+
+
+# =========================================================================
+# Plan 1 Phase 5 — TTS jargon sweep: standalone decorative symbol runs
+# =========================================================================
+# A "standalone run" is a whitespace-delimited span made ONLY of decorative
+# symbols (~ \ - = * #) and internal spaces, carrying >= 3 symbol characters.
+# TTS voices these character by character ("asterisk asterisk asterisk"), so
+# they are Tier-1 junk. Everything below the threshold — and anything glued
+# to a word or punctuation — is authored content and must survive verbatim.
+# The 2026-07-18 recon scan of all 7,979 cached raw extractions found ZERO
+# qualifying spans and 810 legitimate asterisks (censored profanity, authored
+# emphasis, footnote markers) — so this rule is corpus-no-op insurance, and
+# the hostile cases below are what keeps it that way.
+
+DECORATIVE_RUNS = [
+    "~~~",
+    "~~~~~",
+    "***",
+    "****",
+    "####",
+    "===",
+    "----",
+    "-=-=-",
+    "~-~-~",
+    "=-=",
+    "\\\\\\",
+    "\\ \\ \\",
+    "* * *",
+    "- - -",
+    "~ ~ ~",
+]
+
+
+@pytest.mark.parametrize("run", DECORATIVE_RUNS)
+def test_standalone_decorative_run_line_dropped(run):
+    # A run alone on its wrapped-stream line: the emptied line drops and the
+    # stream rejoins (same convention as the domain-watermark pass).
+    text = f"prose before the break.\n{run}\nprose after the break."
+    assert strip(text) == "prose before the break.\nprose after the break."
+
+
+@pytest.mark.parametrize(
+    "line,expected",
+    [
+        ("~~~ The battle began.", "The battle began."),
+        ("The battle ended. ***", "The battle ended."),
+        ("before -=-=- after", "before after"),
+        ("### A new scene opened.", "A new scene opened."),
+        ("She woke. ==== The dream held on.", "She woke. The dream held on."),
+        ("* * * Morning came at last.", "Morning came at last."),
+    ],
+)
+def test_decorative_run_adjacent_to_prose_removed_prose_kept(line, expected):
+    assert strip(line) == expected
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        # Real Supreme Magus censored-profanity fragments (shortest redacted
+        # forms) — the exact class the Phase-4 sweep counted and protected.
+        '"What the f*ck? All that pain just for a shade of cyan?"',
+        "he had a hard time being convincing while spouting bullsh*t.",
+        "surprise should give me a second or two, to get rid of the b*stard.",
+        # Authored emphasis: paired asterisks glued to the word.
+        "He was *very* sure of it.",
+        "*Emphasis* opened the line, and closed it with *style*.",
+        # Footnote markers: single and double asterisks are below threshold.
+        "* Translator's note: names follow the western order.",
+        "** A second footnote marker line.",
+        "(*) See the author's note at the end.",
+        "The wish was granted.*",
+    ],
+)
+def test_legitimate_asterisks_survive(text):
+    log = ReplacementLog()
+    assert strip(text, repl_log=log) == text
+    assert len(log) == 0
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        # Real SM extraction shape: leading hyphen dialogue bullet.
+        '- "Well, I love you too, mother. Thanks for asking."',
+        "It was a well-known fact, a self-evident one.",
+        "The odds were 3 - 1 against them.",
+        # Phase-4 flagged-not-changed classes: raw # and ~ in authored prose.
+        "Rule #1: never look back. Orphanage #113 stood silent.",
+        "#TeamLith forever, she wrote.",
+        "eta: ~41 minutes, the system said.",
+        "He waved ~ once, then twice.",
+        # Arithmetic / comparison symbols in prose.
+        "2 + 2 = 4, obviously.",
+        "x == y in the old script.",
+        # Two-symbol spans are below the >=3 threshold — deliberate margin.
+        "~~ and -- and ** all survive as pairs.",
+        # A backslash pair is below threshold too.
+        "\\ \\ marked the margin.",
+    ],
+)
+def test_prose_symbols_below_threshold_survive(text):
+    log = ReplacementLog()
+    assert strip(text, repl_log=log) == text
+    assert len(log) == 0
+
+
+def test_decorative_run_removal_is_logged():
+    log = ReplacementLog()
+    strip("The battle ended. ***", repl_log=log)
+    assert len(log) == 1
+    entry = log.entries[0]
+    assert entry.original == "***"
+    assert entry.rule == "junk_strip.decorative_run"
+    assert entry.category == "fingerprint"
+
+
+def test_decorative_run_matching_protected_term_is_shielded():
+    from core.protected_lexicon import ProtectedLexicon
+
+    lex = ProtectedLexicon(terms=("***",), term_set_lower=frozenset({"***"}))
+    text = "prose before\n***\nprose after"
+    assert strip(text, lexicon=lex) == text
+
+
+def test_decorative_strip_is_idempotent_with_no_new_log_entries():
+    dirty = "held the line.\n-=-=-\n~~~ Then it broke. ***"
+    first = strip(dirty, repl_log=ReplacementLog())
+    second_log = ReplacementLog()
+    assert strip(first, repl_log=second_log) == first
+    assert len(second_log) == 0
+
+
+def _pinned_fixture_paths() -> "list[str]":
+    import os
+
+    repo_root = os.path.dirname(
+        os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    )
+    fixtures = os.path.join(repo_root, "files", "test-files", "shadow_slave")
+    if not os.path.isdir(fixtures):
+        return []
+    return [
+        os.path.join(fixtures, f)
+        for f in sorted(os.listdir(fixtures))
+        if f.lower().endswith(".pdf")
+    ]
+
+
+@pytest.mark.parametrize(
+    "fixture",
+    _pinned_fixture_paths() or [pytest.param(None, marks=pytest.mark.skip(reason="pinned fixtures not present"))],
+    ids=lambda p: (p.rsplit("\\", 1)[-1].rsplit("/", 1)[-1] if p else "absent"),
+)
+def test_strip_junk_is_byte_noop_on_pinned_fixture_text(fixture):
+    # Real fixture-derived text: the clean Shadow Slave chapters must pass
+    # through strip_junk — including the decorative-run sweep — byte-for-byte.
+    from pdf import extractor
+
+    raw = extractor.extract_text_from_pdf(fixture)
+    log = ReplacementLog()
+    assert strip(raw, repl_log=log) == raw
+    assert len(log) == 0
