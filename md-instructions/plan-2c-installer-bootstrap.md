@@ -201,11 +201,68 @@ table with one row per offered model:
 | CPU-only allowed | yes, marked "slow — not recommended" |
 | supported architectures | x64 / ARM64 / Apple Silicon |
 
-Detection **informs the offer**; it is not a hard correctness gate. Provide an advanced
-override with a warning. Be honest in the prompt about download size and expected speed on the
-detected hardware. If the machine is clearly incapable, do not offer it — say so and point to
-the cloud providers instead. Expect three different answers for HOME-PC (RTX 5070), CSPW-PC
-(CPU-only, locked down), and the M4 Pro Mac; document what each should see.
+The exact Qwen tag, model/download size, and minimum/recommended hardware numbers are not yet
+known. HOME-PC Phase 6B and Plan 2a Phase 8 representative-model work produce that evidence;
+Plan 2c later consumes the approved values in this table. Do not invent them in bootstrap code.
+
+#### Compatibility-scanner contract
+The eventual scanner must detect and report, without exposing secrets or machine identifiers:
+
+- OS/platform and architecture;
+- available physical RAM or unified memory and free disk space;
+- CPU/GPU category, plus reliable VRAM/unified-memory information when the platform exposes it;
+- standard-user/elevation state and relevant repository/runtime-directory writability;
+- Python interpreter, venv, and required-package state;
+- Ollama CLI state, local API state, and exact installed model tags;
+- provider/key availability as present/absent/invalid only, never key values; and
+- restricted or degraded-mode conditions, including policy-blocked package managers/installers.
+
+Keep missing Ollama, stopped/unreachable Ollama, missing exact model, insufficient hardware, and
+blocked installation as distinct reported states. A failed optional check is not permission to
+probe broadly, bypass policy, elevate unexpectedly, start a service, or download anything.
+
+The offer decision is deterministic:
+
+1. Script-only mode is always available when the core Python application can run.
+2. Local AI installation is always opt-in.
+3. Each model's minimum RAM/unified-memory requirement and required free disk space (including
+   its safety margin) are hard offer gates.
+4. When either hard gate fails, do not offer to install Ollama for that model, offer a model pull,
+   or download anything. Explain the missing RAM or disk capacity in plain language, recommend
+   not installing local AI, continue into script-only mode, and point to configured cloud-provider
+   choices when available.
+5. GPU/VRAM fit is normally advisory rather than the sole correctness gate. A CPU-only machine
+   with enough memory may be reported as technically possible but slow only when that exact model
+   row explicitly permits CPU-only execution.
+6. Insufficient free disk space can never be overridden.
+7. Minimum-memory failure has no override in the normal launcher. Any later expert override must
+   be a deliberately separate workflow, must retain the disk gate, and must never silently install
+   Ollama, pull a model, or download anything.
+8. Corporate restrictions, blocked package managers, and denied installers are non-fatal:
+   explain the limitation, attempt no bypass or elevation trick, and continue in deterministic
+   degraded mode.
+
+The user-facing result must say what is missing, for example that the PC does not have enough
+memory or free disk space for the selected local model, recommend not installing it, and then
+continue with the normal Y/N choice only for offers that passed every hard gate. A failed hard
+gate is a report, not a misleading installation prompt.
+
+#### Sanitized expected acceptance profiles
+
+- **HOME-PC:** final result pending real installed-Qwen/Ollama/GPU validation. Phase 6B selects
+  an already-installed exact tag and records bounded model/context/hardware evidence.
+- **CSPW-PC — restricted standard-user / local-AI-ineligible reference profile:** Windows 11
+  x64; non-elevated standard-user session; approximately 30.67 GiB physical RAM; AMD Ryzen 5 PRO
+  CPU; integrated Radeon 740M with 1 GiB reported adapter memory; approximately 72.35 GiB free on
+  the repository/per-user-data drive; repository and per-user runtime parents appear writable;
+  per-user Python is available; winget is present; Ollama CLI and local API/model listing are
+  absent. Windows Installer policy configuration exists, so corporate blocking remains a real
+  degraded-mode case even though the bounded snapshot does not prove every installer is blocked.
+  For the ultimately selected model this is the acceptance case for an insufficient-memory or
+  otherwise ineligible result: no Ollama/model installation offer, while the deterministic editor
+  still runs. This is test input, never a hardcoded machine fingerprint.
+- **M4 Pro Mac:** evaluate Apple unified memory rather than discrete VRAM assumptions; final result
+  pending real macOS testing.
 
 ### Ollama setup — per-user, idempotent, non-fatal
 On Windows:
@@ -305,14 +362,69 @@ regression from getting tangled with GPU detection and cloud onboarding.)*
    allows, document where it legitimately differs (Homebrew absence, Apple Silicon unified
    memory, Ollama's macOS install), and **test on the real Mac** — do not claim parity from
    Windows.
-7. **Clean-room release test + docs + release gate.** Build a temporary release-shaped
-   directory containing only what an end user receives, and verify from it for real (see below).
-   Then: `README.md` refreshed and corrected; the "what this script does and installs" section
-   for antivirus questions; bug hunt; `CHANGELOG.md` v0.14.0; `BRIEFING.md`; `DECISIONS.md`
-   (install tiering, launcher preservation, per-user runtime paths, capability table, elevation
-   policy, opt-in install, key onboarding); `verify` green.
+7. **Clean-room installation-flow stabilization.** Build a temporary release-shaped directory
+   containing only what an end user receives, and verify the installation/startup flow for real
+   (see below). Fix and repeat until the final configuration, manifests, and release-shaped
+   installation flow are stable. Do not begin uninstall implementation before this gate passes.
+8. **Manifest-driven Windows uninstaller.** Implement and clean-room test the root
+   `Uninstall_Web_Novel_Editor.bat` contract below. This is the final implementation phase before
+   release sign-off.
+9. **Final docs + release sign-off.** `README.md` refreshed and corrected; the "what this script
+   does and installs" section for antivirus questions; bug hunt; `CHANGELOG.md` v0.14.0;
+   `BRIEFING.md`; `DECISIONS.md` (install tiering, launcher preservation, per-user runtime paths,
+   capability table, elevation policy, opt-in install, key onboarding, uninstall ownership);
+   complete installer/uninstaller clean-room evidence; `verify` green.
 
-### Clean-room release test (Phase 7 — this is the actual end goal)
+### Future Windows uninstaller contract (Phase 8 only)
+The final Windows implementation is exactly `Uninstall_Web_Novel_Editor.bat` in the repository
+root, written in plain language for non-technical users. It must not be implemented or executed
+until Phase 8.
+
+Installation must record a durable ownership manifest: what this tool installed, what already
+existed, exact canonical paths, and component versions where appropriate. Existence is never
+proof of ownership. The uninstaller must fail closed on a missing/corrupt manifest; never infer
+ownership merely because Python, Ollama, a model, or a folder exists; never use broad recursive
+targets, unresolved environment variables, unsafe globs, or guessed directories; and never remove
+anything that existed before this tool installed it.
+
+Show a plain-English preview, support dry-run/preview mode, and obtain a separate Y/N confirmation
+for each category:
+
+1. repository/program folder, including its in-repository `.venv`;
+2. per-user Web Novel Editor runtime settings, logs, manifests, and cached non-secret state;
+3. stored cloud-provider secrets;
+4. the exact Python runtime installed by this tool;
+5. the Ollama application installed by this tool;
+6. Ollama models/data pulled or created by this tool; and
+7. remaining Ollama configuration/data.
+
+Keeping Python, Ollama, and Ollama models/configuration is the default. Offer Python removal only
+when the manifest proves this tool installed that exact runtime, and warn that other programs may
+use it. Ollama application removal and Ollama model/configuration removal are separate decisions.
+Pre-existing Ollama installations and models are never automatically removed. Declining any item
+preserves it and is not an uninstall failure.
+
+Never remove user-created input PDFs, source chapters, output PDFs, Downloads folders, unrelated
+repositories, unrelated Python environments, or unrelated files. Do not remove generated editor
+output unless a later explicit requirement defines and safely identifies editor-owned output. If
+policy blocks removal, report it without bypassing policy. Do not require Administrator rights for
+components installed per-user; explain any genuinely elevation-requiring component before Windows
+shows a permission prompt. Re-running after partial completion must be safe and idempotent.
+
+The active root batch file cannot reliably delete its own directory. For an approved repository
+removal only, copy a narrowly scoped helper to the user's temporary directory, pass it already
+resolved and validated canonical paths, have it wait for the main uninstaller to exit, remove only
+the approved repository directory, and delete itself where practical. Failure must leave a clear
+manual path and must never broaden the target.
+
+Future automated and clean-room cases must cover: nothing tool-owned; only repository/`.venv`;
+tool-installed and pre-existing Python; tool-installed and pre-existing Ollama; tool-pulled and
+pre-existing models; keeping Python; keeping Ollama; keeping models/configuration; deleting only
+selected runtime data; partial prior uninstall; missing/corrupt manifest failing closed; paths with
+spaces, Unicode, ampersands, and parentheses; read-only or policy-blocked paths; dry-run/preview;
+temporary-helper repository self-removal; and zero access to unrelated files.
+
+### Clean-room installation-flow test (Phase 7)
 A temporary directory containing **only** what ships: no `.git`, no `files/`, no
 `AI-WORKSPACE.md`, no `.claude`/`.codex`/`.vscode`, no pre-existing `.venv`, no Ollama, no API
 keys — placed at a path containing **spaces and a Unicode character**. Then verify, for real,
@@ -347,9 +459,13 @@ actual Mac before claiming it.
       the optional components installed.
 - [ ] `docs/LOCAL-AI-SETUP.md` exists and is written for a non-technical reader.
 - [ ] Capability report appears in the terminal and the app log and is honest.
+- [ ] RAM/unified-memory and free-disk hard offer gates suppress all local-model install/pull
+      prompts and downloads when the selected model cannot safely fit.
 - [ ] Paths with spaces, special characters, and Unicode are tested.
 - [ ] The release-shaped clean-room test passed **as a real run**, on Windows, and the macOS
       path was tested on the real Mac.
+- [ ] `Uninstall_Web_Novel_Editor.bat` passed its manifest-ownership, separate-confirmation,
+      fail-closed, idempotency, special-path, temp-helper, and unrelated-file clean-room tests.
 - [ ] `README.md` corrected (version, output behaviour, what the launcher installs).
 - [ ] `verify` green; `CHANGELOG.md`, `BRIEFING.md`, `DECISIONS.md`, `HANDOFF.md` updated.
 - [ ] This drop deleted — after final verification, the clean-room run, and my sign-off.

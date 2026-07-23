@@ -9,6 +9,21 @@ its original decision date. New decisions continue to be appended here (newest o
 
 ---
 
+## 052 — Plan 2c: hard local-model offer gates and manifest-owned uninstall — 2026-07-23 — Codex
+
+**Status:** Accepted future architecture; no installer or uninstaller behavior implemented.
+**Decision:** Plan 2c's per-model capability table supplies minimum RAM/unified-memory and required
+free-disk hard offer gates. Failure suppresses every Ollama/model install, pull, and download offer
+for that model while preserving deterministic script-only mode; disk cannot be overridden, and
+normal launch has no memory override. The sanitized CSPW-PC restricted-standard-user profile is an
+acceptance case, never a hardcoded machine identity. Future uninstall removes only canonical paths
+and exact components proven tool-owned by the installation manifest, with separate confirmations;
+shared Python, Ollama, models, and configuration are kept by default.
+**Consequences:** Restricted or unsuitable PCs remain usable without policy bypasses or misleading
+local-AI prompts. Missing/corrupt ownership evidence fails closed, and pre-existing/shared runtimes
+or model data survive uninstall. HOME-PC Phase 6B/Phase 8 evidence still owns the exact model tag
+and capability-table numbers.
+
 ## 051 — Plan 2a Phase 6A: exact official Ollama client, loopback-only transport, computed budgets, and fail-closed thinking — 2026-07-23 — Codex
 
 **Status:** Accepted for mocked/offline implementation; live HOME-PC validation pending.

@@ -23,6 +23,24 @@ dry-run, and build steps; and `build_pdf(...)` remains the sole PDF writer.
 Baseline on Python 3.14.2: `pip check` clean; `scripts/verify.py` PASS with
 **505 passed, 9 skipped** (environmental skips only).
 
+## Work Log — 2026-07-23 — Codex — Plan 2c Restricted-PC/Uninstall Groundwork
+
+- Phase 6A remains implemented, but Phase 6 is incomplete. HOME-PC Phase 6B remains
+  the next live-provider continuation point; the precise
+  [HOME-PC Phase 6B continuation checklist](#home-pc-phase-6b-continuation-checklist-no-pulls-and-no-private-text)
+  below remains the single authoritative checklist.
+- HOME-PC must select an already-installed exact Qwen tag and establish real
+  model/context/hardware evidence. The private corpus remains HOME-PC-only and must
+  never be committed. Full representative chapter testing, model comparison,
+  prompt/gate tuning, and final capability-table numbers remain deferred.
+- The bounded CSPW-PC inspection is only a sanitized restricted-standard-user,
+  local-AI-ineligible installer acceptance profile. It is not a machine fingerprint
+  and must never be hardcoded into production logic.
+- Plan 2c now specifies model-table RAM/disk hard offer gates and a final
+  manifest-driven root Windows uninstaller, `Uninstall_Web_Novel_Editor.bat`, with
+  separate ownership-based confirmations and keep-shared-components defaults.
+- No installer or uninstaller runtime behavior has been implemented.
+
 ## Work Log — 2026-07-23 — Codex — Plan 2a Phase 6A (Mocked OllamaProvider)
 
 - Started from clean, aligned local/remote Phase 5 correction SHA
