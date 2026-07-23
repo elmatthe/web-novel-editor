@@ -17,7 +17,10 @@ has been implemented. Headlines:
   taxonomy, the four-method provider protocol, and lazy factory construction. Root
   `config.toml` is committed and secret-free with AI disabled; per-user settings use
   atomic JSON outside the repository. Python 3.10 remains supported through
-  `tomli==2.4.1`; no provider adapter or SDK is present.
+  `tomli==2.4.1`. Versioned prompt assembly renders the canonical protected lexicon
+  at runtime; gate v1.0 validates structure, protected terms, placeholders, truncation,
+  minimal diffs, and canonical spaced-em-dash behavior without mutating candidates.
+  Provenance stores hashes and bounded snippets only. No provider adapter or SDK is present.
 - **Two-mode input (Phase 1):** the GUI's Input card offers mutually exclusive
   **Upload PDFs** / **Select Folder** radio modes. Folder mode runs
   `core/input_scanner.scan_folder` — a depth-first recursive scan where each

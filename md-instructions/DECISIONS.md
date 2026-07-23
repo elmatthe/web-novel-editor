@@ -9,6 +9,37 @@ its original decision date. New decisions continue to be appended here (newest o
 
 ---
 
+## 043 — Plan 2a foundation: provenance is hashes plus bounded diff snippets — 2026-07-23 — Codex
+
+**Status:** Accepted
+**Decision:** Attempt provenance stores versions/status/reasons/timing/counts, SHA-256 input
+and output hashes, and at most 12 diff hunks with each side capped at 80 normalized characters.
+It never stores a full chapter, full chunk, protected lexicon, prompt secret, or credential.
+**Consequences:** Attempts remain auditable without duplicating copyrighted/private text into
+logs. The exact lexicon is represented only by its hash, version, and term count.
+
+## 042 — Plan 2a foundation: response normalization has one narrow fence exception — 2026-07-23 — Codex
+
+**Status:** Accepted
+**Decision:** Exactly one outer fenced block with no surrounding text may be unwrapped at the
+normalization boundary and the event is recorded. Fence plus prose, common explanatory
+preambles, multiple fences, and any `<think>` output are rejected. The validator never repairs
+a candidate.
+**Consequences:** A harmless transport wrapper is recoverable without disguising explanations
+or reasoning as chapter text.
+
+## 041 — Plan 2a foundation: fail-closed versioned gate preserves structure and canonical dash behavior — 2026-07-23 — Codex
+
+**Status:** Accepted
+**Decision:** Gate v1.0 returns a structured list of reasons. It checks finish/truncation,
+heading, exact newline shape, placeholder sequence, exact protected-term spelling/order/
+paragraph placement, ±3% length, deletion/duplication/reordering, added URL/domain material,
+and broad diffs. It calls `rules.em_dash.remove_spaced_em_dashes` as the canonical invariant:
+unspaced em dashes remain valid.
+**Consequences:** Candidate validation fails closed and is non-mutating. Strategy V does not
+bind adjacent ordinary words, so a permitted grammar correction beside a protected term can
+pass while term changes or movement cannot.
+
 ## 040 — Plan 2a foundation: optional provider imports are lazy — 2026-07-23 — Codex
 
 **Status:** Accepted

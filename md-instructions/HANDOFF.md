@@ -54,6 +54,22 @@ Baseline on Python 3.14.2: `pip check` clean; `scripts/verify.py` PASS with
 - Next after the verified checkpoint: Stage C versioned prompt, validation, and bounded
   provenance. No batch-runner or GUI integration.
 
+## Work Log — 2026-07-23 — Codex — Plan 2a Foundation Stage C
+
+- Added `UNIVERSAL-AI.md` fresh from Appendix A and `ai.prompt` runtime lexicon
+  rendering with version/hash/count metadata; no per-novel AI prompt copies.
+- Added non-mutating gate v1.0 and its sole response-normalization exception (one exact
+  outer fence, recorded). Rejects reasoning/preambles, truncation, heading/newline,
+  placeholder/protected-term, length, deletion/duplication/reordering, junk/domain,
+  broad-rewrite, and canonical spaced-em-dash violations. Valid unspaced dashes pass.
+- Added bounded provenance: hashes, counts, timings, status/reasons, and capped diff
+  snippets; never full chapter/chunk or lexicon contents.
+- Added `files/tests/test_ai_validation.py`; targeted provider-free gate currently
+  passes 20 tests. Full verification and commit/push follow this entry.
+- ADRs #041–#043 record the gate, normalization, and provenance boundaries.
+- Next after checkpoint: Stage D exact paragraph chunking and provider-neutral
+  `AIEditor` orchestration using only fake providers.
+
 **Phase 5 (TTS jargon sweep rule) is DONE** (2026-07-19, committed on the branch):
 `rules/junk_strip.py` gained a conservative Tier-1 **decorative-run rule**
 (`junk_strip.decorative_run`): a whitespace-delimited span made only of `~ \ - = * #`
