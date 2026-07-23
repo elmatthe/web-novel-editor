@@ -95,6 +95,25 @@ Baseline on Python 3.14.2: `pip check` clean; `scripts/verify.py` PASS with
   integration was explicitly out of scope for this groundwork session; Ollama remains
   Phase 6 and the GUI remains Phase 7.
 
+## Work Log — 2026-07-23 — Codex — Plan 2a Foundation Final Audit
+
+- Stage commits, all pushed to `origin/feature/plan-2a-provider-foundation`:
+  `9a68ef9` (Stage A reconciliation), `f48f14d` (Stage B contract/config),
+  `27e4e9f` (Stage C prompt/gate/provenance), and `d8b1d5e` (Stage D
+  chunking/orchestration).
+- `origin/main...HEAD` contains 22 expected files: provider-neutral AI foundation,
+  three offline test modules, secret-free config/dependency pin, prompt resource, and
+  the three current-state/ADR docs. No batch runner, GUI, launcher, PDF, `.env`,
+  `.venv`, cache, generated log, corpus, or unrelated pipeline file changed.
+- Security/scope scans found no API-key/private-key/password-like values and no Ollama,
+  Gemini, Groq, or Google SDK import. `git diff --check` and `pip check` are clean.
+- Final `scripts/verify.py`: PASS, 566 passed / 11 environmental skips. The immediately
+  preceding Stage D gate was 567 / 10; one Windows environment-gated test varied
+  pass↔skip between runs, with the same 577 tests collected and zero failures.
+- No live Ollama/cloud call, API key, private corpus, GUI, launcher, or PDF processing
+  occurred. No source PDF was modified. The extracted original directory remained
+  untouched throughout.
+
 **Phase 5 (TTS jargon sweep rule) is DONE** (2026-07-19, committed on the branch):
 `rules/junk_strip.py` gained a conservative Tier-1 **decorative-run rule**
 (`junk_strip.decorative_run`): a whitespace-delimited span made only of `~ \ - = * #`
