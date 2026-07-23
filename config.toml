@@ -9,6 +9,15 @@ enabled = false
 provider = "ollama"
 model = ""
 timeout_seconds = 120
+endpoint = "http://127.0.0.1:11434"
+keep_alive = "30m"
+# Conservative pre-pilot limits; Phase 6B records/refines these for the selected full model tag.
+context_limit = 32768
+max_output_tokens = 4096
+request_overhead_tokens = 128
+context_safety_margin_tokens = 256
+output_margin_tokens = 64
+seed = 0
 protection_strategy = "mask"
 prompt_version = "1"
 gate_version = "1"

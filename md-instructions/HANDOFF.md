@@ -10,9 +10,10 @@ Plan 2 is split into three canonical drops:
 `plan-2a-local-ai-editor.md` (local Ollama editor, target v0.12.0),
 `plan-2b-cloud-providers.md` (Gemini/Groq, target v0.13.0), and
 `plan-2c-installer-bootstrap.md` (bootstrap/onboarding, target v0.14.0).
-Phase 5 now integrates the provider-neutral editor at the batch seam, adds the minimal
-Stop After Current File control, and fixes the neutral dry-run policy. No real provider,
-AI settings panel, launcher, release, or corpus work has begun.
+Phase 6A now adds the production Ollama adapter behind the Phase-5 provider-neutral
+batch seam, with mocked/offline verification only. Phase 6 is incomplete until the
+HOME-PC Phase 6B smoke test. No AI settings panel, launcher, release, or corpus work
+has begun.
 
 Stage A confirmed the live post-pipeline/pre-build seam in
 `scripts/Universal/core/batch_runner.py`: files are processed sequentially with
@@ -21,6 +22,86 @@ per-file exception isolation; `pause_gate` is checked only between files;
 dry-run, and build steps; and `build_pdf(...)` remains the sole PDF writer.
 Baseline on Python 3.14.2: `pip check` clean; `scripts/verify.py` PASS with
 **505 passed, 9 skipped** (environmental skips only).
+
+## Work Log — 2026-07-23 — Codex — Plan 2a Phase 6A (Mocked OllamaProvider)
+
+- Started from clean, aligned local/remote Phase 5 correction SHA
+  `53f2cb04d7b45bdb9e9852f3b6d071363ef91259`.
+- Added the production, provider-neutral-boundary Ollama adapter and exact official
+  `ollama==0.6.2` pin. The package/client import is lazy; script-only startup does not
+  import, construct, health-check, or call it. Configuration remains AI-off and adds
+  only loopback endpoint, keep-alive, deterministic seed, and inspectable budget fields.
+- The adapter permits only explicit HTTP loopback endpoints and complete configured
+  model tags; lists installed tags without pulling; distinguishes invalid config,
+  package absent, service down, timeout, provider error, missing model, and ready;
+  sanitizes exception payloads; and serializes calls at concurrency one.
+- Requests are non-streaming with temperature zero, fixed seed, `think=False`, and
+  configured `keep_alive`. A conservative bytes/3 estimator sizes the complete
+  system/user serialization plus formatting overhead, output allowance/margin, and
+  context margin. Every call gets computed `num_ctx` and positive bounded
+  `num_predict`; over-limit input fails before `chat`. Empty, unfinished, length-ended,
+  separate-thinking, and `<think>` responses fail closed.
+- Added `files/tests/test_ollama_provider.py` and adjusted the prior factory test.
+  Mocked coverage includes endpoint/tag safety, every health state, exact request
+  construction, budgets, no `-1`, preflight context rejection, typed/sanitized errors,
+  concurrency, release-shaped no-SDK startup, and provider-name boundary enforcement.
+  Existing editor/run-policy/dry-run/Pause/Stop/GUI/launcher regressions remain green.
+- Focused gates: Ollama/foundation/editor **112 passed**; Phase 5 batch/pause/stop
+  **44 passed**; GUI/startup/launcher **34 passed, 1 environmental skip**.
+  Full `scripts/verify.py`: **633 passed, 10 environmental skips, 0 failed**
+  (643 collected). `pip check` and `git diff --check` are clean.
+- Scope/security audit: no live provider/network/model operation, pull/install, corpus,
+  source-PDF mutation, secret, `.env`, generated artifact, launcher, PDF builder,
+  deterministic pipeline, cloud adapter, or unrelated GUI change. The only provider
+  SDK import is dynamic inside `ai.providers.ollama`.
+- Commit: `Plan 2a Phase 6A: implement mocked Ollama provider` (the resulting pushed
+  SHA is reported in the phase summary because a commit cannot contain its own SHA).
+- **Phase 6 remains incomplete.** This computer lacks the configured HOME-PC
+  Ollama/Qwen/RTX environment; Phase 6B below is the exact next continuation point.
+
+### HOME-PC Phase 6B continuation checklist (no pulls and no private text)
+
+1. Safety/reorientation: confirm this branch/remote SHA and a clean tree; use the
+   existing `.venv`; do not install system-wide or run any `ollama pull` command.
+2. Record versions without machine-unique details:
+   `ollama --version` and
+   `.venv\Scripts\python.exe -c "from importlib.metadata import version; print(version('ollama'))"`.
+   Confirm the Python client remains the committed exact pin.
+3. Run `ollama list` and record only the exact installed model tags needed for the
+   decision (plus their reported size/quantization if useful). Select one installed
+   complete tag; do not invent, alias, retag, download, or pull anything.
+4. From a local Python console, construct `OllamaProvider` with that exact tag and the
+   committed loopback endpoint. Run `list_models()` and `health_check()`; record the
+   status. Repeat with a clearly nonexistent complete tag to prove `MODEL_MISSING`.
+   Never use a remote endpoint.
+5. Send one tiny synthetic public test such as `Chapter 1\n\nHe walk home.` through
+   `CompletionRequest`/`complete()`—not a private chapter. Before calling, record
+   `request_budget()` (`input_tokens`, `output_tokens`, computed `num_ctx`); afterward
+   record only actual model tag, finish reason, truncated flag, duration, prompt/eval
+   counts, and hashes/counts—not prompt/candidate text or generated output files.
+6. Confirm the request is non-streaming, `think=False`, temperature 0, fixed seed,
+   bounded positive `num_predict`, computed `num_ctx`, and configured `keep_alive`.
+   If tokenizer/model behavior shows the estimator or limits need refinement, record
+   the evidence and update/test the conservative constants before claiming completion.
+7. Run `ollama ps` immediately after the kept-alive smoke call. Record only its bounded
+   processor/CPU/GPU indication and context figure. Treat it as an inference; do not
+   claim GPU when Ollama does not report enough evidence, and never make correctness
+   depend on GPU execution.
+8. Safely test timeout/outage behavior with canned public text and bounded settings:
+   use a very small timeout against the loopback service for timeout mapping, and a
+   closed loopback port (for example `127.0.0.1:1`) for service-down/fallback behavior.
+   Confirm `prefer_ai` returns the complete script baseline, `ai_required` raises,
+   later chapters retain the run-scoped unavailable state, and no partial candidate
+   is built. Do not stop/reconfigure the user's Ollama service merely to force a test.
+9. Rerun focused provider/foundation/editor tests, Phase 5 batch/Pause/Stop tests,
+   GUI/startup/launcher regressions, full `scripts/verify.py`, `pip check`, and
+   `git diff --check`; repeat the tracked scope/security/artifact scan.
+10. Before Phase 6 is marked complete, record: Ollama server/client versions; exact
+    tested installed tag; health/model-missing results; actual budget/options and
+    completion metadata; bounded GPU/CPU inference; timeout/outage/fallback results;
+    exact focused/full totals; whether constants changed; commit/push SHA; and any
+    model/tokenizer limitation. Commit no smoke output, machine identifiers, corpus,
+    model file, prompt/chapter text, secret, log, or generated PDF.
 
 ## Work Log — 2026-07-23 — Codex — Plan 2a Phase 5 Stop/Pause Correction
 

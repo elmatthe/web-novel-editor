@@ -9,6 +9,37 @@ its original decision date. New decisions continue to be appended here (newest o
 
 ---
 
+## 051 — Plan 2a Phase 6A: exact official Ollama client, loopback-only transport, computed budgets, and fail-closed thinking — 2026-07-23 — Codex
+
+**Status:** Accepted for mocked/offline implementation; live HOME-PC validation pending.
+**Decision:** The only local adapter uses the official exact pin `ollama==0.6.2`
+(verified against the official PyPI release and `ollama/ollama-python` API). The SDK
+import and `Client` construction are lazy inside `ai.providers.ollama`; importing or
+starting script-only code never requires the package, daemon, model, corpus, or Git
+tree. Configuration permits only an explicit plain-HTTP loopback endpoint
+(`127.0.0.1`, `localhost`, or `::1`, with a port and no credentials/path/query) and
+requires the complete configured model tag. It never discovers a remote host, changes
+tags, or pulls/installs models.
+
+Each non-streaming request is serialized under one lock, passes temperature zero/fixed
+seed/configured `keep_alive`, and explicitly disables thinking. Any separate thinking
+field, `<think>` content, empty response, non-complete response, or non-`stop` finish
+fails closed as `InvalidResponse`; reasoning is never stripped into an accepted
+candidate. A conservative UTF-8-bytes/3 estimator sizes the complete system+user chat
+serialization plus formatting overhead, expected corrected-text output, output margin,
+and context safety margin. The request receives computed `num_ctx` and positive bounded
+`num_predict`; an over-limit request raises `ContextTooLong` before `chat`.
+
+Health states distinguish invalid configuration, missing Python package, unreachable
+service, timeout, generic provider error, missing exact model, and ready. Transport
+exceptions expose bounded error types only, never provider payloads, prompts, chapters,
+lexicons, or secrets. Available Ollama response counts/durations are retained; execution
+backend remains unknown because chat metadata does not reliably prove GPU versus CPU.
+**Consequences:** Batch/editor remain provider-neutral and existing run/dry-run/Stop
+policies do not change. The configured 32K context and output margins are conservative
+pre-pilot values, not a claim about the eventual Qwen tag; Phase 6B must record actual
+HOME-PC model/server behavior before Phase 6 can be complete.
+
 ## 050 — Plan 2a Phase 5: batch owns the neutral seam, dry-run opt-in, safe stop, and one outage warning — 2026-07-23 — Codex
 
 **Status:** Accepted; extends #033, #043, #046, and #049.

@@ -8,8 +8,12 @@ from enum import Enum
 
 class ProviderStatus(str, Enum):
     OK = "ok"
+    PACKAGE_UNAVAILABLE = "package_unavailable"
     SERVICE_DOWN = "service_down"
     MODEL_MISSING = "model_missing"
+    INVALID_CONFIGURATION = "invalid_configuration"
+    TIMEOUT = "timeout"
+    PROVIDER_ERROR = "provider_error"
     AUTH_MISSING = "auth_missing"
     QUOTA_EXHAUSTED = "quota_exhausted"
 
@@ -49,6 +53,7 @@ class CompletionResult:
     provider_request_id: str | None = None
     input_tokens: int | None = None
     output_tokens: int | None = None
+    execution_backend: str | None = None
 
 
 class RunPolicy(str, Enum):

@@ -78,9 +78,14 @@ def test_factory_registration_and_unknown_provider():
     assert caught.value.retryable is False
 
 
-def test_unimplemented_known_provider_is_unavailable():
-    with pytest.raises(ProviderUnavailable):
-        create_provider("ollama")
+def test_ollama_provider_factory_is_lazy():
+    provider = create_provider(
+        "ollama",
+        model_id="qwen-test:exact",
+        sdk_loader=lambda: (_ for _ in ()).throw(AssertionError("SDK loaded early")),
+    )
+    assert provider.capabilities().provider_name == "ollama"
+    assert "ollama" not in sys.modules
 
 
 def test_configuration_precedence_and_toml(tmp_path):

@@ -5,14 +5,14 @@
 ## Last Updated
 2026-07-23 — v0.11.0 remains the shipped baseline. Plan 1 is merged into `main`;
 provider-neutral Plan 2a foundation work is in progress on
-`feature/plan-2a-provider-foundation`; Phase 5 has integrated the optional neutral
-batch seam and safe Stop control, but no real provider ships yet.
+`feature/plan-2a-provider-foundation`; Phase 6A has added the production Ollama
+adapter and mocked verification, but live HOME-PC validation remains pending.
 
 ## Current State (v0.11.0)
 The "GUI & Batch Overhaul" plan (Plan 1, Phases 1–6) is complete and merged into
 `main` by `ce96359`. Provider-neutral Plan 2a groundwork is in progress from
-`origin/main` `9ca90fd`; no provider, GUI, batch-runner, or user-visible AI feature
-has been implemented. Headlines:
+`origin/main` `9ca90fd`; no user-visible AI controls or released AI feature exist.
+Headlines:
 - **Provider-neutral Plan 2a foundation (in progress):** `scripts/Universal/ai/` now
   defines frozen provider request/result/capability models, a cloud-ready typed error
   taxonomy, the four-method provider protocol, and lazy factory construction. Root
@@ -35,7 +35,15 @@ has been implemented. Headlines:
   post-pipeline/pre-build seam. AI-off remains byte-for-byte the deterministic string;
   default dry-run performs no provider work, while an explicit per-run option permits AI
   in dry-run without writing a PDF. Bounded attempt/result records join ReplacementLog
-  JSONL, with one concise run-scoped outage warning. No provider adapter or SDK is present.
+  JSONL, with one concise run-scoped outage warning. Phase 6A adds a lazy official
+  `ollama==0.6.2` adapter behind that boundary: it permits only an explicitly configured
+  loopback HTTP endpoint and complete model tag, distinguishes package/service/model/
+  configuration/timeout health states, serializes requests at concurrency one, disables
+  thinking output, and fails closed on reasoning or incomplete output. Each request uses
+  deterministic temperature/seed/keep-alive settings plus conservative computed
+  `num_ctx` and bounded `num_predict`; no provider default context or model pull is used.
+  The adapter is mocked/offline verified only. The HOME-PC Ollama/Qwen/GPU smoke test and
+  model-specific budget refinement remain Phase 6B, so Phase 6 is not complete.
 - **Two-mode input (Phase 1):** the GUI's Input card offers mutually exclusive
   **Upload PDFs** / **Select Folder** radio modes. Folder mode runs
   `core/input_scanner.scan_folder` — a depth-first recursive scan where each
@@ -103,9 +111,9 @@ script-only path is exact. The integrated contract remains:
 - **Text-in/text-out, no I/O:** transform the string; never touch the input file;
   `build_pdf` stays the only writer, so output naming/mirroring/collision handling
   are inherited unchanged.
-- **Dry-run:** with `dry_run=True` the loop skips PDF output but still runs the text
-  path — an AI stage placed at the seam runs in dry runs too (in-memory only), which
-  is the intended preview behavior.
+- **Dry-run:** with `dry_run=True` the loop skips PDF output and always runs the
+  deterministic text path. Provider construction/calls remain off by default; only
+  explicit per-run `use_ai_in_dry_run=True` permits the AI stage in memory.
 - **Pause-gate interaction:** the Phase-4 gate holds only BETWEEN files, so the AI
   stage runs to completion for the in-flight file — AI latency lengthens the "current
   file will finish first" window; do not add a mid-file hold without a superseding
