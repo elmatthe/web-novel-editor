@@ -49,3 +49,21 @@ class CompletionResult:
     provider_request_id: str | None = None
     input_tokens: int | None = None
     output_tokens: int | None = None
+
+
+class RunPolicy(str, Enum):
+    SCRIPT_ONLY = "script_only"
+    PREFER_AI = "prefer_ai"
+    AI_REQUIRED = "ai_required"
+
+
+@dataclass(frozen=True)
+class AIOutcome:
+    text: str
+    status: str
+    used_ai: bool
+    fallback_used: bool
+    rejection_reasons: tuple[str, ...] = ()
+    chunk_count: int = 0
+    retry_count: int = 0
+    provenance: tuple[dict, ...] = ()

@@ -70,6 +70,31 @@ Baseline on Python 3.14.2: `pip check` clean; `scripts/verify.py` PASS with
 - Next after checkpoint: Stage D exact paragraph chunking and provider-neutral
   `AIEditor` orchestration using only fake providers.
 
+## Work Log — 2026-07-23 — Codex — Plan 2a Foundation Stage D
+
+- Added chunker v1.0: conservative computed budgets, heading exclusion, paragraph-only
+  greedy packing, explicit cross-chunk/trailing separators, stable zero-based indexes,
+  oversized-paragraph preflight failure, and asserted byte-exact unchanged reassembly.
+- Added provider-neutral `AIEditor`, `AIOutcome`, `RunPolicy`, and `EditorOptions`.
+  Stateless requests receive at most one bounded retry; non-retryable failures stop;
+  any first/middle/final failure discards all chapter changes. Reassembly receives only
+  the canonical dash sweep and a whole-chapter gate; returned text is that exact result.
+- Script-only never constructs a provider. Prefer-AI falls back honestly. AI-required
+  refuses unavailable setup. No provider/model branching, disk chunks, provider SDK,
+  network, batch-runner, GUI, launcher, or corpus integration.
+- Added `files/tests/test_ai_editor.py`; targeted suite passes 26 tests, including
+  exact whitespace/separator round trips, zero-call over-limit, retry/error classes,
+  first/middle/last atomic fallback, whole-chapter reordering defense, and no full-text
+  provenance.
+- ADRs #044–#046 record exact chunking, retry/fallback, and run policies. Full
+  verification and commit/push follow this entry.
+- Full AI-foundation targeted gate: 63 passed. Full `scripts/verify.py`: PASS,
+  567 passed / 10 environmental skips. Commit/push follow this entry.
+- Next: final tracked-diff/security/scope audit. The exact canonical continuation is
+  Plan 2a **Phase 5, "Batch seam + Stop After Current File + dry-run policy"**. That
+  integration was explicitly out of scope for this groundwork session; Ollama remains
+  Phase 6 and the GUI remains Phase 7.
+
 **Phase 5 (TTS jargon sweep rule) is DONE** (2026-07-19, committed on the branch):
 `rules/junk_strip.py` gained a conservative Tier-1 **decorative-run rule**
 (`junk_strip.decorative_run`): a whitespace-delimited span made only of `~ \ - = * #`

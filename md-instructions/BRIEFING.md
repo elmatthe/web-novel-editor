@@ -20,7 +20,12 @@ has been implemented. Headlines:
   `tomli==2.4.1`. Versioned prompt assembly renders the canonical protected lexicon
   at runtime; gate v1.0 validates structure, protected terms, placeholders, truncation,
   minimal diffs, and canonical spaced-em-dash behavior without mutating candidates.
-  Provenance stores hashes and bounded snippets only. No provider adapter or SDK is present.
+  Chunker v1.0 splits only between complete paragraphs, preserves headings and explicit
+  newline boundaries, and asserts byte-exact unchanged reassembly. Provider-neutral
+  `AIEditor` implements one bounded retry, exact final whole-chapter validation, and
+  chapter-atomic fallback under `script_only` / `prefer_ai` / `ai_required` policies.
+  Provenance stores hashes and bounded snippets only. No provider adapter or SDK is present,
+  and none of this foundation is wired into the batch runner or GUI.
 - **Two-mode input (Phase 1):** the GUI's Input card offers mutually exclusive
   **Upload PDFs** / **Select Folder** radio modes. Folder mode runs
   `core/input_scanner.scan_folder` — a depth-first recursive scan where each

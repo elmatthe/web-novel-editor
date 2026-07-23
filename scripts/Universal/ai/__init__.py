@@ -17,13 +17,16 @@ from .errors import (
 from .models import (
     CompletionRequest,
     CompletionResult,
+    AIOutcome,
     ProviderCapabilities,
     ProviderStatus,
+    RunPolicy,
 )
 from .provider import AIProvider
 
 __all__ = [
     "AIProvider",
+    "AIOutcome",
     "AuthenticationError",
     "CompletionRequest",
     "CompletionResult",
@@ -36,5 +39,6 @@ __all__ = [
     "ProviderUnavailable",
     "RateLimited",
     "RequestCancelled",
+    "RunPolicy",
     "TransientNetworkError",
 ]

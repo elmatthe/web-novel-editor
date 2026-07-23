@@ -9,6 +9,39 @@ its original decision date. New decisions continue to be appended here (newest o
 
 ---
 
+## 046 — Plan 2a foundation: three explicit run policies, script-only constructs nothing — 2026-07-23 — Codex
+
+**Status:** Accepted
+**Decision:** `RunPolicy` is `script_only`, `prefer_ai`, or `ai_required`. Script-only returns
+the immutable deterministic text before provider construction. Prefer-AI returns honest
+chapter fallback on provider/planning/request/gate failure. AI-required raises when provider
+setup is unavailable rather than silently degrading.
+**Consequences:** AI remains off by default and the engine does not branch on provider names.
+The later GUI/batch integration owns resolving one policy per run.
+
+## 045 — Plan 2a foundation: one bounded retry and chapter-atomic fallback — 2026-07-23 — Codex
+
+**Status:** Accepted
+**Decision:** Each independent chunk gets one normal request and at most one retry after a
+retryable provider/transport failure, malformed/truncated response, or gate rejection.
+Non-retryable typed failures stop immediately. Any exhausted first, middle, or final chunk
+stops later requests and discards every accepted chunk for that chapter. The reassembled
+candidate receives the canonical dash sweep and complete whole-chapter gate; that exact
+validated string is the returned `AIOutcome.text`.
+**Consequences:** Partial AI chapters are impossible and no provider/model switching occurs.
+
+## 044 — Plan 2a foundation: paragraph atoms with explicit reversible boundaries — 2026-07-23 — Codex
+
+**Status:** Accepted
+**Decision:** Chunker v1.0 removes the exact chapter-heading prefix from editable bodies,
+treats each complete paragraph as atomic, greedily packs consecutive paragraphs, and stores
+cross-chunk/trailing newline runs as boundary metadata. Unchanged reassembly is asserted
+byte-for-byte. The conservative neutral estimator is UTF-8 bytes/3; safe input budget subtracts
+serialized prompt, request overhead, and margin, then reserves equal output space and respects
+the provider output cap. An oversized paragraph raises `ContextTooLong` before any request.
+**Consequences:** No word/sentence/paragraph split, trim, normalization, disk chunk file, or
+boundary loss is possible. A future adapter tokenizer may replace only the estimator.
+
 ## 043 — Plan 2a foundation: provenance is hashes plus bounded diff snippets — 2026-07-23 — Codex
 
 **Status:** Accepted
