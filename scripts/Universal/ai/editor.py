@@ -27,6 +27,7 @@ from .models import (
     CompletionRequest,
     ProtectionStrategy,
     ProviderRunState,
+    ProviderStatus,
     RunPolicy,
 )
 from .prompt import PromptBundle, build_retry_prompt, build_system_prompt
@@ -78,6 +79,35 @@ class AIEditor:
 
     @property
     def run_state(self) -> ProviderRunState:
+        return self._state
+
+    def prepare_run(self) -> ProviderRunState:
+        """Establish provider availability once before a batch starts.
+
+        Script-only runs deliberately do nothing. AI-required callers use this
+        preflight to fail before processing any chapter; prefer-AI callers may
+        also use it, but batch integration leaves their first check at the first
+        chapter so an unavailable provider becomes an honest chapter fallback.
+        """
+        if self.options.policy is RunPolicy.SCRIPT_ONLY:
+            return self._state
+        provider = self._provider_for_run()
+        try:
+            status = provider.health_check()
+            if status is not ProviderStatus.OK:
+                raise ProviderUnavailable(
+                    f"Provider preflight failed: {status.value}.", retryable=False
+                )
+            if (
+                self._capabilities is not None
+                and self.options.model_id not in self._capabilities.model_ids
+            ):
+                raise ModelUnavailable(
+                    f"Model unavailable: {self.options.model_id}", retryable=False
+                )
+        except (AIProviderError, OSError, TimeoutError) as exc:
+            self._mark_unavailable(f"{type(exc).__name__}: {exc}")
+            raise
         return self._state
 
     def _provider_for_run(self) -> AIProvider:

@@ -87,6 +87,7 @@ class WebnovelEditorApp(tk.Tk):
         # Session-only state — a fresh batch (and app start) always begins un-paused.
         self.pause_gate = threading.Event()
         self.pause_gate.set()
+        self.stop_event = threading.Event()
 
         self._init_fonts()
         self._configure_styles()
@@ -360,9 +361,13 @@ class WebnovelEditorApp(tk.Tk):
         self.pause_button = ttk.Button(bar, text="Pause", command=self._toggle_pause,
                                        state=tk.DISABLED)
         self.pause_button.grid(row=0, column=1, sticky="e", padx=(0, PAD_S))
+        self.stop_button = ttk.Button(
+            bar, text="Stop", command=self._request_stop, state=tk.DISABLED
+        )
+        self.stop_button.grid(row=0, column=2, sticky="e", padx=(0, PAD_S))
         self.run_button = ttk.Button(bar, text="Start Batch Processing",
                                      style="Accent.TButton", command=self._start_batch)
-        self.run_button.grid(row=0, column=2, sticky="e")
+        self.run_button.grid(row=0, column=3, sticky="e")
 
     def _build_status_bar(self, parent: ttk.Frame, row: int) -> None:
         self.status_var = tk.StringVar(value="")
@@ -496,7 +501,9 @@ class WebnovelEditorApp(tk.Tk):
         self._running = True
         self.run_button.configure(state=tk.DISABLED)
         self.pause_gate.set()  # a new batch always starts un-paused
+        self.stop_event.clear()
         self.pause_button.configure(state=tk.NORMAL, text="Pause")
+        self.stop_button.configure(state=tk.NORMAL)
         self.progress.configure(maximum=len(files), value=0)
         dry = self._batch_dry_run
         self._log(
@@ -519,6 +526,7 @@ class WebnovelEditorApp(tk.Tk):
                 novel_name=self._batch_novel,  # the clean (marker-stripped) selection
                 mirror_root=self._batch_mirror_root,
                 pause_gate=self.pause_gate,
+                stop_event=self.stop_event,
 
                 gui_log=lambda message, level="info": self.after(
                     0, self._log, message, level),
@@ -547,10 +555,26 @@ class WebnovelEditorApp(tk.Tk):
         self.pause_gate.set()
         self.pause_button.configure(state=tk.DISABLED, text="Pause")
 
+    def _request_stop(self) -> None:
+        """Request a clean stop after the currently in-flight file."""
+        if not self._running:
+            return
+        self.stop_event.set()
+        # Release a between-files pause so the worker can observe the stop request.
+        self.pause_gate.set()
+        self.pause_button.configure(text="Pause")
+        self.stop_button.configure(state=tk.DISABLED)
+        self._log("Stop requested — the current file will finish first.", "warn")
+
+    def _reset_stop_control(self) -> None:
+        self.stop_event.clear()
+        self.stop_button.configure(state=tk.DISABLED)
+
     def _on_done(self, summary: dict) -> None:
         self._running = False
         self.run_button.configure(state=tk.NORMAL)
         self._reset_pause_control()
+        self._reset_stop_control()
         skipped = summary.get("skipped", 0)
 
         # Auto-open the output folder so the user lands on their results (spec GUI
@@ -575,6 +599,7 @@ class WebnovelEditorApp(tk.Tk):
         self._running = False
         self.run_button.configure(state=tk.NORMAL)
         self._reset_pause_control()
+        self._reset_stop_control()
         self._log(f"Batch aborted: {type(exc).__name__}: {exc}", "error")
         messagebox.showerror("Batch error", f"{type(exc).__name__}: {exc}")
 

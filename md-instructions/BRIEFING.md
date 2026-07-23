@@ -5,7 +5,8 @@
 ## Last Updated
 2026-07-23 — v0.11.0 remains the shipped baseline. Plan 1 is merged into `main`;
 provider-neutral Plan 2a foundation work is in progress on
-`feature/plan-2a-provider-foundation` (no AI stage integrated yet).
+`feature/plan-2a-provider-foundation`; Phase 5 has integrated the optional neutral
+batch seam and safe Stop control, but no real provider ships yet.
 
 ## Current State (v0.11.0)
 The "GUI & Batch Overhaul" plan (Plan 1, Phases 1–6) is complete and merged into
@@ -30,8 +31,11 @@ has been implemented. Headlines:
   strategy, chunk, chunker, attempt, status, and error metadata while never storing complete
   text. Provider construction/availability is cached for the run: script-only constructs
   nothing, prefer-AI falls back honestly after outages, and AI-required raises instead of
-  degrading. No provider adapter or SDK is present, and none of this foundation is wired
-  into the batch runner or GUI.
+  degrading. `run_batch` now accepts one optional run-scoped `AIEditor` at the exact
+  post-pipeline/pre-build seam. AI-off remains byte-for-byte the deterministic string;
+  default dry-run performs no provider work, while an explicit per-run option permits AI
+  in dry-run without writing a PDF. Bounded attempt/result records join ReplacementLog
+  JSONL, with one concise run-scoped outage warning. No provider adapter or SDK is present.
 - **Two-mode input (Phase 1):** the GUI's Input card offers mutually exclusive
   **Upload PDFs** / **Select Folder** radio modes. Folder mode runs
   `core/input_scanner.scan_folder` — a depth-first recursive scan where each
@@ -61,6 +65,10 @@ has been implemented. Headlines:
   plus an end-of-batch summary block; verbose stage chatter lives only in the JSONL;
   "⚠" integrity warnings still surface. The per-file `ReplacementLog` is always
   constructed (feeds the edit count); `integrity_flag` records never count as edits.
+- **Stop After Current File (Plan 2a Phase 5):** a `stop_event` is checked at the
+  same safe between-files seam as Pause. The current provider response, validation,
+  and PDF write complete atomically; the next file does not start. The Stop button is
+  directly beside Pause, enabled only while running, and resets between batches.
 - **Decorative-run TTS sweep (Phase 5):** `rules/junk_strip.py` Tier 1 removes
   whitespace-delimited runs of `~ \ - = * #` (≥3 symbols, internal spaces allowed —
   `* * *`, `-=-=-`, `~~~`) that TTS would voice character by character. Everything
@@ -81,18 +89,17 @@ has been implemented. Headlines:
 wrapped in its own try/except (continue-on-failure), and the pause gate is consulted
 only between files.
 
-**The post-pipeline pre-build hook (Plan 2's insertion seam).** There is exactly one
-clean structural seam for a future AI editing stage: inside the per-file loop of
+**The post-pipeline pre-build hook (Plan 2's insertion seam).** The optional
+provider-neutral AI stage is integrated at the one clean structural seam inside
 `scripts/Universal/core/batch_runner.py`, **after** `text = dispatch.run_pipeline(...)`
 returns (currently lines ~185–187) and **before** `build_pdf(text, out_path)`
 (currently line ~214). At that point the file's fully rule-edited text exists as a
 plain string, its `ReplacementLog` is live, and nothing has been written to disk.
-Plan 2's Ollama/Qwen stage slots in there as a text-in/text-out call — ideally
-immediately after the rule pipeline and **before the edit count / dry-run check**, so
+`AIEditor.edit` is called there as a text-in/text-out operation, immediately after
+the rule pipeline and **before the edit count / dry-run check**, so
 its edits appear in the condensed "X edits" count and dry runs exercise the full text
-path without writing PDFs. The hook is **documented only — deliberately not built**
-(no empty callback exists in the code). A Plan-2 implementation must honor this
-contract:
+path without writing PDFs when explicitly enabled. With AI absent/off, the historical
+script-only path is exact. The integrated contract remains:
 - **Text-in/text-out, no I/O:** transform the string; never touch the input file;
   `build_pdf` stays the only writer, so output naming/mirroring/collision handling
   are inherited unchanged.

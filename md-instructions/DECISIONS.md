@@ -9,6 +9,31 @@ its original decision date. New decisions continue to be appended here (newest o
 
 ---
 
+## 050 — Plan 2a Phase 5: batch owns the neutral seam, dry-run opt-in, safe stop, and one outage warning — 2026-07-23 — Codex
+
+**Status:** Accepted; extends #033, #043, #046, and #049.
+**Decision:** `core.batch_runner.run_batch` owns the sole integration seam after the
+authoritative deterministic pipeline and before edit counting/dry-run/PDF build. It accepts
+one optional, already run-scoped `AIEditor` and never branches on provider name. No editor
+means the legacy exact text and summary shape; script-only constructs nothing. Required-AI
+performs one provider-neutral health/model preflight before chapter processing. Prefer-AI
+uses chapter fallback, caches a confirmed outage for later chapters, and emits only one
+concise outage warning per run.
+
+Dry-run invokes no provider by default, including under an AI-required editor; only explicit
+`use_ai_in_dry_run=True` enables AI calls, and neither setting writes a PDF. Stop is a
+session-only `threading.Event` checked before files at the same safe seam as Pause: a request
+never interrupts a provider call, validation, or `build_pdf`, and no later file starts. The
+GUI adds only a run-enabled Stop button beside Pause and resets it between runs.
+
+AI attempt dictionaries are serialized as bounded structured `ai_provenance` JSONL rows;
+accepted validated diff hunks become bounded `ai_editor.diff_hunk` ReplacementLog entries
+for honest edit counting. Final accepted/fallback result hashes prove which complete text
+was handed to `build_pdf` without persisting that text. Integrity flags remain non-edits.
+**Consequences:** Phase 6 can add an Ollama adapter without changing batch orchestration;
+Plan 2b inherits a cost-safe dry-run default and run-scoped outage behavior; Stop cannot
+create partial AI chapters or PDFs. Normal GUI output remains condensed.
+
 ## 049 — Plan 2a hardening: provider availability is run-scoped and AI-required never degrades — 2026-07-23 — Codex
 
 **Status:** Accepted; extends #046.

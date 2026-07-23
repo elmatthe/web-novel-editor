@@ -34,6 +34,9 @@ import threading
 from pathlib import Path
 from typing import Callable, Optional, Sequence
 
+from ai.editor import AIEditor
+from ai.models import ProviderRunState, RunPolicy
+from ai.provenance import text_hash
 from core.edit_details import load_edit_details
 from core.novel_registry import NOVEL_INDEX_DIR, resolve_dispatch
 from core.protected_lexicon import load_protected_lexicon
@@ -57,6 +60,9 @@ def run_batch(
     novel_name: Optional[str] = None,
     mirror_root: Optional[str] = None,
     pause_gate: Optional[threading.Event] = None,
+    stop_event: Optional[threading.Event] = None,
+    ai_editor: AIEditor | None = None,
+    use_ai_in_dry_run: bool = False,
     gui_log: Callable[..., None] | None = None,
     progress: Callable[[int], None] | None = None,
 ) -> dict:
@@ -82,9 +88,18 @@ def run_batch(
         gui_log(message, level="info") — progress/diagnostic lines for the UI/log.
         progress(value:int)           — number of files completed so far (1..N).
 
+    `stop_event` is checked only at safe between-file boundaries. Set means
+    "finish the current file, then stop"; it never interrupts AI or PDF work.
+
+    `ai_editor` is one optional provider-neutral, run-scoped editor. None keeps
+    the historical script-only path exact. Dry runs call it only when
+    `use_ai_in_dry_run` is explicitly true.
+
     Returns: {total, succeeded, failed, skipped, output_dir, outputs:[paths],
     novel, profile_applied} — the last two are the run's dispatch provenance (the
     resolved display name and whether a real per-novel profile ran vs. universal-only).
+    A stopped run additionally carries ``stopped: True``; ordinary summaries retain
+    the exact legacy shape.
     """
     log = gui_log or _noop
     tick = progress or _noop
@@ -94,9 +109,9 @@ def run_batch(
     failed = 0
     skipped = 0
     outputs: list[str] = []
-
-    if not dry_run:
-        os.makedirs(output_dir, exist_ok=True)
+    stopped = False
+    outage_warned = False
+    invoke_ai = ai_editor is not None and (not dry_run or use_ai_in_dry_run)
 
     log(f"Starting batch: {total} file(s).", "accent")
     log(f"Output folder: {output_dir}", "muted")
@@ -147,12 +162,36 @@ def run_batch(
         "mode": "novel-profile" if dispatch.has_profile else "universal-only",
         "pipeline": dispatch.run_pipeline.__module__,
         "protected_terms": len(lexicon.terms),
+        "ai_enabled": ai_editor is not None,
+        "ai_in_dry_run": bool(use_ai_in_dry_run),
     }
+    if ai_editor is not None:
+        run_metadata.update(
+            {
+                "ai_policy": ai_editor.options.policy.value,
+                "ai_model": ai_editor.options.model_id,
+                "ai_strategy": ai_editor.options.protection_strategy.value,
+            }
+        )
+        if (
+            invoke_ai
+            and ai_editor.options.policy is RunPolicy.AI_REQUIRED
+            and not (stop_event is not None and stop_event.is_set())
+        ):
+            # Honest startup failure: no deterministic chapter is processed first.
+            ai_editor.prepare_run()
+
+    if not dry_run and not (stop_event is not None and stop_event.is_set()):
+        os.makedirs(output_dir, exist_ok=True)
 
     failed_files: list[tuple[str, str]] = []
     skipped_files: list[tuple[str, str]] = []
 
     for i, src in enumerate(pdf_paths, start=1):
+        if stop_event is not None and stop_event.is_set():
+            stopped = True
+            log(f"Stop requested — batch ended before chapter {i} of {total}.", "warn")
+            break
         # Cooperative pause seam (v0.11.0): consulted only BETWEEN files, so the file
         # that was in flight when Pause was clicked has already fully completed (its
         # one-line result is logged) and nothing holds before the first file or after
@@ -185,6 +224,66 @@ def run_batch(
             text = dispatch.run_pipeline(
                 text, lexicon, repl_log=repl_log, gui_log=pipe_log, dry_run=dry_run
             )
+            script_text = text
+            ai_outcome = None
+            if invoke_ai:
+                state_before = ai_editor.run_state
+                ai_outcome = ai_editor.edit(
+                    script_text, protected_terms=lexicon.terms
+                )
+                text = ai_outcome.text
+                for record in ai_outcome.provenance:
+                    repl_log.record_audit(record)
+                    if ai_outcome.used_ai and record.get("status") == "accepted":
+                        for hunk in record.get("diff_hunks", ()):
+                            repl_log.record(
+                                hunk.get("before", ""),
+                                hunk.get("after", ""),
+                                "ai_editor.diff_hunk",
+                                "ai_editor",
+                                f"chunk {record.get('chunk_index', 0) + 1}/"
+                                f"{record.get('chunk_count', 1)}",
+                            )
+                if ai_outcome.fallback_used:
+                    repl_log.record_audit(
+                        {
+                            "status": "fallback",
+                            "rejection_reasons": ai_outcome.rejection_reasons,
+                            "chunk_count": ai_outcome.chunk_count,
+                            "retry_count": ai_outcome.retry_count,
+                        }
+                    )
+                    if ai_editor.run_state is not ProviderRunState.UNAVAILABLE:
+                        log(
+                            f"        ⚠ AI rejected for {name} — deterministic output "
+                            "preserved.",
+                            "warn",
+                        )
+                if (
+                    not outage_warned
+                    and state_before is not ProviderRunState.UNAVAILABLE
+                    and ai_editor.run_state is ProviderRunState.UNAVAILABLE
+                ):
+                    outage_warned = True
+                    log(
+                        "        ⚠ AI provider unavailable — remaining chapters will "
+                        "use deterministic output.",
+                        "warn",
+                    )
+                repl_log.record_audit(
+                    {
+                        "status": ai_outcome.status,
+                        "accepted": ai_outcome.used_ai,
+                        "fallback_used": ai_outcome.fallback_used,
+                        "input_hash": text_hash(script_text),
+                        "output_hash": text_hash(text),
+                        "input_chars": len(script_text),
+                        "output_chars": len(text),
+                        "chunk_count": ai_outcome.chunk_count,
+                        "retry_count": ai_outcome.retry_count,
+                        "rejection_reasons": ai_outcome.rejection_reasons,
+                    }
+                )
             # Edit count for the condensed line: real edits only. integrity_flag
             # records (error pages #005, heading-only pages #017) mark problems,
             # not edits — they stay in the JSONL but must not inflate this count.
@@ -192,6 +291,8 @@ def run_batch(
                 1 for e in repl_log.entries if e.category != "integrity_flag"
             )
             edits_label = f"{edits} edit" + ("" if edits == 1 else "s")
+            if ai_outcome is not None and ai_outcome.used_ai and edits == 0:
+                edits_label = "AI accepted"
 
             if dry_run:
                 log(f"[{i}/{total}] {name} — done (dry run, {edits_label})", "info")
@@ -265,6 +366,8 @@ def run_batch(
         "novel": dispatch.display_name,
         "profile_applied": dispatch.has_profile,
     }
+    if stopped:
+        summary["stopped"] = True
     # End-of-batch summary block: totals, then the failed/skipped files by name so
     # problem files are findable without scrolling (sections omitted when empty).
     log(f"Batch complete: {succeeded} done, {failed} failed, {skipped} skipped "

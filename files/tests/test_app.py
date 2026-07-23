@@ -576,3 +576,45 @@ def test_app_start_batch_passes_pause_gate_and_resets_button(tmp_path, monkeypat
         assert str(app.pause_button["text"]) == "Pause"
     finally:
         app.destroy()
+
+
+def test_app_stop_button_state_placement_and_reset(tmp_path, monkeypatch):
+    """Stop sits beside Pause, is run-only, and a later run starts cleared."""
+    tk = pytest.importorskip("tkinter")
+    from gui import app as appmod
+
+    pdf = tmp_path / "a.pdf"
+    pdf.write_bytes(b"%PDF-stub")
+    try:
+        app = appmod.WebnovelEditorApp()
+    except tk.TclError:
+        pytest.skip("no display available for Tk")
+    try:
+        app.withdraw()
+        app.update_idletasks()
+        assert str(app.stop_button["state"]) == "disabled"
+        assert int(app.stop_button.grid_info()["column"]) == (
+            int(app.pause_button.grid_info()["column"]) + 1
+        )
+
+        app._running = True
+        app.stop_button.configure(state=tk.NORMAL)
+        app.stop_event.clear()
+        app._request_stop()
+        assert app.stop_event.is_set()
+        assert str(app.stop_button["state"]) == "disabled"
+
+        app._reset_stop_control()
+        assert not app.stop_event.is_set()
+        assert str(app.stop_button["state"]) == "disabled"
+
+        calls = _wire_batch_spy(appmod, monkeypatch, tmp_path)
+        app._running = False
+        app.file_paths.append(str(pdf))
+        app._refresh_file_list()
+        app._start_batch()
+        app.update()
+        assert calls[0]["stop_event"] is app.stop_event
+        assert not app.stop_event.is_set()
+    finally:
+        app.destroy()

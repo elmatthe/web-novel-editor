@@ -10,8 +10,9 @@ Plan 2 is split into three canonical drops:
 `plan-2a-local-ai-editor.md` (local Ollama editor, target v0.12.0),
 `plan-2b-cloud-providers.md` (Gemini/Groq, target v0.13.0), and
 `plan-2c-installer-bootstrap.md` (bootstrap/onboarding, target v0.14.0).
-This work is limited to the provider-neutral Plan 2a foundation authorized by
-`codex_groundwork.md.md`; it does not integrate a provider, GUI, batch runner, or corpus.
+Phase 5 now integrates the provider-neutral editor at the batch seam, adds the minimal
+Stop After Current File control, and fixes the neutral dry-run policy. No real provider,
+AI settings panel, launcher, release, or corpus work has begun.
 
 Stage A confirmed the live post-pipeline/pre-build seam in
 `scripts/Universal/core/batch_runner.py`: files are processed sequentially with
@@ -20,6 +21,47 @@ per-file exception isolation; `pause_gate` is checked only between files;
 dry-run, and build steps; and `build_pdf(...)` remains the sole PDF writer.
 Baseline on Python 3.14.2: `pip check` clean; `scripts/verify.py` PASS with
 **505 passed, 9 skipped** (environmental skips only).
+
+## Work Log — 2026-07-23 — Codex — Plan 2a Phase 5
+
+- Started from clean, aligned local/remote SHA
+  `67b1235146a62c5744794d48dec5c26a8885d02b` on
+  `feature/plan-2a-provider-foundation`.
+- Integrated one optional run-scoped `AIEditor` into the exact Plan-1 seam:
+  deterministic pipeline → neutral AI edit → edit count/dry-run → `build_pdf`.
+  Existing callers pass no editor and retain the exact script-only text and summary
+  shape; no provider is constructed, checked, or called.
+- Added provider-neutral `prepare_run()` for `ai_required`: one cached provider is
+  health/model checked before deterministic chapter processing. Prefer-AI retains
+  chapter fallback and the established unavailable state; one outage warning is shown
+  per run. Gate rejection is a chapter fallback and never produces a partial AI chapter.
+- Dry-run defaults to the complete deterministic in-memory path with zero provider
+  initialization/calls and no PDF. `use_ai_in_dry_run=True` is the sole explicit
+  per-run opt-in; it may call the fake/neutral provider but still writes no PDF.
+- Added `stop_event` at the existing safe between-files seam and a run-only Stop button
+  directly beside Pause. The current file, AI response validation, and PDF write finish
+  completely; no next file begins. State clears before later runs and after completion.
+- Extended `ReplacementLog` with bounded structured AI audit rows. Run settings,
+  attempt provenance, fallback/result hashes/counts, versions, strategy/model/chunk/
+  attempt/retry state, and bounded accepted diff hunks use `ai_editor.*` naming.
+  `integrity_flag` remains excluded from edits and no full chapter/chunk/lexicon/secret
+  is stored.
+- Files changed: `scripts/Universal/ai/editor.py`,
+  `scripts/Universal/core/batch_runner.py`,
+  `scripts/Universal/core/replacement_log.py`, `scripts/Universal/gui/app.py`,
+  `files/tests/test_ai_editor.py`, `files/tests/test_app.py`,
+  new `files/tests/test_plan2a_phase5.py`, plus this handoff, `BRIEFING.md`, and
+  `DECISIONS.md`.
+- Focused final gates: AI/seam **97 passed**; batch/isolation/pause/stop
+  **50 passed**; GUI **17 passed**. Final full `scripts/verify.py`: **601 passed,
+  11 environmental skips, 0 failed** (612 collected); the preceding run before the
+  final two regression tests was 601/9, also with zero failures. `pip check` and
+  `git diff --check` are clean.
+- Commit: `Plan 2a Phase 5: integrate batch seam and safe stop` (the resulting SHA is
+  reported in the phase summary because a commit cannot contain its own final SHA).
+- Remaining limitations: no real provider adapter/SDK, no live provider call, no Phase-7
+  AI controls, and no corpus test. Next continuation is Plan 2a Phase 6,
+  **OllamaProvider**, only after review of this checkpoint.
 
 ## Work Log — 2026-07-23 — Codex — Provider-Neutral Foundation Hardening
 

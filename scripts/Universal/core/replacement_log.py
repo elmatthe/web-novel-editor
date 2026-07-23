@@ -47,6 +47,7 @@ class ReplacementLog:
 
     entries: list[ReplacementEntry] = field(default_factory=list)
     metadata: dict | None = None
+    audit_records: list[dict] = field(default_factory=list)
 
     def record(
         self,
@@ -75,6 +76,10 @@ class ReplacementLog:
             )
         )
 
+    def record_audit(self, record: dict) -> None:
+        """Append a bounded structured record such as AI attempt provenance."""
+        self.audit_records.append(dict(record))
+
     def write_jsonl(self, path: str) -> None:
         """Serialize entries to a UTF-8 JSONL file (one record per line).
 
@@ -100,6 +105,12 @@ class ReplacementLog:
                         },
                         ensure_ascii=False,
                     )
+                    + "\n"
+                )
+            for record in self.audit_records:
+                fh.write(
+                    json.dumps({"record": "ai_provenance", **record},
+                               ensure_ascii=False)
                     + "\n"
                 )
 

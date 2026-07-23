@@ -232,6 +232,28 @@ def test_ai_required_raises_when_unavailable():
         instance.edit("text")
 
 
+def test_ai_required_prepare_run_health_checks_once_and_caches_provider():
+    provider = FakeProvider()
+    factory_calls = []
+    instance = AIEditor(
+        lambda: factory_calls.append(1) or provider,
+        EditorOptions("fake-1", RunPolicy.AI_REQUIRED),
+    )
+    assert instance.prepare_run() is ProviderRunState.AVAILABLE
+    assert instance.edit("A complete chapter remains unchanged.").used_ai
+    assert factory_calls == [1]
+
+
+def test_script_only_prepare_run_never_constructs_provider():
+    calls = []
+    instance = AIEditor(
+        lambda: calls.append(1),
+        EditorOptions("fake-1", RunPolicy.SCRIPT_ONLY),
+    )
+    assert instance.prepare_run() is ProviderRunState.UNINITIALIZED
+    assert calls == []
+
+
 def test_provenance_never_contains_full_chapter():
     baseline = "He walk home."
     outcome = editor(FakeProvider(["He walks home."])).edit(baseline)
