@@ -4,7 +4,7 @@ import json
 
 import pytest
 
-from ai.prompt import build_system_prompt
+from ai.prompt import LEXICON_VERSION, build_system_prompt
 from ai.provenance import MAX_SNIPPET, build_provenance
 from ai.validation import RejectionReason as R
 from ai.validation import validate_candidate
@@ -117,6 +117,13 @@ def test_provenance_is_bounded_and_excludes_full_text_and_secret():
         model_id="fake-1",
         prompt_version="1.0",
         gate_version="1.0",
+        lexicon_hash="0" * 64,
+        lexicon_version=LEXICON_VERSION,
+        protection_strategy="verify",
+        chunk_index=0,
+        chunk_count=1,
+        chunker_version="1.0",
+        attempt_number=1,
         status="rejected",
         rejection_reasons=("broad",),
     )
@@ -124,3 +131,23 @@ def test_provenance_is_bounded_and_excludes_full_text_and_secret():
     assert baseline not in serialized and candidate not in serialized
     assert secret not in serialized
     assert all(len(h["before"]) <= MAX_SNIPPET and len(h["after"]) <= MAX_SNIPPET for h in record.diff_hunks)
+
+
+def test_same_paragraph_protected_term_movement_rejected():
+    baseline = "Chapter 1: Place.\n\nSunny quietly crossed the courtyard before dawn."
+    moved = "Chapter 1: Place.\n\nQuietly crossed the courtyard, Sunny waited before dawn."
+    result = validate_candidate(baseline, moved, protected_terms=("Sunny",))
+    assert R.PROTECTED_TERM_CHANGED in result.reasons
+
+
+def test_equal_count_same_paragraph_term_swap_rejected():
+    baseline = "Chapter 1: Place.\n\nSunny greeted Nephis while Cassie watched."
+    swapped = "Chapter 1: Place.\n\nNephis greeted Sunny while Cassie watched."
+    result = validate_candidate(baseline, swapped, protected_terms=("Sunny", "Nephis"))
+    assert R.PROTECTED_TERM_CHANGED in result.reasons
+
+
+def test_adjacent_tiny_grammar_correction_keeps_positional_identity():
+    baseline = "Chapter 1: Place.\n\nAfter sunset, Sunny walk quietly toward home."
+    fixed = "Chapter 1: Place.\n\nAfter sunset, Sunny walks quietly toward home."
+    assert validate_candidate(baseline, fixed, protected_terms=("Sunny",)).accepted

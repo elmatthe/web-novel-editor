@@ -137,4 +137,5 @@ def test_committed_config_is_disabled_and_secret_free():
     text = (root / "config.toml").read_text(encoding="utf-8")
     loaded = load_config(root / "config.toml")
     assert loaded["enabled"] is False
+    assert loaded["protection_strategy"] == "mask"
     assert not any(word in text.lower() for word in ("api_key", "secret", "password", "token ="))

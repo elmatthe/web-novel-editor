@@ -17,7 +17,12 @@ def text_hash(text: str) -> str:
 
 def _bounded(value: str) -> str:
     value = " ".join(value.split())
-    return value[:MAX_SNIPPET]
+    if not value:
+        return ""
+    if len(value) <= MAX_SNIPPET:
+        # Never persist the complete changed span, even when it is shorter than the cap.
+        return value[: max(0, len(value) - 1)] + "…"
+    return value[: MAX_SNIPPET - 1] + "…"
 
 
 @dataclass(frozen=True)
@@ -26,6 +31,13 @@ class AttemptProvenance:
     model_id: str
     prompt_version: str
     gate_version: str
+    lexicon_hash: str
+    lexicon_version: str
+    protection_strategy: str
+    chunk_index: int
+    chunk_count: int
+    chunker_version: str
+    attempt_number: int
     status: str
     rejection_reasons: tuple[str, ...]
     retry_count: int
@@ -51,6 +63,13 @@ def build_provenance(
     model_id: str,
     prompt_version: str,
     gate_version: str,
+    lexicon_hash: str,
+    lexicon_version: str,
+    protection_strategy: str,
+    chunk_index: int,
+    chunk_count: int,
+    chunker_version: str,
+    attempt_number: int,
     status: str,
     rejection_reasons: Iterable[str] = (),
     retry_count: int = 0,
@@ -58,20 +77,29 @@ def build_provenance(
     outer_fence_unwrapped: bool = False,
     input_tokens: int | None = None,
     output_tokens: int | None = None,
+    include_diff: bool = True,
 ) -> AttemptProvenance:
     hunks = []
-    matcher = difflib.SequenceMatcher(None, baseline, candidate, autojunk=False)
-    for tag, i1, i2, j1, j2 in matcher.get_opcodes():
-        if tag == "equal":
-            continue
-        hunks.append({"operation": tag, "before": _bounded(baseline[i1:i2]), "after": _bounded(candidate[j1:j2])})
-        if len(hunks) >= MAX_HUNKS:
-            break
+    if include_diff:
+        matcher = difflib.SequenceMatcher(None, baseline, candidate, autojunk=False)
+        for tag, i1, i2, j1, j2 in matcher.get_opcodes():
+            if tag == "equal":
+                continue
+            hunks.append({"operation": tag, "before": _bounded(baseline[i1:i2]), "after": _bounded(candidate[j1:j2])})
+            if len(hunks) >= MAX_HUNKS:
+                break
     return AttemptProvenance(
         provider=provider,
         model_id=model_id,
         prompt_version=prompt_version,
         gate_version=gate_version,
+        lexicon_hash=lexicon_hash,
+        lexicon_version=lexicon_version,
+        protection_strategy=protection_strategy,
+        chunk_index=chunk_index,
+        chunk_count=chunk_count,
+        chunker_version=chunker_version,
+        attempt_number=attempt_number,
         status=status,
         rejection_reasons=tuple(rejection_reasons),
         retry_count=retry_count,

@@ -21,6 +21,38 @@ dry-run, and build steps; and `build_pdf(...)` remains the sole PDF writer.
 Baseline on Python 3.14.2: `pip check` clean; `scripts/verify.py` PASS with
 **505 passed, 9 skipped** (environmental skips only).
 
+## Work Log — 2026-07-23 — Codex — Provider-Neutral Foundation Hardening
+
+- Resumed the clean pushed branch at exact remote HEAD `aa5869c`.
+- Closed the five confirmed audit gaps without starting Plan 2a Phase 5:
+  - Strategy M now uses canonical `mask_protected_terms` before budget/chunk planning and
+    canonical `unmask_placeholders` only after exact reassembly; Strategy V remains
+    unmasked. Selection is explicit in `EditorOptions` and `config.toml` (default `mask`).
+  - Strategy V now pins exact spelling plus paragraph, sentence, and word ordinal,
+    rejecting same-paragraph movement/equal-count swaps while allowing adjacent grammar
+    corrections that preserve position.
+  - Gate-rejected/malformed/truncated attempts alone use stricter prompt
+    `1.0-retry.1`; transient provider retries retain prompt `1.0`. One retry remains.
+  - Every candidate and provider-error attempt records lexicon hash/version, protection
+    strategy, chunk index/count, chunker version, attempt number, actual prompt version,
+    status/reasons, hashes/counts/timing, and safe bounded snippets (no provider-error diff).
+  - `AIEditor` now caches provider/run availability. Script-only constructs nothing;
+    prefer-AI falls back for an outage and all later chapters without repeated calls;
+    AI-required raises and never silently degrades. Gate rejection stays chapter-local.
+- Added 17 focused tests (AI foundation total 63 → 80) for overlapping/multi-word/Unicode
+  masking, collision/damage rejection, exact unmasking, masking-before-chunking, Strategy-V
+  same-paragraph movement/swaps/adjacent correction, normal vs stricter retry versions,
+  complete provider-error provenance, and initial/mid-run/gate/subsequent-chapter policies.
+- Focused AI gate: **80 passed**. Full `scripts/verify.py`: **584 passed,
+  10 environmental skips** (594 collected, zero failures); `pip check` clean.
+- Verification wording reconciliation: the prior foundation's authoritative final audit
+  was **566 passed / 11 environmental skips**. Its immediately preceding run was
+  **567 / 10**. Both collected 577 tests with zero failures; 567/10 was not the final run.
+- No architecture conflict was found. No provider, batch runner, GUI, launcher, cloud,
+  installer, PDF, or corpus code was added or changed.
+- STOP after this hardening checkpoint. Next authorized work remains Plan 2a Phase 5:
+  **“Batch seam + Stop After Current File + dry-run policy.”**
+
 ## Work Log — 2026-07-23 — Codex — Plan 2a Foundation Stage A
 
 - The supplied `web-novel-editor` directory was an extracted copy with no `.git`.

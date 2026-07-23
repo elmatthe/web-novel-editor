@@ -8,6 +8,8 @@ from pathlib import Path
 from typing import Iterable
 
 PROMPT_VERSION = "1.0"
+RETRY_PROMPT_VERSION = "1.0-retry.1"
+LEXICON_VERSION = "protected-lexicon-v1"
 _RESOURCE = (
     Path(__file__).resolve().parents[1]
     / "resources"
@@ -22,6 +24,7 @@ class PromptBundle:
     prompt_version: str
     lexicon_hash: str
     protected_term_count: int
+    lexicon_version: str = LEXICON_VERSION
 
 
 def lexicon_fingerprint(terms: Iterable[str]) -> str:
@@ -38,4 +41,20 @@ def build_system_prompt(terms: Iterable[str], *, resource: Path = _RESOURCE) -> 
         prompt_version=PROMPT_VERSION,
         lexicon_hash=lexicon_fingerprint(ordered),
         protected_term_count=len(ordered),
+    )
+
+
+def build_retry_prompt(base: PromptBundle) -> PromptBundle:
+    correction = (
+        "\nRETRY CORRECTION — Your previous response was rejected. Return the complete "
+        "supplied text only. Make no change except a certain permitted mechanical correction. "
+        "Preserve every placeholder, protected term, sentence, paragraph, and newline exactly. "
+        "No reasoning, preamble, commentary, or fence. Unchanged text is preferred.\n"
+    )
+    return PromptBundle(
+        system_prompt=base.system_prompt + correction,
+        prompt_version=RETRY_PROMPT_VERSION,
+        lexicon_hash=base.lexicon_hash,
+        protected_term_count=base.protected_term_count,
+        lexicon_version=base.lexicon_version,
     )

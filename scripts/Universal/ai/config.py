@@ -17,7 +17,7 @@ IN_CODE_DEFAULTS: dict[str, Any] = {
     "provider": "ollama",
     "model": "",
     "timeout_seconds": 120,
-    "strategy": "minimal",
+    "protection_strategy": "mask",
     "prompt_version": "1",
     "gate_version": "1",
 }

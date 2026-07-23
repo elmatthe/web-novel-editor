@@ -22,10 +22,16 @@ has been implemented. Headlines:
   minimal diffs, and canonical spaced-em-dash behavior without mutating candidates.
   Chunker v1.0 splits only between complete paragraphs, preserves headings and explicit
   newline boundaries, and asserts byte-exact unchanged reassembly. Provider-neutral
-  `AIEditor` implements one bounded retry, exact final whole-chapter validation, and
-  chapter-atomic fallback under `script_only` / `prefer_ai` / `ai_required` policies.
-  Provenance stores hashes and bounded snippets only. No provider adapter or SDK is present,
-  and none of this foundation is wired into the batch runner or GUI.
+  `AIEditor` now implements both explicit protection strategies: default Strategy M masks
+  with the canonical lexicon before chunk planning and unmasks only after exact reassembly;
+  Strategy V verifies exact spelling plus paragraph/sentence/word position. Gate/malformed/
+  truncated retries use versioned stricter prompt `1.0-retry.1`; transient transport retries
+  retain prompt `1.0`, with one total retry maximum. Attempt provenance includes lexicon,
+  strategy, chunk, chunker, attempt, status, and error metadata while never storing complete
+  text. Provider construction/availability is cached for the run: script-only constructs
+  nothing, prefer-AI falls back honestly after outages, and AI-required raises instead of
+  degrading. No provider adapter or SDK is present, and none of this foundation is wired
+  into the batch runner or GUI.
 - **Two-mode input (Phase 1):** the GUI's Input card offers mutually exclusive
   **Upload PDFs** / **Select Folder** radio modes. Folder mode runs
   `core/input_scanner.scan_folder` — a depth-first recursive scan where each

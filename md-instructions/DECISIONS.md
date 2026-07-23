@@ -9,6 +9,47 @@ its original decision date. New decisions continue to be appended here (newest o
 
 ---
 
+## 049 — Plan 2a hardening: provider availability is run-scoped and AI-required never degrades — 2026-07-23 — Codex
+
+**Status:** Accepted; extends #046.
+**Decision:** One `AIEditor` instance owns one run-scoped provider and
+`ProviderRunState` (`uninitialized`, `available`, `unavailable`). Construction occurs at
+most once. An exhausted provider/model/network outage marks the run unavailable:
+`prefer_ai` falls back honestly for the affected and all later chapters without repeated
+construction/calls; `ai_required` raises for the affected and later chapters. Gate rejection
+is chapter-local, does not poison a healthy provider, and falls back only under `prefer_ai`;
+under `ai_required` it raises `InvalidResponse`. `script_only` returns before construction.
+**Consequences:** Phase 5 can reuse this state directly; no per-chapter provider dialog,
+silent AI-required fallback, or repeated outage storm is possible.
+
+## 048 — Plan 2a hardening: retry prompt and provenance describe every attempt — 2026-07-23 — Codex
+
+**Status:** Accepted; extends #043 and #045.
+**Decision:** The normal prompt remains v1.0. Only a gate-rejected, malformed, or truncated
+attempt uses the single stricter retry prompt v1.0-retry.1; transient provider/network retries
+reuse the normal prompt. Every attempt records its actual prompt version, lexicon hash/version,
+protection strategy, zero-based chunk index/count, chunker version, one-based attempt number,
+status, reasons, hashes/counts/timing, and bounded non-complete snippets. Provider-error
+attempts have the same metadata but no diff snippet because no candidate exists.
+**Consequences:** The one-retry limit is unchanged and provenance can reconstruct control flow
+without storing a full chunk/chapter, lexicon contents, or secret.
+
+## 047 — Plan 2a hardening: both protection strategies share the canonical lexicon — 2026-07-23 — Codex
+
+**Status:** Accepted; supersedes #041's paragraph-only Strategy-V position description.
+**Decision:** `EditorOptions.protection_strategy` explicitly selects `mask` (default) or
+`verify`, mirrored by secret-free `config.toml`. Strategy M calls canonical
+`core.protected_lexicon.mask_protected_terms` on the complete deterministic chapter before
+budgeting/chunking, validates placeholder identity per chunk, and calls canonical
+`unmask_placeholders` only after exact reassembly. The complete unmasked chapter then receives
+the whole-chapter gate; any `__WE_` residue fails. Strategy V sends unmasked text and identifies
+each exact protected occurrence by spelling, paragraph, sentence, and word ordinal. This
+rejects same-paragraph movement/equal-count swaps while allowing adjacent corrections that
+preserve word position.
+**Consequences:** Overlapping/multi-word/Unicode handling stays owned by the existing lexicon,
+mask length affects chunk planning correctly, and neither strategy permits protected-term
+damage or placeholder leakage.
+
 ## 046 — Plan 2a foundation: three explicit run policies, script-only constructs nothing — 2026-07-23 — Codex
 
 **Status:** Accepted

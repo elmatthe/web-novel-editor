@@ -19,6 +19,8 @@ from .models import (
     CompletionResult,
     AIOutcome,
     ProviderCapabilities,
+    ProtectionStrategy,
+    ProviderRunState,
     ProviderStatus,
     RunPolicy,
 )
@@ -35,6 +37,8 @@ __all__ = [
     "InvalidResponse",
     "ModelUnavailable",
     "ProviderCapabilities",
+    "ProtectionStrategy",
+    "ProviderRunState",
     "ProviderStatus",
     "ProviderUnavailable",
     "RateLimited",

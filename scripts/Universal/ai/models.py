@@ -57,6 +57,17 @@ class RunPolicy(str, Enum):
     AI_REQUIRED = "ai_required"
 
 
+class ProtectionStrategy(str, Enum):
+    MASK = "mask"
+    VERIFY = "verify"
+
+
+class ProviderRunState(str, Enum):
+    UNINITIALIZED = "uninitialized"
+    AVAILABLE = "available"
+    UNAVAILABLE = "unavailable"
+
+
 @dataclass(frozen=True)
 class AIOutcome:
     text: str

@@ -76,20 +76,35 @@ def _newline_shape(text: str) -> tuple[str, ...]:
     return tuple(re.findall(r"\r\n|\n|\r", text))
 
 
-def _protected_signature(text: str, terms: Iterable[str]) -> tuple[tuple[str, int], ...]:
-    """Preserve exact term spelling/order and the paragraph containing each occurrence.
+def _protected_signature(
+    text: str, terms: Iterable[str]
+) -> tuple[tuple[str, int, int, int], ...]:
+    """Exact spelling plus paragraph, sentence, and word ordinal for every occurrence.
 
-    Absolute offsets and adjacent words may legitimately move after a tiny correction, so
-    they are not stable identity. Paragraph placement plus global occurrence order catches
-    movement/swaps without forbidding a permitted edit beside a protected name.
+    Word ordinals remain stable for ordinary typo/agreement corrections beside a name,
+    while moving a term within the same paragraph or swapping equal-count terms changes
+    its positional identity.
     """
-    matches: list[tuple[int, str, int]] = []
+    matches: list[tuple[int, str, int, int, int]] = []
+    paragraphs = list(re.finditer(r"(?:^|\n\s*\n)(.*?)(?=\n\s*\n|\Z)", text, re.DOTALL))
     for term in terms:
         for match in re.finditer(re.escape(term), text, re.IGNORECASE):
-            paragraph = len(re.findall(r"\n\s*\n", text[: match.start()]))
-            matches.append((match.start(), match.group(0), paragraph))
+            paragraph_index = next(
+                (i for i, paragraph in enumerate(paragraphs) if paragraph.start() <= match.start() < paragraph.end()),
+                len(paragraphs) - 1,
+            )
+            paragraph_start = paragraphs[paragraph_index].start() if paragraphs else 0
+            before = text[paragraph_start : match.start()]
+            sentence_index = len(re.findall(r"[.!?]+(?:\s+|$)", before))
+            word_ordinal = len(re.findall(r"[\w’']+", before, re.UNICODE))
+            matches.append(
+                (match.start(), match.group(0), paragraph_index, sentence_index, word_ordinal)
+            )
     matches.sort()
-    return tuple((spelling, paragraph) for _, spelling, paragraph in matches)
+    return tuple(
+        (spelling, paragraph, sentence, ordinal)
+        for _, spelling, paragraph, sentence, ordinal in matches
+    )
 
 
 def _diff_reasons(baseline: str, candidate: str) -> set[RejectionReason]:
