@@ -1,21 +1,42 @@
 # Web Novel Editor — Handoff
 
 ## Current Focus
-**Plan 1 — GUI & Batch Overhaul (v0.11.0) is COMPLETE** — all six phases implemented,
-verified, and committed on `feature/gui-batch-overhaul` (branched off `main` @ `c424d30`;
-the plan drop `plan-1-gui-batch-overhaul.md` has been **deleted** per its Definition of
-Done). The branch is pushed to origin and **NOT merged to `main` — awaiting the user's
-explicit end-of-plan sign-off** (per AI-WORKSPACE git habits, a finished phase is not
-approval). CHANGELOG has the v0.11.0 entry; BRIEFING reflects the new GUI/batch model and
-documents the **post-pipeline pre-build hook** (Plan 2's insertion seam in
-`core/batch_runner.py`, between `dispatch.run_pipeline(...)` and `build_pdf(...)`) —
-documented only, deliberately not built.
+**Provider-neutral Plan 2a foundation is IN PROGRESS** on
+`feature/plan-2a-provider-foundation`, starting from `origin/main` at
+`9ca90fda67c2da981c383415e0124b3db442201d`. Plan 1 v0.11.0 was merged into `main`
+by `ce96359`; its former feature branch is no longer the active development base.
 
-**Next: Plan 2 (AI editor integration, `plan-2-ai-editor-integration.md`).** That drop
-was drafted against a much earlier repo state — it must be **rewritten/reconciled against
-the real v0.11.0 tree before any implementation** (the same treatment Plan 1 got in its
-v2 reconciliation). Its AI stage slots into the documented seam and must honor the
-contract in BRIEFING's architecture section.
+Plan 2 is split into three canonical drops:
+`plan-2a-local-ai-editor.md` (local Ollama editor, target v0.12.0),
+`plan-2b-cloud-providers.md` (Gemini/Groq, target v0.13.0), and
+`plan-2c-installer-bootstrap.md` (bootstrap/onboarding, target v0.14.0).
+This work is limited to the provider-neutral Plan 2a foundation authorized by
+`codex_groundwork.md.md`; it does not integrate a provider, GUI, batch runner, or corpus.
+
+Stage A confirmed the live post-pipeline/pre-build seam in
+`scripts/Universal/core/batch_runner.py`: files are processed sequentially with
+per-file exception isolation; `pause_gate` is checked only between files;
+`dispatch.run_pipeline(...)` returns the deterministic text before the edit-count,
+dry-run, and build steps; and `build_pdf(...)` remains the sole PDF writer.
+Baseline on Python 3.14.2: `pip check` clean; `scripts/verify.py` PASS with
+**505 passed, 9 skipped** (environmental skips only).
+
+## Work Log — 2026-07-23 — Codex — Plan 2a Foundation Stage A
+
+- The supplied `web-novel-editor` directory was an extracted copy with no `.git`.
+  Per the groundwork safety contract, cloned the verified origin into sibling
+  `web-novel-editor-git`; no file in the extracted copy was modified.
+- Confirmed clean `main` at `9ca90fda67c2da981c383415e0124b3db442201d`,
+  origin URL `https://github.com/elmatthe/web-novel-editor.git`, and verified
+  `ce96359` is an ancestor of `origin/main`.
+- Created `feature/plan-2a-provider-foundation`; created only the authorized local
+  `.venv` in the fresh clone and installed `scripts/requirements.txt`.
+- Mapped the live batch seam and reconciled stale current-state wording in this
+  handoff and `BRIEFING.md`. No source, test, pipeline, GUI, launcher, or version
+  file changed.
+- Baseline gate: Python 3.14.2; `pip check` clean; `scripts/verify.py` PASS,
+  505 passed / 9 skipped.
+- Next: Stage B provider contract, configuration, and offline test foundation.
 
 **Phase 5 (TTS jargon sweep rule) is DONE** (2026-07-19, committed on the branch):
 `rules/junk_strip.py` gained a conservative Tier-1 **decorative-run rule**

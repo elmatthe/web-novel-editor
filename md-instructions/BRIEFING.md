@@ -3,14 +3,15 @@
 ## Version: v0.11.0
 
 ## Last Updated
-2026-07-19 — v0.11.0: GUI & Batch Overhaul (Plan 1, Phases 1–6): two-mode input +
-natural-order folder scanning, auto-numbered mirrored Downloads output, "Universal"
-default dropdown entry, pause/continue + condensed log, decorative-run TTS sweep,
-Plan-2 seam documented
+2026-07-23 — v0.11.0 remains the shipped baseline. Plan 1 is merged into `main`;
+provider-neutral Plan 2a foundation work is in progress on
+`feature/plan-2a-provider-foundation` (no AI stage integrated yet).
 
 ## Current State (v0.11.0)
-The "GUI & Batch Overhaul" plan (Plan 1, Phases 1–6) is complete on
-`feature/gui-batch-overhaul`. Headlines:
+The "GUI & Batch Overhaul" plan (Plan 1, Phases 1–6) is complete and merged into
+`main` by `ce96359`. Provider-neutral Plan 2a groundwork is in progress from
+`origin/main` `9ca90fd`; no provider, GUI, batch-runner, or user-visible AI feature
+has been implemented. Headlines:
 - **Two-mode input (Phase 1):** the GUI's Input card offers mutually exclusive
   **Upload PDFs** / **Select Folder** radio modes. Folder mode runs
   `core/input_scanner.scan_folder` — a depth-first recursive scan where each
