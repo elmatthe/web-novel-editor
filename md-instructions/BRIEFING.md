@@ -12,6 +12,12 @@ The "GUI & Batch Overhaul" plan (Plan 1, Phases 1–6) is complete and merged in
 `main` by `ce96359`. Provider-neutral Plan 2a groundwork is in progress from
 `origin/main` `9ca90fd`; no provider, GUI, batch-runner, or user-visible AI feature
 has been implemented. Headlines:
+- **Provider-neutral Plan 2a foundation (in progress):** `scripts/Universal/ai/` now
+  defines frozen provider request/result/capability models, a cloud-ready typed error
+  taxonomy, the four-method provider protocol, and lazy factory construction. Root
+  `config.toml` is committed and secret-free with AI disabled; per-user settings use
+  atomic JSON outside the repository. Python 3.10 remains supported through
+  `tomli==2.4.1`; no provider adapter or SDK is present.
 - **Two-mode input (Phase 1):** the GUI's Input card offers mutually exclusive
   **Upload PDFs** / **Select Folder** radio modes. Folder mode runs
   `core/input_scanner.scan_folder` — a depth-first recursive scan where each

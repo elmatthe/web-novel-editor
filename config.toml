@@ -1,0 +1,17 @@
+# Committed application defaults. This file must never contain credentials.
+[project]
+name = "Web Novel Editor"
+version = "0.11.0"
+python_minimum = "3.10"
+
+[ai]
+enabled = false
+provider = "ollama"
+model = ""
+timeout_seconds = 120
+strategy = "minimal"
+prompt_version = "1"
+gate_version = "1"
+
+[ai.validation]
+max_change_ratio = 0.08

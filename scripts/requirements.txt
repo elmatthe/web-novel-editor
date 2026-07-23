@@ -16,3 +16,4 @@ pytest==9.1.1
 # natsort: natural (numeric-aware) filename ordering for the folder-scan input mode
 # (1,2,10 not 1,10,2). Latest stable verified on PyPI 2026-07-17 (Plan 1 Phase 1).
 natsort==8.4.0
+tomli==2.4.1

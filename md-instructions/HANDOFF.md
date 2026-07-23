@@ -38,6 +38,22 @@ Baseline on Python 3.14.2: `pip check` clean; `scripts/verify.py` PASS with
   505 passed / 9 skipped.
 - Next: Stage B provider contract, configuration, and offline test foundation.
 
+## Work Log — 2026-07-23 — Codex — Plan 2a Foundation Stage B
+
+- Added `scripts/Universal/ai/` contract models, typed failures, runtime-checkable
+  protocol, lazy factory, TOML/default resolution, and atomic per-user settings helpers.
+- Added secret-free root `config.toml` with AI disabled. Preserved Python 3.10 using
+  current exact pin `tomli==2.4.1`; no SDK or adapter was added.
+- Added `files/tests/test_ai_foundation.py` covering contracts, retryability,
+  `FakeProvider` conformance, factory failures, import isolation, precedence, Windows/macOS
+  paths, atomic writes, no import side effects, and committed-config secret hygiene.
+- Documentation ownership: ADRs #036–#040 record contract, taxonomy, settings/config,
+  TOML compatibility, and lazy imports; BRIEFING contains only the concise architecture.
+- Targeted gate: 17 passed. Full `scripts/verify.py`: PASS, 520 passed / 11 skipped;
+  `pip check` clean and SDK-import grep empty. Commit/push follow this entry.
+- Next after the verified checkpoint: Stage C versioned prompt, validation, and bounded
+  provenance. No batch-runner or GUI integration.
+
 **Phase 5 (TTS jargon sweep rule) is DONE** (2026-07-19, committed on the branch):
 `rules/junk_strip.py` gained a conservative Tier-1 **decorative-run rule**
 (`junk_strip.decorative_run`): a whitespace-delimited span made only of `~ \ - = * #`

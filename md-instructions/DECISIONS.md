@@ -9,6 +9,55 @@ its original decision date. New decisions continue to be appended here (newest o
 
 ---
 
+## 040 — Plan 2a foundation: optional provider imports are lazy — 2026-07-23 — Codex
+
+**Status:** Accepted
+**Decision:** `ai.provider` contains only the neutral protocol and `ai.factory` imports an
+adapter only when that provider is explicitly constructed. Importing `ai` never imports
+Ollama, Gemini, Groq, or creates files. Provider SDKs may exist only in their adapter modules.
+**Consequences:** Script-only startup and offline tests remain independent of every optional
+provider. Unknown and unbuilt providers fail as typed, non-retryable `ProviderUnavailable`.
+
+## 039 — Plan 2a foundation: preserve Python 3.10 with Tomli fallback — 2026-07-23 — Codex
+
+**Status:** Accepted
+**Decision:** Preserve the Python 3.10 floor. Use stdlib `tomllib` on 3.11+ and exact-pinned
+`tomli==2.4.1` on 3.10. The dependency was checked against the current PyPI release before
+pinning.
+**Consequences:** No launcher or README minimum-version migration is needed.
+
+## 038 — Plan 2a foundation: config, user settings, and secrets are separate — 2026-07-23 — Codex
+
+**Status:** Accepted
+**Decision:** Committed `config.toml` contains secret-free defaults with AI disabled.
+Persisted choices live atomically in `%LOCALAPPDATA%/WebNovelEditor/settings.json` on Windows
+or `~/Library/Application Support/WebNovelEditor/settings.json` on macOS. No secrets system
+exists in 2a. Precedence is GUI run choice > per-user settings > `config.toml` > in-code
+defaults.
+**Consequences:** A read-only repository does not block settings, import creates nothing,
+and Plan 2b/2c must extend these paths instead of inventing competing stores.
+
+## 037 — Plan 2a foundation: shared typed provider failure taxonomy — 2026-07-23 — Codex
+
+**Status:** Accepted
+**Decision:** Adapters normalize failures into `ProviderUnavailable`, `AuthenticationError`,
+`ModelUnavailable`, `ContextTooLong`, `RateLimited`, `DailyQuotaExhausted`,
+`TransientNetworkError`, `InvalidResponse`, and `RequestCancelled`. Service/rate/network/
+invalid-response failures default retryable; auth/model/context/daily-quota/cancellation
+failures do not. A specific instance may override retryability when transport evidence
+requires it.
+**Consequences:** Orchestration can apply one bounded policy without provider branching.
+
+## 036 — Plan 2a foundation: provider-neutral contract fixed before adapters — 2026-07-23 — Codex
+
+**Status:** Accepted
+**Decision:** All adapters implement `capabilities()`, `health_check()`, `list_models()`, and
+`complete(CompletionRequest)`. Frozen request/result/capability models carry prompt/model,
+timeout/output bounds, request identity, finish/truncation, timing/token metadata, local/cloud
+and privacy/rate-limit capability fields. `ProviderStatus` reserves local and cloud states.
+**Consequences:** Ollama, Gemini, and Groq can be added without changing editor signatures;
+chunk indexing remains orchestration metadata rather than transport contract state.
+
 ## 035 — Plan 1 Phase 6: condensed-log edit count excludes `integrity_flag` records — 2026-07-19 — Claude Code
 
 **Status:** Accepted
