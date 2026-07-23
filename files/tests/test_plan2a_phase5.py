@@ -291,6 +291,90 @@ def test_stop_already_requested_begins_no_file(tmp_path, monkeypatch):
     assert built == [] and summary["succeeded"] == 0 and summary["stopped"] is True
 
 
+def test_stop_releasing_paused_worker_begins_no_next_file(tmp_path, monkeypatch):
+    """Mirror the GUI sequence: Pause holds between files, then Stop sets both
+    stop_event and pause_gate. The release may only let run_batch observe Stop."""
+    paths = _inputs(tmp_path, 2)
+    pause_gate = threading.Event()
+    pause_gate.set()
+    stop_event = threading.Event()
+    paused_reached = threading.Event()
+    extraction_calls = []
+    pipeline_calls = []
+    built = []
+    logs = []
+    provider = FakeProvider()
+    result = {}
+    errors = []
+
+    def extract(path):
+        extraction_calls.append(Path(path).name)
+        return BASELINE
+
+    def pipeline(text, lexicon, **kwargs):
+        pipeline_calls.append(text)
+        return text
+
+    dispatch = NovelDispatch(
+        display_name="Universal",
+        run_pipeline=pipeline,
+        canonical_names=frozenset(),
+        index_filename="",
+        has_profile=False,
+    )
+
+    def build(text, path):
+        built.append(Path(path).name)
+        # Simulate Pause being requested while file 1 is finishing. The worker
+        # will observe the cleared gate only after this complete PDF write returns.
+        pause_gate.clear()
+
+    def gui_log(message, level="info"):
+        logs.append((level, message))
+        if message.startswith("Paused after chapter 1"):
+            paused_reached.set()
+
+    monkeypatch.setattr(batch_runner, "extract_text_from_pdf", extract)
+    monkeypatch.setattr(batch_runner, "resolve_dispatch", lambda _name: dispatch)
+    monkeypatch.setattr(batch_runner, "build_pdf", build)
+
+    def worker():
+        try:
+            result["summary"] = run_batch(
+                paths,
+                str(tmp_path / "out"),
+                pause_gate=pause_gate,
+                stop_event=stop_event,
+                ai_editor=_editor(provider),
+                gui_log=gui_log,
+            )
+        except BaseException as exc:  # surfaced in the main test thread
+            errors.append(exc)
+
+    thread = threading.Thread(target=worker)
+    thread.start()
+    assert paused_reached.wait(timeout=5), "worker never reached between-file pause"
+
+    # Real GUI Stop ordering: request stop, then release Pause solely so the
+    # worker can observe the request.
+    stop_event.set()
+    pause_gate.set()
+    thread.join(timeout=5)
+
+    assert not thread.is_alive()
+    assert errors == []
+    assert extraction_calls == ["0.pdf"]
+    assert len(pipeline_calls) == 1
+    assert provider.complete_calls == 1
+    assert built == ["0.pdf"]
+    assert result["summary"]["succeeded"] == 1
+    assert result["summary"]["stopped"] is True
+    assert any(
+        "batch ended before chapter 2 of 2" in message for _, message in logs
+    )
+    assert not any("Continuing with chapter 2" in message for _, message in logs)
+
+
 def test_pause_is_still_consulted_only_between_ai_files(tmp_path, monkeypatch):
     built = []
     _wire(monkeypatch, built)

@@ -22,6 +22,28 @@ dry-run, and build steps; and `build_pdf(...)` remains the sole PDF writer.
 Baseline on Python 3.14.2: `pip check` clean; `scripts/verify.py` PASS with
 **505 passed, 9 skipped** (environmental skips only).
 
+## Work Log — 2026-07-23 — Codex — Plan 2a Phase 5 Stop/Pause Correction
+
+- Started from clean, aligned local/remote Phase 5 SHA
+  `ccf31ae6b8ff180d7ca6d2ef38faac25441b0e9a`.
+- Fixed the between-file race where GUI Stop set `stop_event` and released a paused
+  `pause_gate`, but `run_batch` proceeded directly into the next file. The loop now
+  re-checks Stop immediately after `pause_gate.wait()` returns, records the run as
+  stopped, logs that it ended before the next chapter, and breaks before logging
+  Continue or performing extraction, deterministic editing, AI, or PDF work.
+- Added a synchronized real-`threading.Event` regression: file 1 completes its PDF
+  write, the worker blocks between files, Stop sets its event and releases Pause, and
+  file 2 is proven to have zero extraction, pipeline, provider, and PDF calls.
+- Audited all Stop/Pause sites. There is no other blocking pause wait or equivalent
+  check-order gap; in-flight provider validation/PDF completion, ordinary Continue,
+  GUI reset, legacy summaries, and existing Stop behavior remain unchanged.
+- Focused gates: Phase 5 **16 passed**; batch/pause/stop/isolation **51 passed**;
+  GUI **17 passed**. Full `scripts/verify.py`: **604 passed, 9 environmental skips,
+  0 failed** (613 collected). `pip check` and `git diff --check` are clean.
+- Commit: `Plan 2a Phase 5: honor stop released from pause` (exact resulting SHA is
+  reported in the phase summary because a commit cannot contain its own final SHA).
+- Phase 6 (`OllamaProvider`) remains the next continuation point and was not started.
+
 ## Work Log — 2026-07-23 — Codex — Plan 2a Phase 5
 
 - Started from clean, aligned local/remote SHA

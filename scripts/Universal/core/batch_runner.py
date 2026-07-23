@@ -199,6 +199,15 @@ def run_batch(
         if pause_gate is not None and i > 1 and not pause_gate.is_set():
             log(f"Paused after chapter {i - 1} of {total}.", "warn")
             pause_gate.wait()
+            # Stop may be what released a paused worker. Re-check before logging
+            # Continue or beginning any extraction/provider/PDF work for this file.
+            if stop_event is not None and stop_event.is_set():
+                stopped = True
+                log(
+                    f"Stop requested — batch ended before chapter {i} of {total}.",
+                    "warn",
+                )
+                break
             log(f"Continuing with chapter {i} of {total}.", "accent")
 
         name = os.path.basename(src)
