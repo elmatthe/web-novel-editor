@@ -10,10 +10,11 @@ Plan 2 is split into three canonical drops:
 `plan-2a-local-ai-editor.md` (local Ollama editor, target v0.12.0),
 `plan-2b-cloud-providers.md` (Gemini/Groq, target v0.13.0), and
 `plan-2c-installer-bootstrap.md` (bootstrap/onboarding, target v0.14.0).
-Phase 6A now adds the production Ollama adapter behind the Phase-5 provider-neutral
-batch seam, with mocked/offline verification only. Phase 6 is incomplete until the
-HOME-PC Phase 6B smoke test. No AI settings panel, launcher, release, or corpus work
-has begun.
+Phase 6A added the production Ollama adapter behind the Phase-5 provider-neutral batch
+seam with mocked/offline verification. **Phase 6B is now DONE on HOME-PC against the real
+Ollama service, so Phase 6 is COMPLETE.** v0.12.0 is **not** released and AI remains
+disabled by default in `config.toml`. No AI settings panel, launcher, release, or corpus
+work has begun; Phase 7 (GUI AI controls) is the next continuation point.
 
 Stage A confirmed the live post-pipeline/pre-build seam in
 `scripts/Universal/core/batch_runner.py`: files are processed sequentially with
@@ -22,6 +23,105 @@ per-file exception isolation; `pause_gate` is checked only between files;
 dry-run, and build steps; and `build_pdf(...)` remains the sole PDF writer.
 Baseline on Python 3.14.2: `pip check` clean; `scripts/verify.py` PASS with
 **505 passed, 9 skipped** (environmental skips only).
+
+## Work Log — 2026-07-23 — Claude Code — Plan 2a Phase 6B (Live Ollama/Qwen Validation)
+
+Ran on HOME-PC from clean, aligned local/remote SHA `cbb4222`. **Phase 6 is now complete.**
+No `ollama pull`, no model install/retag, and no start/stop/reconfigure of the user's Ollama
+service at any point. No private corpus, chapter text, prompt text, or generated output was
+used, recorded, or committed — every probe used tiny synthetic public English text.
+
+**Environment (recorded, no machine-unique details).** Ollama **server 0.32.1**; Python client
+**`ollama==0.6.2`**, matching the committed pin in `scripts/requirements.txt` exactly. The
+existing `.venv` (Python 3.13.12) was missing `ollama` and `tomli`; both were installed
+**from the committed `scripts/requirements.txt` into that venv only** — nothing system-wide,
+no pin edited. `pip check` clean afterwards. Client `Client.chat` signature was verified live
+against the adapter's call site: `model`, `messages`, `stream`, `think`, `keep_alive`, and
+`options` all match, so there is no 0.6.2 API drift.
+
+**Installed tags / selection.** `ollama list` reported exactly two complete Qwen tags:
+`qwen3:14b` (9.3 GB) and `qwen3:8b` (5.2 GB). Phase 6B used **`qwen3:8b`** — the smaller tag
+gives more VRAM headroom and faster iteration for a smoke pass. `qwen3:14b` is installed and
+available but was **not** exercised; the final model choice stays deferred to Plan 2a's later
+model-comparison work.
+
+**Live provider states — all seven distinguished honestly.** Against the committed loopback
+endpoint `http://127.0.0.1:11434` from `config.toml`:
+`list_models()` → the 2 real installed tags; `health_check()` → `ok`; clearly nonexistent
+complete tag → `model_missing`; remote `https` endpoint, incomplete tag `qwen3`, and blank
+`keep_alive` → `invalid_configuration`; simulated absent SDK loader → `package_unavailable`;
+closed loopback port `127.0.0.1:1` → `service_down`; a throwaway hanging local socket (a
+disposable test listener, **not** Ollama) → `timeout` in 2.53 s. Unreachable/hanging cases
+were simulated purely at the client/config level.
+
+**Computed budgets and runtime options.** For the tiny synthetic request (system prompt 1,563
+bytes + user text 24 bytes): `input_tokens=692`, `output_tokens=72`, `num_ctx=1020` against
+the 32,768 limit. Options recorded off the real wire call were
+`{"num_ctx": 1020, "num_predict": 72, "seed": 0, "temperature": 0.0}` with `stream=False`,
+`think=False`, `keep_alive="30m"`, and message roles `['system', 'user']`. Confirmed at
+runtime: temperature zero, fixed seed, thinking disabled, non-streaming complete response, a
+**positive bounded `num_predict` (never `-1`)**, a **request-specific computed `num_ctx`**,
+and the configured `keep_alive`.
+
+**Bounded completion metadata (no text recorded).** `finish_reason='stop'`, `truncated=False`,
+`duration_seconds=8.525` (wall 8.55 s, cold load), `prompt_eval_count=366`, `eval_count=5`,
+response 14 chars, `execution_backend=None`.
+
+**GPU/CPU observation.** `ollama ps` immediately after the kept-alive call reported
+`qwen3:8b … 5.1 GB … 100% GPU … CONTEXT 1020 … 29 minutes from now`. That is reliable
+evidence of GPU execution on this machine, and it independently confirms the adapter's
+computed `num_ctx` reached the server and that `keep_alive="30m"` was honored. Correctness
+does not depend on GPU execution.
+
+**Timeout / outage / fallback / failure paths.** A 0.01 s client timeout against the real
+loopback service mapped correctly to `TransientNetworkError: Ollama request timed out
+(ReadTimeout)`, `retryable=True`, in 0.20 s. (A 0.001 s timeout on `health_check` still
+returned `ok` — the local `list` endpoint answers inside that window; recorded as observed,
+not a defect.) With an unreachable provider: **`prefer_ai`** returned the **byte-exact
+deterministic baseline** for chapters 1, 2, and 3 with `used_ai=False`, `fallback_used=True`,
+reason `ProviderUnavailable`, and the provider constructed **once** across all three — the
+run-scoped unavailable state is retained as designed. **`ai_required`** failed honestly:
+`prepare_run()` raised `ProviderUnavailable: Provider preflight failed: service_down`
+(`retryable=False`), and the subsequent `edit()` also raised with **no partial candidate
+returned**. `script_only` constructed **zero** providers. `ai_required` preflight against the
+real service returned `run_state=available`.
+
+**Estimator: measured, deliberately left unchanged (DECISIONS #053).** Live measurement across
+24–8,051-byte synthetic prose put the real ratio at ~**4.6–5.3 UTF-8 bytes per token**, so the
+`bytes/3` rule over-reserves input context by ~**1.7×–1.9×** (estimated 692/823/1500 vs
+measured 366/448/878). The error is entirely fail-safe, so the "refine only if real evidence
+requires it" condition was **not** met and **no constant was changed**. Two evidence-backed
+regressions were added to `files/tests/test_ollama_provider.py` pinning the conservative
+direction against a documented `MEASURED_BYTES_PER_TOKEN_FLOOR = 4.6`.
+
+**Honest limitation found — model fidelity, not an adapter defect.** The 8 KB probe failed with
+`InvalidResponse: … incomplete or truncated`. Diagnosis: `num_predict` was 2,748 against a
+lossless-echo need of ~1,750 tokens (a ~1.5× surplus), yet the model consumed the whole
+allowance (`eval_count == num_predict`, `done_reason == "length"`) and produced **12,973 bytes
+from an 8,051-byte input** — it expanded on the text instead of returning it. The adapter
+failed closed correctly. Separately, the tiny probe returned 14 chars for a 24-byte input
+(dropping the heading), which the whole-chapter gate would reject. **Raw single-shot fidelity
+of `qwen3:8b` is therefore NOT established** and remains prompt/gate/model-selection work for
+later phases. Production never sends an 8 KB single shot: `safe_input_budget` caps a chunk at
+4,096 input tokens.
+
+**Gates (all real numbers from this session).** Focused Ollama/foundation/editor/validation
+**114 passed** (112 in 6A, +2 new); Phase 5 batch/pause/stop/isolation **51 passed**;
+GUI/startup/launcher **40 passed**. Full `scripts/verify.py`: **PASS — 644 passed, 1 skipped,
+0 failed** (645 collected; the single skip is environmental, `test_app.py:328 no display
+available for Tk`). `pip check` clean; `git diff --check` clean.
+
+**Scope/security/artifact scan.** The only tracked source change is `+26` lines of tests in
+`files/tests/test_ollama_provider.py`. No provider, pipeline, GUI, launcher, PDF, or config
+change. All three smoke scripts ran from the session scratchpad **outside the repo** and are
+not committed. Nothing prohibited was staged: no chapter/corpus text, prompt or candidate
+text, model file, machine identifier, secret, `.env`, log, smoke output, generated PDF,
+`.venv`, or cache. Two pre-existing untracked paths (`.claude/` and the superseded
+`md-instructions/plan-2-ai-editor-integration.md`) were deliberately left untracked and
+uncommitted.
+
+**Not done, by instruction:** README/CHANGELOG were not touched, v0.12.0 is not released, no
+Phase 7 / Plan 2b / Plan 2c runtime work, no uninstaller, no merge to `main`, no PR.
 
 ## Work Log — 2026-07-23 — Codex — Plan 2c Restricted-PC/Uninstall Groundwork
 
@@ -81,6 +181,10 @@ Baseline on Python 3.14.2: `pip check` clean; `scripts/verify.py` PASS with
   Ollama/Qwen/RTX environment; Phase 6B below is the exact next continuation point.
 
 ### HOME-PC Phase 6B continuation checklist (no pulls and no private text)
+
+> **COMPLETED 2026-07-23 on HOME-PC — all 10 items executed.** Results are recorded in the
+> Phase 6B work log at the top of this file. Retained below as the historical record of what
+> the phase was required to cover; it is no longer an open action list.
 
 1. Safety/reorientation: confirm this branch/remote SHA and a clean tree; use the
    existing `.venv`; do not install system-wide or run any `ollama pull` command.
@@ -1198,6 +1302,39 @@ summary record.
 ---
 
 ## Session Sync Log (newest first)
+
+### 2026-07-23 — HOME-PC — PUSHED (Plan 2a Phase 6B: live Ollama/Qwen smoke validation — PHASE 6 COMPLETE)
+- Branch:  feature/plan-2a-provider-foundation (1 commit this session on top of cbb4222)
+- Env:     Ollama server 0.32.1; client ollama==0.6.2 (matches the committed pin);
+           venv Python 3.13.12. Installed the already-committed `ollama`/`tomli` pins
+           into the existing .venv only — no system-wide install, no pin edited,
+           no `ollama pull`, no model install/retag, service never touched.
+- Tested:  model tag `qwen3:8b` (also installed but NOT exercised: `qwen3:14b`)
+- Changed: files/tests/test_ollama_provider.py (+2 evidence-backed estimator guards
+           pinning the conservative bytes/3 direction against a measured
+           MEASURED_BYTES_PER_TOKEN_FLOOR = 4.6; +26 lines),
+           md-instructions/DECISIONS.md (appended #053 — estimator left unchanged on
+           live evidence; the 8 KB truncation is model fidelity, not budget),
+           md-instructions/HANDOFF.md (Current Focus, Phase 6B work log, checklist
+           marked completed, this entry)
+- Evidence: health ok / model_missing / invalid_configuration / package_unavailable /
+           service_down / timeout all distinguished; wire options
+           {num_ctx 1020, num_predict 72, seed 0, temperature 0.0} with stream=False,
+           think=False, keep_alive="30m"; completion finish_reason='stop',
+           truncated=False, 8.525 s, prompt_eval_count 366, eval_count 5;
+           `ollama ps` → 100% GPU, CONTEXT 1020, 29 minutes left.
+           prefer_ai fell back byte-exactly for 3 chapters with one provider
+           construction; ai_required raised honestly with no partial candidate.
+- Note:    three smoke scripts ran from the session scratchpad OUTSIDE the repo and are
+           not committed. No corpus, chapter text, prompt/response text, model file,
+           machine identifier, secret, log, or generated PDF was recorded or staged.
+           Pre-existing untracked `.claude/` and the superseded
+           `md-instructions/plan-2-ai-editor-integration.md` were left untracked.
+- Result:  python scripts/verify.py → PASS (644 passed, 1 skipped — environmental Tk
+           display skip, 0 failed). Focused: 114 / 51 / 40. pip check and
+           git diff --check clean. Phase 6 complete; v0.12.0 NOT released, AI still
+           disabled by default; branch pushed, NOT merged. Next: Phase 7 (GUI AI
+           controls).
 
 ### 2026-07-19 — HOME-PC — PUSHED (Plan 1 Phase 6: bug hunt + seam doc + final docs — PLAN COMPLETE)
 - Branch:  feature/gui-batch-overhaul (1 commit this session on top of 12b62df)

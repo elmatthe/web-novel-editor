@@ -9,6 +9,34 @@ its original decision date. New decisions continue to be appended here (newest o
 
 ---
 
+## 053 — Plan 2a Phase 6B: keep the bytes/3 estimator unchanged; real truncation is model fidelity, not budget — 2026-07-23 — Claude Code
+
+**Status:** Accepted on live HOME-PC evidence (Ollama server 0.32.1, client `ollama==0.6.2`,
+model tag `qwen3:8b`). No constant changed.
+**Decision:** `estimate_tokens` keeps `ceil(utf8_bytes / 3)`, and `request_budget` keeps its
+existing overhead/margin constants. Phase 6B measured the live tokenizer across synthetic
+English prose from 24 to 8,051 bytes and found a real ratio of roughly **4.6–5.3 UTF-8 bytes
+per token**, so the bytes/3 rule over-reserves input context by about **1.7×–1.9×**
+(estimated 692/823/1500 input tokens against measured `prompt_eval_count` of 366/448/878).
+The error is entirely in the fail-safe direction: every request reserves more context and
+more output allowance than the model actually needs. Refining the divisor toward the measured
+ratio would tighten headroom for no correctness gain, so the plan's "refine only if real
+evidence requires it" condition was **not** met.
+
+The 8 KB probe did fail, but the cause was not the budget. `num_predict` was 2,748 against a
+lossless echo need of roughly 1,750 tokens — a ~1.5× surplus. The model consumed the entire
+allowance (`eval_count == num_predict`, `done_reason == "length"`) and emitted **12,973 bytes
+from an 8,051-byte input**, i.e. it expanded on the text instead of returning it. The adapter
+did exactly the right thing and failed closed with a retryable `InvalidResponse`.
+
+**Consequences:** The estimator's conservative direction is now pinned by two evidence-backed
+regressions in `files/tests/test_ollama_provider.py` against a documented
+`MEASURED_BYTES_PER_TOKEN_FLOOR = 4.6`; raising the divisor past that floor fails the gate.
+Raw single-shot fidelity of `qwen3:8b` on whole-chapter-sized input is **not** established and
+remains a prompt/gate/model-selection problem for the later Plan 2a phases, not an adapter
+defect — production never sends an 8 KB single shot anyway, because `safe_input_budget` caps a
+chunk at 4,096 input tokens. Final model choice and capability-table numbers stay deferred.
+
 ## 052 — Plan 2c: hard local-model offer gates and manifest-owned uninstall — 2026-07-23 — Codex
 
 **Status:** Accepted future architecture; no installer or uninstaller behavior implemented.

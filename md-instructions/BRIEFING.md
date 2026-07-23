@@ -5,8 +5,9 @@
 ## Last Updated
 2026-07-23 — v0.11.0 remains the shipped baseline. Plan 1 is merged into `main`;
 provider-neutral Plan 2a foundation work is in progress on
-`feature/plan-2a-provider-foundation`; Phase 6A has added the production Ollama
-adapter and mocked verification, but live HOME-PC validation remains pending.
+`feature/plan-2a-provider-foundation`; Phase 6A added the production Ollama adapter
+and Phase 6B validated it live on HOME-PC, so Phase 6 is complete. v0.12.0 is not
+released and AI is still disabled by default.
 
 ## Current State (v0.11.0)
 The "GUI & Batch Overhaul" plan (Plan 1, Phases 1–6) is complete and merged into
@@ -42,8 +43,20 @@ Headlines:
   thinking output, and fails closed on reasoning or incomplete output. Each request uses
   deterministic temperature/seed/keep-alive settings plus conservative computed
   `num_ctx` and bounded `num_predict`; no provider default context or model pull is used.
-  The adapter is mocked/offline verified only. The HOME-PC Ollama/Qwen/GPU smoke test and
-  model-specific budget refinement remain Phase 6B, so Phase 6 is not complete.
+  Phase 6B validated the adapter live on HOME-PC against Ollama server 0.32.1 with client
+  `ollama==0.6.2` and the installed tag `qwen3:8b`: all seven health states were
+  distinguished honestly, the recorded wire call carried temperature 0, a fixed seed,
+  `think=False`, non-streaming, a computed `num_ctx` and a positive bounded `num_predict`,
+  and `ollama ps` confirmed 100% GPU execution at exactly the computed context with the
+  configured 30m keep-alive. Timeout, unreachable-service, prefer-AI byte-exact fallback,
+  and honest AI-required failure were all exercised without touching the Ollama service.
+  Live measurement showed the conservative `bytes/3` token estimator over-reserves by
+  ~1.7×–1.9× against a real ~4.6–5.3 bytes/token ratio, which is the fail-safe direction, so
+  **no constant was changed** (DECISIONS #053). **Phase 6 is complete.** One honest limitation
+  stands: raw single-shot fidelity of `qwen3:8b` is not established — on an 8 KB probe the
+  model expanded rather than returned the text and the adapter correctly failed closed.
+  Prompt/gate tuning, model comparison, and the final capability-table numbers remain
+  deferred to later Plan 2a phases.
 - **Two-mode input (Phase 1):** the GUI's Input card offers mutually exclusive
   **Upload PDFs** / **Select Folder** radio modes. Folder mode runs
   `core/input_scanner.scan_folder` — a depth-first recursive scan where each

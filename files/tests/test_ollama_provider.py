@@ -11,6 +11,7 @@ from pathlib import Path
 
 import pytest
 
+from ai.chunking import estimate_tokens
 from ai.errors import (
     ContextTooLong,
     InvalidResponse,
@@ -203,6 +204,31 @@ def test_computed_budgets_are_deterministic_bounded_and_request_specific():
     assert long.num_ctx == (
         long.input_tokens + long.output_tokens + result.context_safety_margin_tokens
     )
+
+
+# Phase 6B measured floor. Live qwen3:8b (Ollama 0.32.1) reported 4.6-5.3 UTF-8 bytes
+# per real token across synthetic English prose of 24-8051 bytes. The estimator's
+# bytes/3 rule must stay strictly below that floor so both the reserved context and the
+# output allowance over-reserve rather than under-reserve.
+MEASURED_BYTES_PER_TOKEN_FLOOR = 4.6
+
+
+def test_token_estimator_stays_conservative_against_measured_ratio():
+    prose = (
+        "He walk home through the quiet street. The lamps was already lit, and a "
+        "cold wind pushed at the door of the empty shop on the corner.\n\n"
+    ) * 12
+    measured_tokens = len(prose.encode("utf-8")) / MEASURED_BYTES_PER_TOKEN_FLOOR
+    assert estimate_tokens(prose) > measured_tokens
+
+
+def test_output_allowance_covers_a_lossless_echo_of_the_input():
+    prose = "He walk home. The gate was shut.\n\n" * 40
+    result = provider(FakeClient())
+    budget = result.request_budget(request(prose, maximum=4096))
+    lossless_echo_tokens = len(prose.encode("utf-8")) / MEASURED_BYTES_PER_TOKEN_FLOOR
+    assert budget.output_tokens > lossless_echo_tokens
+    assert budget.output_tokens > 0
 
 
 def test_over_limit_fails_before_chat_call():
