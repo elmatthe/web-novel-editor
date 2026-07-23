@@ -33,9 +33,12 @@ Baseline on Python 3.14.2: `pip check` clean; `scripts/verify.py` PASS with
   model/context/hardware evidence. The private corpus remains HOME-PC-only and must
   never be committed. Full representative chapter testing, model comparison,
   prompt/gate tuning, and final capability-table numbers remain deferred.
-- The bounded CSPW-PC inspection is only a sanitized restricted-standard-user,
-  local-AI-ineligible installer acceptance profile. It is not a machine fingerprint
-  and must never be hardcoded into production logic.
+- The bounded CSPW-PC inspection is the sanitized **CSPW-PC — restricted
+  standard-user / local-AI eligibility pending model thresholds** profile. It covers
+  restricted operation, absent Ollama/service/model states, integrated-GPU reporting,
+  degraded script-only operation, and simulated capability-table RAM/disk failures.
+  It does not establish whether this physical PC passes or fails the final selected
+  model threshold, is not a machine fingerprint, and must never be hardcoded.
 - Plan 2c now specifies model-table RAM/disk hard offer gates and a final
   manifest-driven root Windows uninstaller, `Uninstall_Web_Novel_Editor.bat`, with
   separate ownership-based confirmations and keep-shared-components defaults.

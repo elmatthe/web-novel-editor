@@ -251,16 +251,19 @@ gate is a report, not a misleading installation prompt.
 
 - **HOME-PC:** final result pending real installed-Qwen/Ollama/GPU validation. Phase 6B selects
   an already-installed exact tag and records bounded model/context/hardware evidence.
-- **CSPW-PC — restricted standard-user / local-AI-ineligible reference profile:** Windows 11
+- **CSPW-PC — restricted standard-user / local-AI eligibility pending model thresholds:** Windows 11
   x64; non-elevated standard-user session; approximately 30.67 GiB physical RAM; AMD Ryzen 5 PRO
   CPU; integrated Radeon 740M with 1 GiB reported adapter memory; approximately 72.35 GiB free on
   the repository/per-user-data drive; repository and per-user runtime parents appear writable;
   per-user Python is available; winget is present; Ollama CLI and local API/model listing are
   absent. Windows Installer policy configuration exists, so corporate blocking remains a real
   degraded-mode case even though the bounded snapshot does not prove every installer is blocked.
-  For the ultimately selected model this is the acceptance case for an insufficient-memory or
-  otherwise ineligible result: no Ollama/model installation offer, while the deterministic editor
-  still runs. This is test input, never a hardcoded machine fingerprint.
+  Use this sanitized profile to test standard-user/policy-restricted operation, absent
+  Ollama/service/model states, integrated-GPU reporting, and degraded script-only operation.
+  Capability-table tests may simulate insufficient-memory and insufficient-disk decisions against
+  this profile, but must not claim this physical PC passes or fails the final selected model
+  threshold until HOME-PC Phase 6B and Plan 2a Phase 8 establish it. This is test input, never a
+  hardcoded machine fingerprint.
 - **M4 Pro Mac:** evaluate Apple unified memory rather than discrete VRAM assumptions; final result
   pending real macOS testing.
 
