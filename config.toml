@@ -30,6 +30,3 @@ seed = 0
 protection_strategy = "mask"
 prompt_version = "1"
 gate_version = "1"
-
-[ai.validation]
-max_change_ratio = 0.08

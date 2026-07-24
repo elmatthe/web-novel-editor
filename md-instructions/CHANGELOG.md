@@ -48,8 +48,12 @@ no PR yet. Design reasoning is in DECISIONS.md #036–#059.
   (DECISIONS #058.)
 
 ### Verification (Phase 9)
-- Release-hardening bug hunt: **no Critical/Major** findings; two Minor items flagged for review (a
-  dead `[ai.validation]` config key; the `Changelog.md`/`CHANGELOG.md` filename case). (DECISIONS #059.)
+- Release-hardening bug hunt: **no Critical/Major** findings; two Minor items flagged for review
+  (DECISIONS #059), both since closed before release (DECISIONS #060): the dead
+  `[ai.validation] max_change_ratio` key was **removed** from `config.toml` (nothing read it; the real
+  ±3 % gate stays hardcoded in `ai/validation.py` and is deliberately not made configurable), and the
+  changelog filename case turned out to be a **local working-tree** mismatch only — git has tracked
+  `CHANGELOG.md` throughout, so no repo change was required.
 - Full suite green **with and without the `ollama` SDK importable** (687 passed / 9 skipped);
   clean-room script-only regression confirms AI-off output is byte-for-byte the v0.11.0 baseline.
 

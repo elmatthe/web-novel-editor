@@ -31,6 +31,47 @@ dry-run, and build steps; and `build_pdf(...)` remains the sole PDF writer.
 Baseline on Python 3.14.2: `pip check` clean; `scripts/verify.py` PASS with
 **505 passed, 9 skipped** (environmental skips only).
 
+## Work Log — 2026-07-24 — Claude Code — Release hygiene: the two Phase-9 Minor items (Work Item A)
+
+Ran on HOME-PC from `4fc470d` with local == `origin/feature/plan-2a-provider-foundation`. Context had
+been cleared, so both findings were re-verified against live files and live code rather than trusted
+from the Phase 9 write-up — **and that overturned one of them.** (DECISIONS #060.)
+
+**1. Dead config key — confirmed dead, removed.** Live grep across `scripts/` found `max_change_ratio`
+nowhere but the key itself. `ai/config.py:39` loads the entire `[ai]` table, so `[ai.validation]` was
+arriving in `resolve_ai_config` as an unread `resolved["validation"]` sub-dict; every consumer reads
+named keys through explicit `prefs.get(...)` and there is **no `**kwargs` splat anywhere in `scripts/`**,
+so nothing could observe it. Removed from `config.toml`. The real ±3 % length gate remains hardcoded
+`0.03` at `ai/validation.py:167` and was **deliberately not wired up** — that is a gate-adjacent
+behaviour change needing its own tests and ADR, out of scope here.
+
+**2. CHANGELOG filename case — Phase 9 misdiagnosed this; no repo change was needed.** Git has tracked
+`md-instructions/CHANGELOG.md` all along, confirmed in `HEAD`, in `origin/main`, and back through history
+(`cfbf0ea` → `9865297` → `03dbc7d` → `4fc470d`). `git mv Changelog.md CHANGELOG.md` fails with *"not
+under version control"*. The real fault was **local to this machine's working tree** — the checked-out
+file was named `Changelog.md` and `core.ignorecase = true` hid it from `git status`. Fixed by renaming
+the working-tree file to the tracked casing; **zero commit content**, `git status` clean before and
+after. A fresh clone was never at risk, so #059's "fragile on case-sensitive CI" concern does not hold;
+what it actually caused was stale `Changelog.md` paths in agent write-ups and the staging near-miss.
+
+**Verification.** Focused AI/config/GUI/validation suites (`test_ai_foundation`, `test_ai_gui_controls`,
+`test_ai_validation`): **89 passed, 0 failed**. Live config resolution after the removal still yields
+`enabled=False, model='qwen3:14b', protection_strategy='mask'` with no `validation` key present.
+`verify.py`'s `check_changelog()` resolves the **exact-case** path and returns PASS (v0.12.0, matches
+BRIEFING); `check_pinned_deps()` PASS.
+
+**Scope.** Tracked changes are `config.toml` (2 lines removed) and three docs. No code, test, pipeline,
+GUI, provider, or launcher change. Full suites and the release merge follow as Work Item B.
+
+### Session Sync Log
+- 2026-07-24 — HOME-PC — Work Item A (release hygiene) from `4fc470d`. Changed:
+  `config.toml` (removed dead `[ai.validation] max_change_ratio`), `md-instructions/DECISIONS.md`
+  (#060 appended, corrects #059 Minor 2), `md-instructions/CHANGELOG.md` (v0.12.0 Verification bullet
+  now records both Minors closed), `md-instructions/HANDOFF.md` (this entry). Local-only, uncommittable:
+  working-tree file `Changelog.md` renamed to its tracked casing `CHANGELOG.md`. Committed and pushed to
+  `feature/plan-2a-provider-foundation`. Next: Work Item B — full verification, then the v0.12.0 merge
+  to `main`.
+
 ## Work Log — 2026-07-24 — Claude Code — Plan 2a Phase 9 (Release Hardening)
 
 Ran on HOME-PC from `d4df08a` (the Phase 8 pilot commit). Context was cleared before this phase; I

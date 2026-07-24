@@ -9,6 +9,40 @@ its original decision date. New decisions continue to be appended here (newest o
 
 ---
 
+## 060 — v0.12.0 release hygiene: dead `[ai.validation]` key removed; the CHANGELOG case problem was local-only (corrects #059 Minor 2) — 2026-07-24 — Claude Code
+
+**Status:** Accepted; both items closed. Relates to and partially **corrects #059**.
+
+**Context:** The two Minor items #059 flagged for the user's call were actioned immediately before the
+v0.12.0 release merge. Both were re-verified against live files and live code rather than trusted from
+the prior session's write-up — and that re-verification overturned one of them.
+
+**Decision 1 — removed `[ai.validation] max_change_ratio = 0.08` from `config.toml`.** Confirmed dead by
+live grep: the only occurrences outside doc prose were the key itself. `ai/config.py:39` loads the whole
+`[ai]` table, so the key was reaching `resolve_ai_config` as an unread `resolved["validation"]` sub-dict;
+every consumer (`_create_provider`, `build_ai_editor`) reads named keys via explicit `prefs.get(...)` and
+there is **no `**kwargs` splat anywhere in `scripts/`**, so nothing could ever have observed it. Removal
+is therefore behaviour-inert. The real length-variance gate remains **hardcoded `0.03`** at
+`ai/validation.py:167`. It was deliberately **not** wired up: making the ±3 % gate configurable is a
+gate-adjacent behaviour change needing its own tests and its own ADR, and the Phase-8 evidence
+(#053/#057) says the threshold is correct as-is. Removing the misleading key is the whole fix.
+
+**Decision 2 — #059's Minor 2 was misdiagnosed; no repo change was needed.** Git has tracked the file as
+`md-instructions/CHANGELOG.md` all along — confirmed in `HEAD`, in `origin/main`, and back through
+history (`cfbf0ea` → `9865297` → `03dbc7d` → `4fc470d`). `git mv Changelog.md CHANGELOG.md` fails with
+*"not under version control"* because no such tracked path exists. The actual fault was **local to this
+machine's working tree**: the checked-out file was named `Changelog.md`, and `core.ignorecase = true`
+hid the divergence from `git status`. Fixed by renaming the working-tree file to match the tracked
+casing — a filesystem-only change with no commit content. **A fresh clone on a case-sensitive filesystem
+was never at risk**, so the "fragile on Linux CI" concern in #059 does not hold; what it really caused
+was stale `Changelog.md` paths in agent write-ups and a near-miss when staging by that path.
+
+**Consequences:** `config.toml` no longer advertises a gate knob that does not exist. `verify.py`'s
+`CHANGELOG` resolution is now exact-case on this machine instead of relying on Windows case-insensitivity.
+Historical `Changelog.md` references inside earlier `HANDOFF.md` work logs and #059 itself are left
+verbatim — those docs are append-only records of what was believed at the time, and this entry is the
+correction. The deferred in-token-corruption gate check (#057/#059) is still deferred, still test-first.
+
 ## 058 — Plan 2a Phase 9: adopt qwen3:14b + Strategy M as the committed default in config.toml, not IN_CODE_DEFAULTS — 2026-07-24 — Claude Code
 
 **Status:** Accepted; wired. `config.toml [ai] model = "qwen3:14b"`, `protection_strategy = "mask"`
