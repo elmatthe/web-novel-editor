@@ -1,27 +1,29 @@
 # Web Novel Editor — Handoff
 
 ## Current Focus
-**Provider-neutral Plan 2a foundation is IN PROGRESS** on
-`feature/plan-2a-provider-foundation`, starting from `origin/main` at
-`9ca90fda67c2da981c383415e0124b3db442201d`. Plan 1 v0.11.0 was merged into `main`
-by `ce96359`; its former feature branch is no longer the active development base.
+**Plan 2a is COMPLETE and v0.12.0 is RELEASED.** `feature/plan-2a-provider-foundation` was merged
+into `main` with a `--no-ff` merge commit and `main` was tagged **`v0.12.0`** — the project's first
+release tag (DECISIONS #061). `main` is now the v0.12.0 shipped baseline, superseding v0.11.0
+(`ce96359`). The feature branch was **kept**, matching how every earlier merged branch was left in
+place. The plan drop `plan-2a-local-ai-editor.md` was **deleted** per its own Definition of Done.
+**AI remains opt-in and OFF by default** (`config.toml enabled = false`); with the pass off, output is
+byte-for-byte the v0.11.0 deterministic result.
 
-Plan 2 is split into three canonical drops:
-`plan-2a-local-ai-editor.md` (local Ollama editor, target v0.12.0),
-`plan-2b-cloud-providers.md` (Gemini/Groq, target v0.13.0), and
-`plan-2c-installer-bootstrap.md` (bootstrap/onboarding, target v0.14.0).
-Phase 6A added the production Ollama adapter behind the Phase-5 provider-neutral batch
-seam with mocked/offline verification; Phase 6B validated it live on HOME-PC, completing
-Phase 6. Phase 7 (GUI AI controls) added the opt-in card. Phase 8 ran the stratified pilot and
-recommended **qwen3:14b + Strategy M** (DECISIONS #057, `PILOT-REPORT.md`). **Phase 9 (release
-hardening) is now DONE:** the user's chosen default is wired into `config.toml`
-(`model = "qwen3:14b"`, `protection_strategy = "mask"`; DECISIONS #058), the release-hardening bug
-hunt found no Critical/Major issues (two Minor items flagged — DECISIONS #059), a clean-room
-script-only regression re-confirmed AI-off output is byte-for-byte the v0.11.0 baseline, and the
-v0.12.0 docs are written. **AI is still OFF by default** (`config.toml enabled = false`).
-**Plan 2a is code-complete; v0.12.0 is NOT released** — no merge to `main`, no tag, no PR. The only
-remaining Plan-2a action is the user's release decision. **Next continuation point is either the
-v0.12.0 release step (user's call) or Plan 2b (cloud providers, target v0.13.0).**
+Plan 2 was split into three canonical drops: `plan-2a-local-ai-editor.md` (local Ollama editor,
+v0.12.0 — **done, drop deleted**), `plan-2b-cloud-providers.md` (Gemini/Groq, target v0.13.0), and
+`plan-2c-installer-bootstrap.md` (bootstrap/onboarding, target v0.14.0). Phases 1–6 built the
+provider-neutral AI stack and the live-validated Ollama adapter; Phase 7 added the opt-in GUI card;
+Phase 8 ran the stratified pilot and recommended **qwen3:14b + Strategy M** (DECISIONS #057,
+`PILOT-REPORT.md`); Phase 9 wired that default (DECISIONS #058), ran the bug hunt (no Critical/Major;
+two Minor flagged — DECISIONS #059) and the clean-room regression. A release-hygiene pass then closed
+both Minors (DECISIONS #060), correcting one of them: the CHANGELOG-case issue was a **local
+working-tree** mismatch, not a tracked-filename problem.
+
+**Next continuation point is Plan 2b (cloud providers, target v0.13.0)**, whose drop is already in
+`md-instructions/`. Two items carry forward, both still deferred and both test-first: the narrow gate
+check for in-place corruption of a non-protected word (e.g. a comma inserted mid-token; #057/#059), and
+the two Phase-7 layout Minors (tall window; the Input card's six-row listbox dominating the height
+budget). Neither blocks Plan 2b.
 
 Stage A confirmed the live post-pipeline/pre-build seam in
 `scripts/Universal/core/batch_runner.py`: files are processed sequentially with
@@ -30,6 +32,47 @@ per-file exception isolation; `pause_gate` is checked only between files;
 dry-run, and build steps; and `build_pdf(...)` remains the sole PDF writer.
 Baseline on Python 3.14.2: `pip check` clean; `scripts/verify.py` PASS with
 **505 passed, 9 skipped** (environmental skips only).
+
+## Work Log — 2026-07-24 — Claude Code — v0.12.0 RELEASE: merge to main + first release tag (Work Item B)
+
+Ran on HOME-PC immediately after Work Item A (`c110e88`). **v0.12.0 is released.**
+
+**Conventions were established from evidence, not assumed.** AI-WORKSPACE.md documents *when* to merge
+("in ONE go, at the very end", then push `main`) but not the mechanics, so `git log --merges` on `main`
+was the authority. Merge strategy and branch retention were unambiguous and were followed; tagging was
+genuinely undocumented and was **escalated to the user rather than guessed**. All three are recorded in
+**DECISIONS #061**:
+- **Merge:** `--no-ff` merge commit, reusing the shape of `94999a8`
+  (`Merge feature/junk-strip-hardening into main — v0.10.0` + release-summary body) — the only prior
+  *local terminal* release merge. All four historical merges into `main` have two parents.
+- **Branch:** **kept.** Every earlier merged branch still exists locally and on `origin`.
+- **Tag:** the repo had **never** tagged a release (v0.9.0/v0.10.0/v0.11.0 all untagged; the only
+  pre-existing tag, `stale-local-main-backup`, is an ad-hoc marker on a Phase-1 commit). The user chose
+  to **start tagging at v0.12.0**: annotated `v0.12.0` on the merge commit. Earlier releases were not
+  retroactively tagged.
+
+**Doc flip from unreleased → released** (done on the feature branch first, verified, then merged):
+`CHANGELOG.md` v0.12.0 header `UNRELEASED (upcoming)` → `2026-07-24` with a released status line;
+`BRIEFING.md` version block, Last Updated, and Current State heading/headline; `README.md` Status
+(`Shipped: v0.11.0` + "upcoming v0.12.0" → `Shipped: v0.12.0`). `config.toml` already read `0.12.0`.
+`verify.py`'s changelog check was re-run after the flip — the `## v0.12.0 — 2026-07-24 — …` header still
+parses (the regex takes `v0.12.0` before the dot-free date) and matches BRIEFING.
+
+**Plan drop deleted.** `md-instructions/plan-2a-local-ai-editor.md` was removed as part of the release
+commit. Its Definition of Done requires deletion "after final verification and my sign-off" — both held —
+though **none of its 22 DoD checkboxes had ever been ticked**, so the user confirmed the deletion
+explicitly rather than it being inferred from the document's state. Content lives on in
+CHANGELOG/BRIEFING/DECISIONS/HANDOFF and in git history. The superseded, never-tracked
+`md-instructions/plan-2-ai-editor-integration.md` was left untracked, as in every prior phase.
+
+**Verification.** Pre-merge on the feature branch: `verify.py` **PASS — 686 passed, 10 skipped**;
+focused AI/provider/editor/seam **206 passed, 1 skipped**; focused GUI/startup/launcher **41 passed,
+1 skipped**; `pip check` clean; `git diff --check` clean. (Phase 9's 687/9 and this run's 686/10 are the
+same 696 collected — the documented Tk display skip that varies pass↔skip on this machine.) Re-run on
+`main` after the merge and after the doc flip: totals below.
+
+**Nothing was force-pushed and no history was rewritten.** No GitHub Release object, release notes, or
+external announcement was created — the release is this repo and `origin` only, per DECISIONS #061.
 
 ## Work Log — 2026-07-24 — Claude Code — Release hygiene: the two Phase-9 Minor items (Work Item A)
 

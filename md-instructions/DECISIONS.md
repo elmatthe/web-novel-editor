@@ -9,6 +9,39 @@ its original decision date. New decisions continue to be appended here (newest o
 
 ---
 
+## 061 — v0.12.0 is the first git-tagged release; merge-commit strategy and branch retention follow existing practice — 2026-07-24 — Claude Code
+
+**Status:** Accepted; the user's explicit call at the release gate. **This establishes a new convention:
+releases are annotated-tagged from v0.12.0 forward.**
+
+**Context:** Releasing v0.12.0 required three conventions that AI-WORKSPACE.md does not state. Two were
+settled by reading actual history; the third genuinely was not, and was escalated rather than guessed.
+- **Merge strategy — existing practice, followed.** All four merges into `main` are merge commits with
+  two parents. The one directly comparable precedent (a *local terminal* release merge rather than a
+  GitHub PR) is `94999a8` — `Merge feature/junk-strip-hardening into main — v0.10.0` with a
+  release-summary body. v0.12.0 reuses that exact shape via `--no-ff`.
+- **Branch retention — existing practice, followed.** Every merged feature branch still exists locally
+  *and* on `origin` (`feature/gui-batch-overhaul`, `feature/junk-strip-hardening`,
+  `feature/novel-dropdown`, `release-main`). `feature/plan-2a-provider-foundation` is therefore **kept**,
+  not deleted.
+- **Tagging — genuinely undocumented; the user decided.** v0.9.0, v0.10.0 and v0.11.0 all shipped
+  **untagged**; the repo's only pre-existing tag, `stale-local-main-backup`, is an ad-hoc safety marker
+  on a Phase-1 scaffold commit, not a release tag. AI-WORKSPACE.md is silent on tags. Against that, the
+  Phase 9 docs repeatedly described the unreleased state as "no merge to `main`, no tag, no PR", which
+  read as though a tag were expected. Because history and doc phrasing pointed opposite ways, this was
+  put to the user instead of inferred.
+
+**Decision:** **Tag `v0.12.0`** (annotated, on the merge commit, pushed). Format is a bare `v<semver>`
+matching how every doc already writes versions. Prior releases are **not** retroactively tagged —
+back-filling tags would assert a precision about historical release points that the history does not
+actually record.
+
+**Consequences:** From v0.12.0 forward, a release is: `--no-ff` merge into `main` → annotated `v<semver>`
+tag on the merge commit → push `main` and the tag; feature branches are retained. `main` remains the
+latest tested working state per AI-WORKSPACE. Nothing is force-pushed and no history is rewritten. The
+release is local-repo + `origin` only — no GitHub Release object, release notes, or external
+announcement, since this is a personal repo and no doc asks for one.
+
 ## 060 — v0.12.0 release hygiene: dead `[ai.validation]` key removed; the CHANGELOG case problem was local-only (corrects #059 Minor 2) — 2026-07-24 — Claude Code
 
 **Status:** Accepted; both items closed. Relates to and partially **corrects #059**.

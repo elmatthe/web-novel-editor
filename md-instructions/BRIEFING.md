@@ -2,24 +2,23 @@
 
 ## Version: v0.12.0
 
-**v0.12.0 is UNRELEASED (upcoming).** v0.11.0 remains the shipped baseline on `main`; all
-v0.12.0 work lives on `feature/plan-2a-provider-foundation` and has not been merged or tagged.
+**v0.12.0 is RELEASED** — merged to `main` and tagged `v0.12.0`, the project's first release tag
+(DECISIONS #061). It is the shipped baseline, superseding v0.11.0.
 
 ## Last Updated
-2026-07-24 — Plan 2a is code-complete through **Phase 9 (release hardening)** on
-`feature/plan-2a-provider-foundation`. Phases 1–6 built the provider-neutral AI stack and the
-live-validated Ollama adapter; Phase 7 added the opt-in GUI controls; Phase 8 ran the stratified
-pilot; **Phase 9 adopted `qwen3:14b` + Strategy M as the committed default, ran the bug hunt and
-the clean-room regression, and wrote these v0.12.0 docs.** AI remains **opt-in and OFF by default**
-(`config.toml enabled = false`). v0.12.0 is **not** released — no merge to `main`, no tag, no PR.
+2026-07-24 — **Plan 2a is complete and v0.12.0 is released.** Phases 1–6 built the provider-neutral
+AI stack and the live-validated Ollama adapter; Phase 7 added the opt-in GUI controls; Phase 8 ran the
+stratified pilot; **Phase 9 adopted `qwen3:14b` + Strategy M as the committed default, ran the bug hunt
+and the clean-room regression, and wrote these v0.12.0 docs.** A release-hygiene pass then closed the
+two Phase-9 Minor items (DECISIONS #060) before the merge. AI remains **opt-in and OFF by default**
+(`config.toml enabled = false`). The plan drop has been deleted per its Definition of Done.
 
-## Current State (v0.12.0 — unreleased)
-The "GUI & Batch Overhaul" plan (Plan 1, Phases 1–6) is complete and merged into
-`main` by `ce96359` and remains the shipped v0.11.0 baseline. **Plan 2a (the optional local AI
-editorial stage) is code-complete through Phase 9** on `feature/plan-2a-provider-foundation`
-(from `origin/main` `9ca90fd`), pending the user's release decision. With the AI pass off — the
-default — output is byte-for-byte the v0.11.0 deterministic result. Headlines:
-- **Optional local AI editorial stage (Plan 2a, Phases 1–9 — code-complete, unreleased):**
+## Current State (v0.12.0 — released)
+The "GUI & Batch Overhaul" plan (Plan 1, Phases 1–6) was merged into `main` by `ce96359` and shipped as
+v0.11.0. **Plan 2a (the optional local AI editorial stage) is complete and released as v0.12.0**, merged
+into `main` from `feature/plan-2a-provider-foundation` (itself branched from `9ca90fd`). With the AI pass
+off — the default — output is byte-for-byte the v0.11.0 deterministic result. Headlines:
+- **Optional local AI editorial stage (Plan 2a, Phases 1–9 — complete, released in v0.12.0):**
   `scripts/Universal/ai/` defines frozen provider request/result/capability models, a cloud-ready
   typed error taxonomy, the four-method provider protocol, and lazy factory construction. Root
   `config.toml` is committed and secret-free with **AI disabled by default**; the committed default

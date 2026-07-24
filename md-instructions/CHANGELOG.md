@@ -1,11 +1,11 @@
 # Webnovel Editor — Changelog
 
-## v0.12.0 — UNRELEASED (upcoming) — Optional Local AI Proofreading Pass (Plan 2a)
+## v0.12.0 — 2026-07-24 — Optional Local AI Proofreading Pass (Plan 2a)
 
-**Status: not released.** This entry describes the v0.12.0 work built on
-`feature/plan-2a-provider-foundation`. AI is **opt-in and OFF by default**; with the pass off,
-output is byte-for-byte identical to the v0.11.0 deterministic baseline. No merge to `main`, no tag,
-no PR yet. Design reasoning is in DECISIONS.md #036–#059.
+**Status: released** — merged to `main` and tagged `v0.12.0` (the project's first release tag;
+DECISIONS #061). Built on `feature/plan-2a-provider-foundation`. AI is **opt-in and OFF by default**;
+with the pass off, output is byte-for-byte identical to the v0.11.0 deterministic baseline. Design
+reasoning is in DECISIONS.md #036–#061.
 
 ### Added — provider-neutral local AI editorial stage (Plan 2a, Phases 1–7)
 - A new `scripts/Universal/ai/` package adds an **optional AI proofreading pass** that runs *after*
