@@ -1,11 +1,17 @@
 """Tkinter main window and all GUI logic.
 
 This is the single-window UI: a two-mode Input card (Upload PDFs / Select Folder),
-three option checkboxes, a log widget, a progress bar, and Run + Pause/Continue
-buttons (pause holds the batch between files — the current file always finishes). The output
+three option checkboxes, an optional AI editorial pass card, a log widget, a progress
+bar, and Run + Pause/Continue/Stop buttons (pause and stop are honored between files —
+the current file always finishes). The output
 location is not user-chosen (v0.11.0): every batch writes into a fresh auto-numbered
 `Downloads\\<novel>-x` folder — flat in upload mode, mirroring the selected folder's
 structure in folder mode — with original filenames kept.
+
+The AI card (Plan 2a Phase 7) is strictly opt-in and always comes up OFF, so an ordinary
+launch is deterministic script-only editing that constructs no provider and contacts no
+service. Turning it on is the only thing that ever probes the local AI service, and the
+status line it shows is the provider's own `ProviderStatus` — see `gui.ai_settings`.
 
 The Run button drives the real `core.batch_runner.run_batch`: extract each PDF, run
 the editorial pipeline, and rebuild it under its original name. The worker runs on a
@@ -23,6 +29,7 @@ from __future__ import annotations
 
 import os
 import threading
+import time
 import tkinter as tk
 from pathlib import Path
 from tkinter import filedialog, messagebox, ttk
@@ -30,6 +37,7 @@ from tkinter import filedialog, messagebox, ttk
 from core.batch_runner import run_batch
 from core.input_scanner import scan_folder
 from core.novel_registry import DEFAULT_NOVEL, available_novels, clean_novel_name
+from gui import ai_settings
 from utils.file_utils import (
     downloads_dir,
     kebab_case,
@@ -55,6 +63,15 @@ COL_SUCCESS = "#1f7a3d"
 COL_WARN = "#b45309"
 COL_ERROR = "#b91c1c"
 COL_INFO = "#3e4c59"
+# The AI status line reuses the log's semantic levels so one provider state reads the
+# same whether it lands in the status line or the log.
+LEVEL_COLORS = {
+    "success": COL_SUCCESS,
+    "warn": COL_WARN,
+    "error": COL_ERROR,
+    "info": COL_INFO,
+    "muted": TEXT_MUTED,
+}
 
 # Spacing — 8pt grid.
 PAD_S = 8
@@ -62,7 +79,14 @@ PAD_M = 16
 PAD_L = 24
 
 MIN_WIDTH = 820
-MIN_HEIGHT = 700
+# The fixed rows (header, novel, input, options, AI card, run controls, status strip)
+# measure a little over 1000px together; the log is the only row that flexes. The old
+# 700px minimum pre-dated the AI card and already pushed the Start button and status
+# strip off the bottom, so the minimum now clears them with room to spare, and every
+# pixel above it goes to the log. Pinned by a test, so a taller card fails the gate.
+MIN_HEIGHT = 1020
+# Opening height when the display allows it — the minimum plus a usable log.
+PREFERRED_HEIGHT = 1120
 
 
 class WebnovelEditorApp(tk.Tk):
@@ -74,7 +98,11 @@ class WebnovelEditorApp(tk.Tk):
         # ("Web Novel Scraper"); the two apps read as one family (Phase 7).
         self.title("Web Novel Editor")
         self.minsize(MIN_WIDTH, MIN_HEIGHT)
-        self.geometry(f"{MIN_WIDTH}x{MIN_HEIGHT}")
+        # Open big enough to show every control, but never taller than the screen —
+        # a window that opens off the bottom of a small display hides the Start
+        # button, which is the one control the user must be able to find.
+        usable = max(MIN_HEIGHT, self.winfo_screenheight() - 90)
+        self.geometry(f"{MIN_WIDTH}x{min(PREFERRED_HEIGHT, usable)}")
         self.configure(bg=WINDOW_BG)
 
         # State
@@ -88,6 +116,18 @@ class WebnovelEditorApp(tk.Tk):
         self.pause_gate = threading.Event()
         self.pause_gate.set()
         self.stop_event = threading.Event()
+        # Batch pace, for the running-average / ETA readout. None = not tracking.
+        self._batch_started: float | None = None
+        self._batch_total = 0
+        # Resolved AI defaults (in-code < config.toml < per-user settings). `enabled`
+        # is always False here — the opt-in switch is deliberately session-only, so no
+        # persisted choice can bring the app up with the AI pass already on.
+        # A broken/absent config must never stop the app opening.
+        try:
+            self.ai_prefs = ai_settings.load_ai_preferences()
+        except Exception:
+            self.ai_prefs = {"enabled": False, "model": "",
+                             "policy": ai_settings.DEFAULT_POLICY}
 
         self._init_fonts()
         self._configure_styles()
@@ -182,15 +222,16 @@ class WebnovelEditorApp(tk.Tk):
         # bottom (above only the thin status strip), with the run controls above it —
         # mirroring the sibling web-novel-scraper's layout (Phase 7). No output-folder
         # card since v0.11.0: output goes to an auto-numbered Downloads folder.
-        root.rowconfigure(5, weight=1)
+        root.rowconfigure(6, weight=1)
 
         self._build_header(root, row=0)
         self._build_novel_panel(root, row=1)
         self._build_file_panel(root, row=2)
         self._build_options_panel(root, row=3)
-        self._build_run_row(root, row=4)
-        self._build_log_panel(root, row=5)
-        self._build_status_bar(root, row=6)
+        self._build_ai_panel(root, row=4)
+        self._build_run_row(root, row=5)
+        self._build_log_panel(root, row=6)
+        self._build_status_bar(root, row=7)
 
         self._refresh_status()
         self._log("Ready. Upload PDFs or select a folder, then start the batch — "
@@ -322,6 +363,156 @@ class WebnovelEditorApp(tk.Tk):
             variable=self.opt_dry_run,
         ).pack(anchor="w", pady=(PAD_S, 0))
 
+    # -- AI editorial pass ------------------------------------------------------
+    def _build_ai_panel(self, parent: ttk.Frame, row: int) -> None:
+        """The optional AI pass (Plan 2a Phase 7).
+
+        Always off at launch. While it is off every control below is disabled and
+        no provider is constructed, health checked, or contacted — the app behaves
+        exactly as it did before this card existed.
+        """
+        frame = ttk.Labelframe(parent, text="AI Editorial Pass (optional)",
+                               style="Card.TLabelframe", padding=(PAD_M, PAD_S))
+        frame.grid(row=row, column=0, sticky="ew", pady=(0, PAD_M))
+        frame.columnconfigure(3, weight=1)
+
+        self.opt_ai_enabled = tk.BooleanVar(value=False)
+        self.opt_ai_dry_run = tk.BooleanVar(value=False)
+        self.ai_model_var = tk.StringVar(value=str(self.ai_prefs.get("model", "")))
+        self.ai_policy_var = tk.StringVar(
+            value=str(self.ai_prefs.get("policy", ai_settings.DEFAULT_POLICY)))
+        self.ai_status_var = tk.StringVar(value="")
+
+        self.ai_enable_check = ttk.Checkbutton(
+            frame,
+            text="Run an AI proofreading pass after the scripted editing "
+                 "(stays on this computer)",
+            variable=self.opt_ai_enabled, command=self._on_ai_toggled,
+        )
+        self.ai_enable_check.grid(row=0, column=0, columnspan=3, sticky="w")
+        self.ai_check_button = ttk.Button(frame, text="Check service",
+                                          command=self._check_ai_service)
+        self.ai_check_button.grid(row=0, column=3, sticky="e")
+
+        ttk.Label(frame, text="Model:", style="Panel.TLabel").grid(
+            row=1, column=0, sticky="w", padx=(PAD_M, PAD_S), pady=(PAD_S, 0))
+        # Filled only from a live list_models(); the app ships no "recommended"
+        # model, because that choice belongs to the Plan 2a pilot.
+        self.ai_model_combo = ttk.Combobox(
+            frame, textvariable=self.ai_model_var, values=[], state=tk.DISABLED,
+            font=self.font_body, width=28,
+        )
+        self.ai_model_combo.grid(row=1, column=1, sticky="w", pady=(PAD_S, 0))
+        self.ai_model_combo.bind("<<ComboboxSelected>>", self._on_ai_model_changed)
+
+        policy_wrap = ttk.Frame(frame, style="Panel.TFrame")
+        policy_wrap.grid(row=1, column=2, columnspan=2, sticky="w",
+                         padx=(PAD_L, 0), pady=(PAD_S, 0))
+        ttk.Label(policy_wrap, text="If the AI is unavailable:",
+                  style="Panel.TLabel").pack(side="left", padx=(0, PAD_S))
+        self.ai_policy_radios = []
+        for label, value in (
+            ("Use the scripted result", ai_settings.POLICY_PREFER_AI),
+            ("Stop the batch", ai_settings.POLICY_AI_REQUIRED),
+        ):
+            radio = ttk.Radiobutton(
+                policy_wrap, text=label, value=value, variable=self.ai_policy_var,
+                command=self._on_ai_policy_changed, state=tk.DISABLED,
+            )
+            radio.pack(side="left", padx=(0, PAD_M))
+            self.ai_policy_radios.append(radio)
+
+        self.ai_dry_run_check = ttk.Checkbutton(
+            frame, text="Also run the AI pass during a dry run (slower; writes no PDF)",
+            variable=self.opt_ai_dry_run, state=tk.DISABLED,
+        )
+        self.ai_dry_run_check.grid(row=2, column=0, columnspan=4, sticky="w",
+                                   padx=(PAD_M, 0), pady=(PAD_S, 0))
+
+        self.ai_status_label = ttk.Label(
+            frame, textvariable=self.ai_status_var, style="Panel.TLabel",
+            wraplength=760, justify="left",
+        )
+        self.ai_status_label.grid(row=3, column=0, columnspan=4, sticky="w",
+                                  pady=(PAD_S, 0))
+
+        self._set_ai_status(ai_settings.STATUS_UNCHECKED)
+        self._refresh_ai_children()
+
+    def _current_ai_prefs(self) -> dict:
+        """The resolved defaults with the panel's live choices layered on top."""
+        prefs = dict(self.ai_prefs)
+        prefs["model"] = self.ai_model_var.get().strip()
+        prefs["policy"] = self.ai_policy_var.get()
+        return prefs
+
+    def _refresh_ai_children(self, *, locked: bool = False) -> None:
+        """Enable the AI controls only while the pass is on and no batch is running."""
+        live = self.opt_ai_enabled.get() and not locked
+        self.ai_model_combo.configure(state="readonly" if live else tk.DISABLED)
+        for widget in (self.ai_check_button, self.ai_dry_run_check,
+                       *self.ai_policy_radios):
+            widget.configure(state=tk.NORMAL if live else tk.DISABLED)
+
+    def _set_ai_controls_running(self, running: bool) -> None:
+        self.ai_enable_check.configure(state=tk.DISABLED if running else tk.NORMAL)
+        self._refresh_ai_children(locked=running)
+
+    def _set_ai_status(self, status: str) -> None:
+        """Show one provider state verbatim — never a flattened 'unavailable'."""
+        message, level = ai_settings.describe_status(
+            status, model=self.ai_model_var.get().strip())
+        self.ai_status_var.set(message)
+        self.ai_status_label.configure(
+            foreground=LEVEL_COLORS.get(level, TEXT_BODY))
+
+    def _on_ai_toggled(self) -> None:
+        self._refresh_ai_children()
+        if self.opt_ai_enabled.get():
+            self._log("AI editorial pass on — checking the local AI service…", "info")
+            self._check_ai_service()
+        else:
+            self._set_ai_status(ai_settings.STATUS_UNCHECKED)
+            self._log("AI editorial pass off — scripted editing only.", "muted")
+
+    def _on_ai_model_changed(self, _event=None) -> None:
+        self._persist_ai_choices()
+        self._set_ai_status(ai_settings.STATUS_UNCHECKED)
+        self._check_ai_service()
+
+    def _on_ai_policy_changed(self) -> None:
+        self._persist_ai_choices()
+
+    def _persist_ai_choices(self) -> None:
+        """Remember the model and policy for next time; the switch is never saved.
+
+        A non-writable profile folder is not an error worth interrupting anyone
+        over — the choices simply do not survive the session.
+        """
+        if not ai_settings.save_ai_preferences(self._current_ai_prefs()):
+            self._log("Could not save your AI choices — they apply to this "
+                      "session only.", "muted")
+
+    def _check_ai_service(self) -> None:
+        """Ask the provider for its real health and installed models, off the UI
+        thread (it talks to the local service and can block up to the timeout)."""
+        if not self.opt_ai_enabled.get() or self._running:
+            return
+        prefs = self._current_ai_prefs()
+        self.ai_check_button.configure(state=tk.DISABLED)
+
+        def worker() -> None:
+            probe = ai_settings.probe_provider(prefs)
+            self.after(0, self._apply_probe, probe)
+
+        threading.Thread(target=worker, daemon=True).start()
+
+    def _apply_probe(self, probe) -> None:
+        """Publish one probe result: the installed tags, and the provider's status."""
+        self.ai_model_combo.configure(values=list(probe.models))
+        self._set_ai_status(probe.status)
+        self._refresh_ai_children(locked=self._running)
+
     def _build_log_panel(self, parent: ttk.Frame, row: int) -> None:
         frame = ttk.Labelframe(parent, text="Log", style="Card.TLabelframe",
                                padding=PAD_M)
@@ -368,6 +559,15 @@ class WebnovelEditorApp(tk.Tk):
         self.run_button = ttk.Button(bar, text="Start Batch Processing",
                                      style="Accent.TButton", command=self._start_batch)
         self.run_button.grid(row=0, column=3, sticky="e")
+
+        # Observed pace of the running batch (Plan 2a Phase 7): a plain running
+        # average over the chapters finished so far, and what it implies for the
+        # rest. Blank until the first chapter completes — an ETA from zero
+        # samples would be a guess dressed up as information.
+        self.rate_var = tk.StringVar(value="")
+        ttk.Label(bar, textvariable=self.rate_var, style="Subtitle.TLabel",
+                  anchor="w").grid(row=1, column=0, columnspan=4, sticky="ew",
+                                   pady=(PAD_S // 2, 0))
 
     def _build_status_bar(self, parent: ttk.Frame, row: int) -> None:
         self.status_var = tk.StringVar(value="")
@@ -485,6 +685,22 @@ class WebnovelEditorApp(tk.Tk):
         # Forced output location: a fresh auto-numbered Downloads\<novel>-x folder,
         # named for the current selection. Only named here — run_batch creates it
         # when the batch actually starts (and not at all on a dry run).
+        # The AI pass is opt-in per run. When it is off, nothing below constructs a
+        # provider and run_batch receives ai_editor=None — the exact script-only path.
+        ai_editor = None
+        use_ai_in_dry_run = False
+        if self.opt_ai_enabled.get():
+            model = self.ai_model_var.get().strip()
+            if not model:
+                messagebox.showwarning(
+                    "No AI model selected",
+                    "The AI editorial pass is on, but no model is selected.\n\n"
+                    "Click “Check service” and pick one of the installed models, "
+                    "or turn the AI pass off to run the scripted editing only.")
+                return
+            ai_editor = ai_settings.build_ai_editor(self._current_ai_prefs())
+            use_ai_in_dry_run = self.opt_ai_dry_run.get()
+
         name = kebab_case(novel) or "output"
         output_dir = str(next_numbered_output_dir(downloads_dir(), name))
 
@@ -497,6 +713,8 @@ class WebnovelEditorApp(tk.Tk):
         self._batch_replacement_log = self.opt_replacement_log.get()
         self._batch_debug_text = self.opt_debug_text.get()
         self._batch_dry_run = self.opt_dry_run.get()
+        self._batch_ai_editor = ai_editor
+        self._batch_use_ai_in_dry_run = use_ai_in_dry_run
 
         self._running = True
         self.run_button.configure(state=tk.DISABLED)
@@ -504,12 +722,23 @@ class WebnovelEditorApp(tk.Tk):
         self.stop_event.clear()
         self.pause_button.configure(state=tk.NORMAL, text="Pause")
         self.stop_button.configure(state=tk.NORMAL)
+        self._set_ai_controls_running(True)
         self.progress.configure(maximum=len(files), value=0)
+        self._begin_rate_tracking(len(files))
         dry = self._batch_dry_run
         self._log(
             "--- Starting batch ---" + (" (dry run, no PDF output)" if dry else ""),
             "accent",
         )
+        if ai_editor is not None:
+            fallback = (
+                "stop the batch"
+                if ai_editor.options.policy.value == ai_settings.POLICY_AI_REQUIRED
+                else "keep the scripted result"
+            )
+            self._log(
+                f"AI editorial pass on — model {ai_editor.options.model_id}; "
+                f"if the AI is unavailable, {fallback}.", "accent")
 
         thread = threading.Thread(target=self._process_worker, daemon=True)
         thread.start()
@@ -527,6 +756,8 @@ class WebnovelEditorApp(tk.Tk):
                 mirror_root=self._batch_mirror_root,
                 pause_gate=self.pause_gate,
                 stop_event=self.stop_event,
+                ai_editor=self._batch_ai_editor,
+                use_ai_in_dry_run=self._batch_use_ai_in_dry_run,
 
                 gui_log=lambda message, level="info": self.after(
                     0, self._log, message, level),
@@ -575,6 +806,8 @@ class WebnovelEditorApp(tk.Tk):
         self.run_button.configure(state=tk.NORMAL)
         self._reset_pause_control()
         self._reset_stop_control()
+        self._set_ai_controls_running(False)
+        self._end_rate_tracking()
         skipped = summary.get("skipped", 0)
 
         # Auto-open the output folder so the user lands on their results (spec GUI
@@ -600,12 +833,32 @@ class WebnovelEditorApp(tk.Tk):
         self.run_button.configure(state=tk.NORMAL)
         self._reset_pause_control()
         self._reset_stop_control()
+        self._set_ai_controls_running(False)
+        self._end_rate_tracking()
         self._log(f"Batch aborted: {type(exc).__name__}: {exc}", "error")
         messagebox.showerror("Batch error", f"{type(exc).__name__}: {exc}")
 
     # -- helpers ----------------------------------------------------------------
+    def _begin_rate_tracking(self, total: int) -> None:
+        """Start (or restart) the pace clock, clearing any previous run's readout."""
+        self._batch_total = max(0, int(total))
+        self._batch_started = time.monotonic()
+        self.rate_var.set("")
+
+    def _end_rate_tracking(self) -> None:
+        self._batch_started = None
+
+    def _update_rate(self, completed: int) -> None:
+        started = self._batch_started
+        if started is None or not self._batch_total:
+            return
+        rate = ai_settings.compute_rate(
+            completed, self._batch_total, time.monotonic() - started)
+        self.rate_var.set(ai_settings.format_rate(rate))
+
     def _set_progress(self, value: int) -> None:
         self.progress.configure(value=value)
+        self._update_rate(value)
 
     def _log(self, message: str, level: str = "info") -> None:
         self.log_text.configure(state=tk.NORMAL)

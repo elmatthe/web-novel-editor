@@ -9,6 +9,74 @@ its original decision date. New decisions continue to be appended here (newest o
 
 ---
 
+## 056 — Plan 2a Phase 7: the window minimum height is a tested layout contract — 2026-07-23 — Claude Code
+
+**Status:** Accepted; `MIN_HEIGHT` raised 700 → 1020, `PREFERRED_HEIGHT` 1120 added.
+**Decision:** The AI card added ~169px of permanently-visible height to a window whose rows
+were already taller than its own minimum. Measured on a mapped window: before this phase the
+fixed rows needed ~1010px while the window opened at 700, so the Start button already sat 26px
+and the status strip 63px below the fold. Adding the card without acting would have pushed
+Start 273px off-screen — the one control a non-technical user must be able to find. The minimum
+is therefore now 1020 (the measured fixed-row total plus headroom), the opening height is 1120
+**clamped to the display** (`screenheight - 90`) so the window can never open taller than the
+screen it is on, and a test sums every non-log row's requested height and fails if the total
+exceeds `MIN_HEIGHT`.
+
+**Consequences:** The log is the only row that flexes, so every pixel above the minimum goes to
+it. On a 1080p display the app now opens near full height with a small log pane; the user can
+resize or maximise for more. The underlying cause is pre-existing and untouched here: the Input
+card (a six-row listbox, ~282px) and the novel card's three-line helper text dominate the fixed
+budget. Shrinking either is a layout change to code this phase did not own, so it was flagged
+for review rather than made. Any future card must either fit the remaining budget or come with
+a raised, re-measured `MIN_HEIGHT` — the test makes that mechanical rather than a matter of
+someone noticing.
+
+## 055 — Plan 2a Phase 7: the AI opt-in switch is session-only; only model and policy persist — 2026-07-23 — Claude Code
+
+**Status:** Accepted on the user's explicit call when the plan's own wording proved ambiguous.
+**Decision:** `load_ai_preferences` always resolves `enabled` to False, and
+`save_ai_preferences` writes only `PERSISTED_KEYS = ("model", "policy")` — never the switch.
+The plan states both "opt-in checkbox (default OFF)" and a precedence rule in which a persisted
+GUI choice outranks `config.toml`; read literally together, a user who enabled AI once would
+find it already on at every later launch. Asked to choose, the user picked the strict reading:
+the app always starts deterministic and script-only, while the model tag and run policy are
+remembered so re-enabling is one click.
+
+**Consequences:** "AI is off by default" is now an absolute property of startup rather than a
+default that erodes with use, and it holds independently of `config.toml`, which keeps
+`enabled = false` untouched. The per-user settings file is merged, not overwritten: unrelated
+keys and unrelated sections survive a write, and a non-writable profile directory downgrades to
+a muted log line instead of an error, so the app still runs from a read-only location. The
+precedence machinery from Phase 1 is otherwise used exactly as designed — this narrows *which
+keys* the GUI persists, not how resolution works.
+
+## 054 — Plan 2a Phase 7: two GUI-level AI states sit alongside ProviderStatus, never in place of one — 2026-07-23 — Claude Code
+
+**Status:** Accepted; implemented in `scripts/Universal/gui/ai_settings.py`.
+**Decision:** The status line reports the adapter's own `ProviderStatus` verbatim — all nine
+values get their own distinct message, and the GUI re-implements none of that detection: it
+calls the real `health_check()` and `list_models()` and passes the result through. Two states
+are added *beside* those values, because the provider cannot express either:
+
+- `unchecked` — nothing has been asked of any provider yet. This is the script-only startup
+  state, and it is what makes "AI off constructs no provider" visible rather than merely true.
+- `no_model_selected` — the adapter refuses to talk to the service without a complete
+  `name:tag`, so enumerating installed models before the user has chosen one requires probing
+  with the placeholder `__no_model_selected__:list`. The service then honestly answers
+  `model_missing`. Reporting that verbatim would blame the service for a choice the user has
+  not made, so the probe — which knows the tag was never real — reports `no_model_selected`
+  instead, and only when no model is configured. A real selected-but-absent tag still surfaces
+  as `model_missing`.
+
+**Consequences:** The dropdown is filled *only* from a live `list_models()`; no "recommended"
+model is shipped, which keeps Phase 8's model comparison the thing that decides. A test greps
+the GUI sources for model names to keep it that way, and another confines the provider's own
+name to the factory/config boundary — the GUI names no provider, so 2b's cloud adapters need no
+change here. Probing runs on a worker thread because it blocks on the local service, and it
+never raises: an absent package, a closed port, or a timeout is a status the user can read, not
+a traceback. Verified live on HOME-PC: `ok`, `model_missing`, `service_down`,
+`invalid_configuration`, and `no_model_selected` each rendered from the real service.
+
 ## 053 — Plan 2a Phase 6B: keep the bytes/3 estimator unchanged; real truncation is model fidelity, not budget — 2026-07-23 — Claude Code
 
 **Status:** Accepted on live HOME-PC evidence (Ollama server 0.32.1, client `ollama==0.6.2`,

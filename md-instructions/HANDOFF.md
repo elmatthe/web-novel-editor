@@ -11,10 +11,15 @@ Plan 2 is split into three canonical drops:
 `plan-2b-cloud-providers.md` (Gemini/Groq, target v0.13.0), and
 `plan-2c-installer-bootstrap.md` (bootstrap/onboarding, target v0.14.0).
 Phase 6A added the production Ollama adapter behind the Phase-5 provider-neutral batch
-seam with mocked/offline verification. **Phase 6B is now DONE on HOME-PC against the real
-Ollama service, so Phase 6 is COMPLETE.** v0.12.0 is **not** released and AI remains
-disabled by default in `config.toml`. No AI settings panel, launcher, release, or corpus
-work has begun; Phase 7 (GUI AI controls) is the next continuation point.
+seam with mocked/offline verification; Phase 6B validated it live on HOME-PC, completing
+Phase 6. **Phase 7 (GUI AI controls) is now DONE**, so the AI pass is reachable from the
+app for the first time: an opt-in card that always starts OFF, a model dropdown filled only
+from a live `list_models()`, a status line carrying the provider's own `ProviderStatus`,
+the run-policy choice, and a running-average sec/chapter + ETA readout. v0.12.0 is **not**
+released and AI remains disabled by default in `config.toml`. No launcher, release, or
+corpus work has begun; **Phase 8 (stratified pilot + report, then STOP for the user's
+model/strategy decision)** is the next continuation point. No model is recommended anywhere
+in the UI — that choice is still Phase 8's to make.
 
 Stage A confirmed the live post-pipeline/pre-build seam in
 `scripts/Universal/core/batch_runner.py`: files are processed sequentially with
@@ -23,6 +28,112 @@ per-file exception isolation; `pause_gate` is checked only between files;
 dry-run, and build steps; and `build_pdf(...)` remains the sole PDF writer.
 Baseline on Python 3.14.2: `pip check` clean; `scripts/verify.py` PASS with
 **505 passed, 9 skipped** (environmental skips only).
+
+## Work Log — 2026-07-23 — Claude Code — Plan 2a Phase 7 (GUI AI Controls)
+
+Ran on HOME-PC from clean, aligned local/remote SHA `a32de93`. **Phase 7 is complete.**
+No `ollama pull`, no model install/retag, and no start/stop/reconfigure of the Ollama
+service. No private corpus, chapter text, prompt text, or generated output was used or
+committed. All six items the plan names for this phase are implemented, plus the dry-run
+opt-in the user approved.
+
+**Two ambiguities were resolved by asking, not guessing** (both user-facing, both flagged
+by the standing rule). (1) The plan says the checkbox is "opt-in, default OFF" *and* that a
+persisted GUI choice outranks `config.toml` — read together, AI would silently come back on
+at the next launch. The user chose the strict reading: **always start OFF**, remember the
+model and policy (DECISIONS #055). (2) `use_ai_in_dry_run` exists in `run_batch` since
+Phase 5 but has no control, so the documented per-run opt-in was unreachable; the user
+approved exposing it as a sub-checkbox.
+
+**New `scripts/Universal/gui/ai_settings.py` — tkinter-free, so all of it is testable
+headlessly.** Preference resolution (in-code < `config.toml` < per-user settings, with
+`enabled` always forced False), atomic merge-not-clobber persistence of exactly
+`("model", "policy")`, status descriptions, provider probing, editor construction, and the
+rate/ETA maths. Every `ai.*` import that could need an optional dependency is deferred into
+the function that needs it, so importing it — and therefore starting the app — still works
+with no AI packages present.
+
+**Status reporting is the provider's, not a GUI reinvention.** `probe_provider` calls the
+real `health_check()` and `list_models()` and passes the `ProviderStatus` straight through;
+all nine values have their own distinct message (a test asserts distinctness). Two GUI-level
+states are additive, never substitutes: `unchecked` (nothing asked of any provider yet) and
+`no_model_selected` (DECISIONS #054 — the adapter needs a complete `name:tag` before it will
+talk to the service at all, so enumerating models before a choice exists requires the
+placeholder `__no_model_selected__:list`; blaming the service for `model_missing` there would
+be dishonest). A real selected-but-absent tag still reports `model_missing`.
+
+**The panel.** An "AI Editorial Pass (optional)" card between Advanced Options and the run
+row: enable checkbox (always OFF at launch) + "Check service" button; model combobox; an
+"If the AI is unavailable" radio pair mapping to `prefer_ai` / `ai_required`; the dry-run
+sub-checkbox; and the status line. Every control except the enable checkbox is disabled
+while the pass is off, and all of them lock while a batch runs. Probing happens on a worker
+thread (it blocks on the local service) and posts back through `after(0, ...)`.
+
+**Nothing is constructed while AI is off.** Turning the pass on is the only thing that ever
+probes; `AIEditor` is built only at Start, and its provider factory stays unevaluated until
+`run_batch` needs it. With the pass off, `run_batch` receives `ai_editor=None` — the exact
+historical script-only path. Start refuses to run with the pass on and no model chosen
+rather than launching a batch that would fail per-chapter.
+
+**Running average + ETA.** Computed from the existing `progress` callback: elapsed / files
+finished, and that rate against what remains. Blank until the first chapter completes — an
+ETA from zero samples would be a guess presented as information — and the ETA clause drops
+once the last file is done.
+
+**Layout regression found and fixed (DECISIONS #056).** Measured on a mapped window, the
+fixed rows already needed ~1010px before this phase while the window opened at 700, so the
+Start button sat 26px and the status strip 63px below the fold. The new card would have
+pushed Start 273px off-screen. The card was compacted 231px → 169px, `MIN_HEIGHT` raised
+700 → 1020, and a new `PREFERRED_HEIGHT = 1120` is clamped to `screenheight - 90` so the
+window can never open taller than the display. A test now sums every non-log row and fails
+if the total exceeds `MIN_HEIGHT`.
+
+**One real invariant caught mid-implementation and fixed properly, not widened.** The
+existing `test_ollama_name_is_confined_to_provider_factory_and_configuration_boundary`
+failed because the GUI defaulted the provider name to a literal. It now falls back to
+`IN_CODE_DEFAULTS["provider"]`, so the GUI names no provider at all and 2b's cloud adapters
+need no change here. Separately, `ai_settings` captured the AI enum *classes* at import
+time, which broke under the existing module-reload isolation test; it now captures only
+their string values at module level and re-imports the classes inside the functions that
+build objects with them.
+
+**Live validation on HOME-PC (read-only; the service was not touched).** Through the panel's
+own data path: no model chosen → `no_model_selected` with the real installed tags
+`('qwen3:14b', 'qwen3:8b')`; a chosen installed tag → `ok`; a bogus tag → `model_missing`;
+closed loopback port `127.0.0.1:1` → `service_down`; a remote `https` endpoint →
+`invalid_configuration`. Each rendered its own message. **No model is recommended or
+hardcoded anywhere in the UI** — a test greps both GUI sources for model names — so Phase 8
+still owns that decision, and `qwen3:14b` remains installed but unexercised.
+
+**Gates (real numbers from this session).** New `files/tests/test_ai_gui_controls.py`:
+**49 tests**. GUI/startup/launcher (`test_app`, `test_main_check_flag`, `test_launchers`,
+`test_scaffold`) **39 passed, 1 environmental skip**. AI/foundation/editor/validation/batch
+(`test_ollama_provider`, `test_ai_foundation`, `test_ai_editor`, `test_ai_validation`,
+`test_plan2a_phase5`, `test_batch`, `test_pause_and_condensed_log`, plus the new file)
+**205 passed, 1 skip**. Full `scripts/verify.py`: **PASS — 692 passed, 2 skipped, 0 failed**
+(694 collected; was 644/1 at the Phase 6B baseline, so +48 net). `pip check` clean;
+`git diff --check` clean. The Tk "no display available" skips vary pass↔skip between runs on
+this machine, as recorded in earlier phases.
+
+**Scope/security/artifact scan.** Tracked changes are one new GUI module, one new test
+module, `gui/app.py`, and three docs. No provider internals, batch seam, pipeline, PDF,
+launcher, `config.toml`, `requirements.txt`, or Plan 2c file was touched, and no dependency
+was added. Nothing prohibited was staged: no chapter/corpus text, prompt or candidate text,
+model file, machine identifier, secret, `.env`, log, generated PDF, `.venv`, or cache. The
+per-user settings file lives outside the repo and is never committed. Two pre-existing
+untracked paths (`.claude/` and the superseded
+`md-instructions/plan-2-ai-editor-integration.md`) were deliberately left untracked.
+
+**Not done, by instruction:** `CHANGELOG.md`/`BRIEFING.md`/`README.md` untouched — Phase 9
+owns those per the plan's own phase list, and `verify`'s changelog check stays green at
+v0.11.0. v0.12.0 is not released, no merge to `main`, no PR, no Phase 8 pilot work.
+
+**Open for the user (Minor, flagged not fixed):** the window is now tall. The cause is
+pre-existing and outside this phase — the Input card's six-row listbox (~282px) and the
+novel card's three-line helper text dominate the fixed height budget. Shrinking either
+would give the log pane back its room; that is a layout change to code Phase 7 did not own,
+so it is the user's call. **The panel has not been eyeballed by a human** — Tk cannot be
+screenshot-tested from here, so a visual confirmation pass is requested.
 
 ## Work Log — 2026-07-23 — Claude Code — Plan 2a Phase 6B (Live Ollama/Qwen Validation)
 
@@ -1302,6 +1413,43 @@ summary record.
 ---
 
 ## Session Sync Log (newest first)
+
+### 2026-07-23 — HOME-PC — PUSHED (Plan 2a Phase 7: GUI AI controls — PHASE 7 COMPLETE)
+- Branch:  feature/plan-2a-provider-foundation (1 commit this session on top of a32de93)
+- Env:     existing .venv, Python 3.13.12. No dependency added, no pin edited, no
+           `ollama pull`, no model install/retag, the Ollama service never touched.
+           Live probing was read-only (`health_check` / `list_models`) only.
+- Added:   scripts/Universal/gui/ai_settings.py (new — tkinter-free preference
+           resolution, per-user persistence, provider probing, editor construction,
+           rate/ETA maths)
+           files/tests/test_ai_gui_controls.py (new — 49 tests)
+- Changed: scripts/Universal/gui/app.py (AI Editorial Pass card, run-policy radios,
+           dry-run opt-in, status line, rate/ETA readout, batch wiring, MIN_HEIGHT
+           700 -> 1020 + PREFERRED_HEIGHT 1120 clamped to the display)
+           md-instructions/DECISIONS.md (appended #054 GUI-level AI states, #055
+           session-only opt-in switch, #056 window-height layout contract)
+           md-instructions/HANDOFF.md (Current Focus, Phase 7 work log, this entry)
+- Deleted: nothing
+- Not touched (Phase 9 owns them): CHANGELOG.md, BRIEFING.md, README.md, config.toml,
+           scripts/requirements.txt, scripts/Universal/ai/** (provider internals),
+           core/batch_runner.py (the Phase-5 seam was consumed as-is, not modified)
+- Decided: two user-facing ambiguities were put to the user rather than guessed — the
+           AI switch always starts OFF (model/policy persist), and the dry-run AI
+           opt-in is exposed as a sub-checkbox.
+- Evidence: live on this machine through the panel's own path — no model chosen ->
+           no_model_selected with real tags ('qwen3:14b', 'qwen3:8b'); installed tag
+           -> ok; bogus tag -> model_missing; closed port 127.0.0.1:1 -> service_down;
+           remote https endpoint -> invalid_configuration.
+- Note:    no corpus, chapter text, prompt/response text, model file, machine
+           identifier, secret, log, or generated PDF was recorded or staged. The
+           per-user settings file lives outside the repo. Pre-existing untracked
+           `.claude/` and `md-instructions/plan-2-ai-editor-integration.md` were left
+           untracked.
+- Result:  python scripts/verify.py -> PASS (692 passed, 2 skipped, 0 failed;
+           was 644/1 at the Phase 6B baseline). pip check clean; git diff --check clean.
+- Next:    Plan 2a Phase 8 — stratified pilot + report, then STOP for the user's
+           model/strategy decision. A human visual confirmation of the new panel is
+           requested first (Tk cannot be screenshot-tested from the agent side).
 
 ### 2026-07-23 — HOME-PC — PUSHED (Plan 2a Phase 6B: live Ollama/Qwen smoke validation — PHASE 6 COMPLETE)
 - Branch:  feature/plan-2a-provider-foundation (1 commit this session on top of cbb4222)
