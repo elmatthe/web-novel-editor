@@ -12,17 +12,16 @@ Plan 2 is split into three canonical drops:
 `plan-2c-installer-bootstrap.md` (bootstrap/onboarding, target v0.14.0).
 Phase 6A added the production Ollama adapter behind the Phase-5 provider-neutral batch
 seam with mocked/offline verification; Phase 6B validated it live on HOME-PC, completing
-Phase 6. **Phase 7 (GUI AI controls) is now DONE**, so the AI pass is reachable from the
-app for the first time: an opt-in card that always starts OFF, a model dropdown filled only
-from a live `list_models()`, a status line carrying the provider's own `ProviderStatus`,
-the run-policy choice, and a running-average sec/chapter + ETA readout. v0.12.0 is **not**
-released and AI remains disabled by default in `config.toml`. **Phase 8 (stratified pilot +
-report) is now DONE and STOPPED for the user's model/strategy decision** — the pilot ran the
-full {8b, 14b} × {M, V} matrix on real corpus and recommends **qwen3:14b + Strategy M**
-(evidence in `md-instructions/PILOT-REPORT.md`, DECISIONS #057). Nothing is wired: no model is
-set as default anywhere, `config.toml` still has `enabled = false`, and adoption is Phase 9's
-job once the user chooses. **Next continuation point is Phase 9 (adopt decision + bug hunt +
-docs + release gate for v0.12.0).**
+Phase 6. Phase 7 (GUI AI controls) added the opt-in card. Phase 8 ran the stratified pilot and
+recommended **qwen3:14b + Strategy M** (DECISIONS #057, `PILOT-REPORT.md`). **Phase 9 (release
+hardening) is now DONE:** the user's chosen default is wired into `config.toml`
+(`model = "qwen3:14b"`, `protection_strategy = "mask"`; DECISIONS #058), the release-hardening bug
+hunt found no Critical/Major issues (two Minor items flagged — DECISIONS #059), a clean-room
+script-only regression re-confirmed AI-off output is byte-for-byte the v0.11.0 baseline, and the
+v0.12.0 docs are written. **AI is still OFF by default** (`config.toml enabled = false`).
+**Plan 2a is code-complete; v0.12.0 is NOT released** — no merge to `main`, no tag, no PR. The only
+remaining Plan-2a action is the user's release decision. **Next continuation point is either the
+v0.12.0 release step (user's call) or Plan 2b (cloud providers, target v0.13.0).**
 
 Stage A confirmed the live post-pipeline/pre-build seam in
 `scripts/Universal/core/batch_runner.py`: files are processed sequentially with
@@ -31,6 +30,76 @@ per-file exception isolation; `pause_gate` is checked only between files;
 dry-run, and build steps; and `build_pdf(...)` remains the sole PDF writer.
 Baseline on Python 3.14.2: `pip check` clean; `scripts/verify.py` PASS with
 **505 passed, 9 skipped** (environmental skips only).
+
+## Work Log — 2026-07-24 — Claude Code — Plan 2a Phase 9 (Release Hardening)
+
+Ran on HOME-PC from `d4df08a` (the Phase 8 pilot commit). Context was cleared before this phase; I
+re-oriented against the tracked docs and live code, confirmed local == `origin/...` at `d4df08a`, and
+worked only Phase 9. **Phase 9 is complete; Plan 2a is code-complete but v0.12.0 is NOT released.**
+
+**1. Adopted the pilot decision (the user's call: qwen3:14b + Strategy M).** Wired the default into the
+committed **`config.toml`** — the file the Phase 7 panel already resolves defaults from
+(`ai_settings.DEFAULT_CONFIG_PATH` → `resolve_ai_config`): `[ai] model = "qwen3:14b"`;
+`protection_strategy = "mask"` was already the committed default (Strategy M) and the editor already
+reads it, so the strategy needed no code change. **`IN_CODE_DEFAULTS["model"]` was deliberately left
+empty** so the two safety-net tests (missing/corrupt config → no pre-selected model) still hold; the
+default belongs in config data, not in the in-code fallback and not hardcoded in the GUI. `app.py`'s
+stale "the app ships no recommended model" comment was corrected to point at the config-resolved
+pre-fill. Verified the real config resolves to `enabled=False, model='qwen3:14b', strategy=mask`.
+**`enabled = false` is unchanged — a default model is not AI-on.** (DECISIONS #058.)
+
+**2. Bug hunt (Phase-6 style, panel → provider → batch seam → PDF).** **No Critical, no Major.** The AI
+package has no TODO/FIXME; no provider SDK imports at package load; the full suite is green **both with
+and without the `ollama` SDK importable** (687 passed / 9 skipped — I simulated a clean machine with an
+import blocker). Two **Minor** items, flagged and left unchanged per the "flag minors before touching"
+rule (DECISIONS #059): (a) `config.toml [ai.validation] max_change_ratio = 0.08` is **dead config** — no
+code reads it; the real ±3 % length gate is hardcoded `0.03` in `ai/validation.py`; (b) the changelog
+file is `Changelog.md` while `verify.py`/docs say `CHANGELOG.md` (fine on Windows/macOS, fragile on a
+case-sensitive FS).
+
+**3. Clean-room script-only regression — AI-off is byte-for-byte the v0.11.0 baseline.** Proven two ways.
+*Source-level:* every deterministic-path module (`rules/`, `pdf/`, `pipelines/`, `profiles/`,
+`protected_lexicon`, `edit_details`, `novel_registry`, `input_scanner`) is byte-identical to the
+`ce96359` v0.11.0 merge; the only deterministic-flow change is `batch_runner`'s additive `ai_editor`
+seam (inert when `None`) and an additive, AI-only-active `record_audit` in `replacement_log.py`.
+*Empirical:* a real `run_batch(..., ai_editor=None)` over 6 Shadow Slave fixtures produced 6/6 outputs,
+constructed **no** provider, and hashed byte-identical across two independent runs
+(`sha256 592be427…a6da9`). The regression test `test_ai_disabled_preserves_exact_build_text_and_
+constructs_no_provider` asserts the same at the seam.
+
+**4. Docs for v0.12.0 (each doc gets only what it owns).** `Changelog.md`: new **v0.12.0 — UNRELEASED**
+section summarizing Plan 2a. `BRIEFING.md`: version → v0.12.0 (marked unreleased), Phase 7–9 rolled into
+the foundation headline, architecture + provider seam current. `DECISIONS.md`: **#058** (default-model
+wiring) and **#059** (bug-hunt findings). `EDITING-RULES.md`: new **AI Editorial Stage** section stating
+the division of labor (script pipeline owns all mechanical normalization + protected terms; the AI owns
+only a tiny residual grammar/OCR class on non-protected words; fail-closed gate). `README.md`: Status
+line refreshed — optional local AI pass, opt-in, OFF by default, not in the shipped build. `config.toml`
+version → 0.12.0.
+
+**Verification.** `scripts/verify.py` PASS; `pip check` clean; `git diff --check` clean; suite 687
+passed / 9 skipped (with and without `ollama`). Numbers in the Session Sync Log below.
+
+**Corpus discipline (verified).** The clean-room run *read* gitignored corpus fixtures
+(`files/test-files/shadow_slave/*.pdf`) read-only and wrote outputs only to the session scratchpad —
+nothing under any corpus/pilot path was staged. `git check-ignore` and a scope scan were run before
+committing; only tracked source/docs are in the commit.
+
+**Release-scope boundary (explicit).** Nothing was tagged, merged, or marked "released". Docs describe
+v0.12.0 as **upcoming/unreleased** everywhere (CHANGELOG header, BRIEFING, README). The plan drop was
+**not** deleted (its Definition of Done requires the user's sign-off first). The one remaining Plan-2a
+step — the actual release/merge — is the user's decision and was left for them.
+
+**Deferred (unchanged, by scope):** the narrow gate check for in-place corruption of a non-protected
+word (e.g. a comma inserted mid-token) remains documented future work, test-first, out of Phase 9.
+
+### Session Sync Log
+- 2026-07-24 — HOME-PC — Phase 9 executed from `d4df08a` after a context clear. Wired
+  `config.toml` default (qwen3:14b + mask), ran the bug hunt (no Critical/Major; 2 Minor flagged),
+  the clean-room regression (AI-off byte-identical to v0.11.0; sha256 592be427…a6da9), and wrote the
+  v0.12.0 docs. `verify.py` PASS, `pip check` clean, `git diff --check` clean, suite 687 passed / 9
+  skipped both with and without the `ollama` SDK. Committed and pushed to
+  `feature/plan-2a-provider-foundation`. **No merge, no tag, no PR — v0.12.0 unreleased; release is the
+  user's call.** Next: v0.12.0 release step (user) or Plan 2b.
 
 ## Work Log — 2026-07-24 — Claude Code — Plan 2a Phase 8 (Stratified Pilot + Report)
 

@@ -9,6 +9,65 @@ its original decision date. New decisions continue to be appended here (newest o
 
 ---
 
+## 058 — Plan 2a Phase 9: adopt qwen3:14b + Strategy M as the committed default in config.toml, not IN_CODE_DEFAULTS — 2026-07-24 — Claude Code
+
+**Status:** Accepted; wired. `config.toml [ai] model = "qwen3:14b"`, `protection_strategy = "mask"`
+(unchanged — Strategy M was already the default). `IN_CODE_DEFAULTS["model"]` deliberately **left
+empty**. `enabled = false` is **unchanged** — adopting a default model is not turning AI on.
+
+**Context:** Phase 8 (DECISIONS #057, `PILOT-REPORT.md`) recommended **qwen3:14b + Strategy M**:
+98 % mask acceptance with only legitimate minimal edits in the manual sample, versus 8b's
+intermittent corruption of non-protected words the minimal-diff gate cannot catch. The user
+adopted that recommendation for Phase 9. The question was *where* the chosen default should live so
+the GUI pre-selects it out of the box.
+
+**Decision:** Put the default in the committed **`config.toml`**, the file the Phase 7 panel already
+reads (`ai_settings.DEFAULT_CONFIG_PATH`) and resolves through
+`resolve_ai_config(IN_CODE_DEFAULTS < config.toml < user settings < GUI)`. `IN_CODE_DEFAULTS["model"]`
+stays `""` on purpose: two tests (`test_missing_config_and_settings_files_yield_safe_defaults`,
+`test_corrupt_settings_file_does_not_break_startup`) assert that when *even config.toml* is missing or
+unreadable the safety net presents **no** pre-selected model, forcing an explicit pick — a contract we
+keep. No model tag is hardcoded in GUI source; `app.py` pre-fills the box from the resolved config
+value, and the dropdown's *values* still come only from a live `list_models()`. Strategy is data, not
+code: `protection_strategy = "mask"` was already the committed default and the editor already reads it,
+so Strategy M needed no code change — only confirmation and documentation.
+
+**Alternatives considered:** Setting `IN_CODE_DEFAULTS["model"] = "qwen3:14b"` as well (rejected — it
+would break the two safety-net tests and duplicate the source of truth; the empty in-code fallback is a
+deliberate "no silent default when config is gone" contract). Hardcoding the tag in `app.py`'s combobox
+(rejected — violates the Phase 7 "no model name hardcoded in the UI" principle; the tag belongs in data).
+
+**Consequences:** A user who opts the AI pass on sees `qwen3:14b` pre-selected; if it is not installed
+the provider's own honest `model_missing` status says so, and they pick from the live list. AI remains
+**off by default**. The Phase-8 token/gate thresholds are unchanged (upholds #053/#057).
+
+## 059 — Plan 2a Phase 9 release-hardening bug hunt: no Critical/Major; two Minor items flagged, not fixed — 2026-07-24 — Claude Code
+
+**Status:** Accepted (findings recorded; code deliberately unchanged for both Minors).
+
+**Context:** Phase 9 ran a Phase-6-style end-to-end review of the AI path (GUI panel → `ai_settings` →
+factory/`OllamaProvider` → `batch_runner` seam → `build_pdf`) plus an offline suite run with the
+`ollama` package unimportable and a clean-room script-only regression.
+
+**Findings:**
+- **No Critical, no Major.** The full suite is green (687 passed / 9 skipped) both with and without the
+  `ollama` SDK importable; AI-off output is byte-for-byte the v0.11.0 deterministic baseline (every
+  deterministic-path module is source-identical to the `ce96359` merge except an additive,
+  AI-only-active change in `replacement_log.py`); no SDK import at package load; no TODO/FIXME in the
+  AI package.
+- **Minor 1 — dead validation config.** `config.toml [ai.validation] max_change_ratio = 0.08` is read by
+  **no code**; the real length-variance gate is hardcoded at `0.03` (±3 %) in `ai/validation.py`. The
+  stale key could mislead a future maintainer into "wiring" `0.08` and silently loosening the gate. Left
+  in place — removing or reconciling it changes gate-adjacent config and is a test-first change the pilot
+  explicitly deferred; flagged for the user.
+- **Minor 2 — CHANGELOG filename case.** The file is `md-instructions/Changelog.md` but `verify.py` and
+  the docs reference `CHANGELOG.md`. It resolves on case-insensitive Windows/macOS but is fragile on a
+  case-sensitive filesystem (e.g. Linux CI). Pre-existing; left unchanged; flagged.
+
+**Consequences:** Both Minors await the user's call. The known Phase-8 future item — a narrow gate check
+for in-place corruption of non-protected words (e.g. a comma inserted mid-token) — remains deferred,
+test-first, out of Phase 9 scope.
+
 ## 057 — Plan 2a Phase 8: pilot evidence recommends qwen3:14b + Strategy M; thresholds unchanged; user decides adoption — 2026-07-24 — Claude Code
 
 **Status:** Evidence recorded; **final model/strategy adoption deferred to the user at the

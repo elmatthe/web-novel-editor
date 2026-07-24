@@ -414,8 +414,11 @@ class WebnovelEditorApp(tk.Tk):
 
         ttk.Label(frame, text="Model:", style="Panel.TLabel").grid(
             row=1, column=0, sticky="w", padx=(PAD_M, PAD_S), pady=(PAD_S, 0))
-        # Filled only from a live list_models(); the app ships no "recommended"
-        # model, because that choice belongs to the Plan 2a pilot.
+        # The dropdown *values* are still filled only from a live list_models(); no model
+        # tag is hardcoded in this UI. The pre-selected default text comes from the committed
+        # config.toml `[ai] model` (resolved in `self.ai_prefs`) — the Phase 8 pilot choice
+        # (DECISIONS #058) — so the roster reflects the service while the box pre-fills to the
+        # sane default, which the user can override.
         self.ai_model_combo = ttk.Combobox(
             frame, textvariable=self.ai_model_var, values=[], state=tk.DISABLED,
             font=self.font_body, width=28,

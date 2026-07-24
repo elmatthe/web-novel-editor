@@ -55,6 +55,45 @@ Apply in exactly this order. Earlier stages expose issues that later stages fix.
 
 ---
 
+## AI Editorial Stage (Optional — runs after Stage 21; opt-in, OFF by default) — v0.12.0 (Plan 2a)
+
+Everything in the Canonical Stage Order above is the **deterministic script pipeline**: pure,
+mechanical, reproducible, and the *only* stage that runs by default. v0.12.0 adds one **optional**
+AI proofreading pass that runs **after** the whole script pipeline (its input is the finished
+deterministic text) and **before** the PDF build. It is **off unless the user opts in per run**, and
+when off the output is byte-for-byte the deterministic result. It is not a new "rule" and never
+replaces a deterministic rule — it is a second, conservative reviewer bolted onto the end.
+
+**Division of labor — who owns what:**
+
+- **The script pipeline owns all mechanical normalization** and does it first: unicode/quote/ligature
+  cleanup, ad/URL/watermark removal, paragraph reconstruction and de-hyphenation, OCR-dictionary
+  repair, chapter-title formatting, canonical name spelling, punctuation/grammar fixes, slash→"out of",
+  and spaced-em-dash removal. **The AI must never redo, undo, or comment on any of this.**
+- **The AI stage owns only a tiny residual class** the mechanical rules cannot safely judge: minor,
+  high-confidence, context-dependent grammar and OCR corrections to **non-protected** words
+  (their/there, its/it's, an unambiguous OCR survivor, a subject–verb agreement that needs sentence
+  comprehension). Its correct and expected default outcome is to **return the text unchanged**.
+- **Protected terms are the script pipeline's, not the AI's.** Under the default **Strategy M (mask)**
+  the AI never even sees a protected term — they are masked to placeholders before the model and
+  unmasked only after exact reassembly. A validation gate then guarantees every protected term is
+  byte-for-byte unchanged; any change → the whole chapter keeps its deterministic output.
+
+**Hard guarantees (enforced by a fail-closed gate, `ai/validation.py`, gate v1.0):** the AI may never
+reword/rephrase/summarize/expand, change tone/pacing/voice, alter dialogue phrasing, add or remove
+paragraphs or sentences, touch the chapter heading or number, damage a placeholder, or change a
+protected term. It may not emit reasoning, code fences, or commentary. Structure (paragraph and
+newline shape), ±3 % character variance, and canonical unspaced-em-dash behavior are all checked. A
+rejection in any chunk discards **all** AI changes for that chapter (chapter-atomic fallback). Long
+chapters are split only between complete paragraphs and reassembled in exact order.
+
+**Default engine:** local **Ollama** with **`qwen3:14b` + Strategy M** (the Phase 8 pilot choice —
+`PILOT-REPORT.md`, DECISIONS #058). The pass stays entirely on the user's machine. Because the gate can
+guarantee structure and protected terms but cannot police every small in-place corruption of arbitrary
+prose, **model quality carries that load** — which is why the safer 14b is the default, not 8b.
+
+---
+
 ## Stage 1.5 — Ad / URL / Fingerprint Junk Strip (IMPLEMENTED — hardened in the v0.10.0 plan)
 
 **Status: shipped and hardened.** Built in Phase 4 (v0.4.0) and substantially hardened in the

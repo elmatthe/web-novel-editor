@@ -1,23 +1,32 @@
 # Committed application defaults. This file must never contain credentials.
 [project]
 name = "Web Novel Editor"
-version = "0.11.0"
+version = "0.12.0"
 python_minimum = "3.10"
 
 [ai]
 enabled = false
 provider = "ollama"
-model = ""
+# The out-of-the-box model the GUI pre-selects once the user opts in. Chosen from the
+# Phase 8 stratified pilot (DECISIONS #058): qwen3:14b gave 98% mask acceptance with only
+# legitimate minimal edits, where 8b intermittently corrupted non-protected words the gate
+# cannot catch. This is the default when AI is enabled — it does NOT turn AI on (see
+# `enabled = false` above). Leaving it blank falls back to no pre-selection (IN_CODE_DEFAULTS).
+model = "qwen3:14b"
 timeout_seconds = 120
 endpoint = "http://127.0.0.1:11434"
 keep_alive = "30m"
-# Conservative pre-pilot limits; Phase 6B records/refines these for the selected full model tag.
+# Pilot-validated limits (Phase 8): actual prompt_eval_count p50 ~2,680 / max ~4,531 tokens
+# sat well under context_limit, so the conservative bytes/3 estimator over-reserves in the
+# fail-safe direction. No change warranted by evidence (upholds DECISIONS #053).
 context_limit = 32768
 max_output_tokens = 4096
 request_overhead_tokens = 128
 context_safety_margin_tokens = 256
 output_margin_tokens = 64
 seed = 0
+# Strategy M (mask): mask protected terms before the model sees them. The Phase 8 pilot
+# confirmed M beats Strategy V (verify) for protected-term safety on both models. (DECISIONS #058.)
 protection_strategy = "mask"
 prompt_version = "1"
 gate_version = "1"

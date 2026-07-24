@@ -1,23 +1,30 @@
 # Webnovel Editor — Project Briefing
 
-## Version: v0.11.0
+## Version: v0.12.0
+
+**v0.12.0 is UNRELEASED (upcoming).** v0.11.0 remains the shipped baseline on `main`; all
+v0.12.0 work lives on `feature/plan-2a-provider-foundation` and has not been merged or tagged.
 
 ## Last Updated
-2026-07-23 — v0.11.0 remains the shipped baseline. Plan 1 is merged into `main`;
-provider-neutral Plan 2a foundation work is in progress on
-`feature/plan-2a-provider-foundation`; Phase 6A added the production Ollama adapter
-and Phase 6B validated it live on HOME-PC, so Phase 6 is complete. v0.12.0 is not
-released and AI is still disabled by default.
+2026-07-24 — Plan 2a is code-complete through **Phase 9 (release hardening)** on
+`feature/plan-2a-provider-foundation`. Phases 1–6 built the provider-neutral AI stack and the
+live-validated Ollama adapter; Phase 7 added the opt-in GUI controls; Phase 8 ran the stratified
+pilot; **Phase 9 adopted `qwen3:14b` + Strategy M as the committed default, ran the bug hunt and
+the clean-room regression, and wrote these v0.12.0 docs.** AI remains **opt-in and OFF by default**
+(`config.toml enabled = false`). v0.12.0 is **not** released — no merge to `main`, no tag, no PR.
 
-## Current State (v0.11.0)
+## Current State (v0.12.0 — unreleased)
 The "GUI & Batch Overhaul" plan (Plan 1, Phases 1–6) is complete and merged into
-`main` by `ce96359`. Provider-neutral Plan 2a groundwork is in progress from
-`origin/main` `9ca90fd`; no user-visible AI controls or released AI feature exist.
-Headlines:
-- **Provider-neutral Plan 2a foundation (in progress):** `scripts/Universal/ai/` now
-  defines frozen provider request/result/capability models, a cloud-ready typed error
-  taxonomy, the four-method provider protocol, and lazy factory construction. Root
-  `config.toml` is committed and secret-free with AI disabled; per-user settings use
+`main` by `ce96359` and remains the shipped v0.11.0 baseline. **Plan 2a (the optional local AI
+editorial stage) is code-complete through Phase 9** on `feature/plan-2a-provider-foundation`
+(from `origin/main` `9ca90fd`), pending the user's release decision. With the AI pass off — the
+default — output is byte-for-byte the v0.11.0 deterministic result. Headlines:
+- **Optional local AI editorial stage (Plan 2a, Phases 1–9 — code-complete, unreleased):**
+  `scripts/Universal/ai/` defines frozen provider request/result/capability models, a cloud-ready
+  typed error taxonomy, the four-method provider protocol, and lazy factory construction. Root
+  `config.toml` is committed and secret-free with **AI disabled by default**; the committed default
+  model is **`qwen3:14b` + Strategy M** (the Phase 8 pilot choice, DECISIONS #058) — the tag the GUI
+  pre-selects when a user opts in, never an auto-on switch. Per-user settings use
   atomic JSON outside the repository. Python 3.10 remains supported through
   `tomli==2.4.1`. Versioned prompt assembly renders the canonical protected lexicon
   at runtime; gate v1.0 validates structure, protected terms, placeholders, truncation,
@@ -52,11 +59,20 @@ Headlines:
   and honest AI-required failure were all exercised without touching the Ollama service.
   Live measurement showed the conservative `bytes/3` token estimator over-reserves by
   ~1.7×–1.9× against a real ~4.6–5.3 bytes/token ratio, which is the fail-safe direction, so
-  **no constant was changed** (DECISIONS #053). **Phase 6 is complete.** One honest limitation
-  stands: raw single-shot fidelity of `qwen3:8b` is not established — on an 8 KB probe the
-  model expanded rather than returned the text and the adapter correctly failed closed.
-  Prompt/gate tuning, model comparison, and the final capability-table numbers remain
-  deferred to later Plan 2a phases.
+  **no constant was changed** (DECISIONS #053). **Phase 6 is complete.**
+  **Phase 7 (GUI AI controls)** added the opt-in card described above (always starts OFF, live-only
+  model list, provider-status line, unavailable-policy choice, sec/chapter + ETA); the core app still
+  starts with no Ollama and no AI packages. **Phase 8** ran a 120-run stratified pilot on real corpus
+  ({8b, 14b} × {M, V}, 40 chapters) that drove the real edit seam: the gate held with **0 accepted
+  protected-term failures across 80 profiled runs**, the 8 KB "expansion" did not reproduce on real
+  prose (done_reason `stop` on 119/120, single-chunk output/input p50 = 0.997), and the deciding
+  evidence was edit quality — 14b produced only legitimate minimal corrections while 8b intermittently
+  slipped small non-protected-word corruptions past a minimal-diff gate. **Phase 9** adopted the pilot
+  choice: `config.toml` now defaults to **`qwen3:14b` + Strategy M** (DECISIONS #058), the release-
+  hardening bug hunt found no Critical/Major issues (two Minor items flagged — DECISIONS #059), and a
+  clean-room regression re-confirmed AI-off output is byte-for-byte the v0.11.0 baseline. The estimator
+  and ±3 % gate stand unchanged, by evidence. The one deferred item is a possible future narrow gate
+  check for in-place corruption of non-protected words — test-first, out of Plan 2a scope.
 - **Two-mode input (Phase 1):** the GUI's Input card offers mutually exclusive
   **Upload PDFs** / **Select Folder** radio modes. Folder mode runs
   `core/input_scanner.scan_folder` — a depth-first recursive scan where each
