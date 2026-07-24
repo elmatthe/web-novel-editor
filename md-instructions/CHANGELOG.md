@@ -1,5 +1,62 @@
 # Webnovel Editor — Changelog
 
+## v0.12.0 — 2026-07-24 — Optional Local AI Proofreading Pass (Plan 2a)
+
+**Status: released** — merged to `main` and tagged `v0.12.0` (the project's first release tag;
+DECISIONS #061). Built on `feature/plan-2a-provider-foundation`. AI is **opt-in and OFF by default**;
+with the pass off, output is byte-for-byte identical to the v0.11.0 deterministic baseline. Design
+reasoning is in DECISIONS.md #036–#061.
+
+### Added — provider-neutral local AI editorial stage (Plan 2a, Phases 1–7)
+- A new `scripts/Universal/ai/` package adds an **optional AI proofreading pass** that runs *after*
+  the deterministic script pipeline and *before* the PDF build. It is provider-neutral: frozen
+  request/result/capability models, a cloud-ready typed error taxonomy, a four-method provider
+  protocol, and a lazy factory — **no provider SDK is imported at package load or unless its adapter
+  is actually constructed** (grep- and import-test-asserted).
+- **`OllamaProvider`** (official `ollama==0.6.2`, imported lazily) is the only shipped adapter: it
+  talks only to an explicitly configured **loopback** HTTP endpoint and one exact model tag, disables
+  thinking output, serializes requests at concurrency one, computes a conservative `num_ctx` and a
+  bounded `num_predict`, and **fails closed** on reasoning or incomplete/truncated output. It never
+  pulls a model or uses a provider default context.
+- **A fail-closed validation gate (v1.0)** validates every candidate against the deterministic text
+  without ever mutating it: heading, paragraph/newline structure, protected-term spelling+position,
+  placeholder integrity, truncation, ±3 % character variance, URL/junk insertion, canonical
+  spaced-em-dash behavior, and a minimal-diff / no-broad-rewrite check. Any rejection → the chapter
+  keeps its deterministic output. **Protected terms are guaranteed byte-for-byte.**
+- **Paragraph-safe chunking (v1.0)** splits long chapters only between complete paragraphs, preserves
+  headings and newline boundaries, and asserts byte-exact reassembly in original order; a rejection in
+  any chunk discards all AI changes for that chapter (chapter-atomic).
+- **Two protection strategies:** default **Strategy M (mask)** replaces protected terms with
+  placeholders before the model sees them and unmasks only after exact reassembly; Strategy V (verify)
+  exposes real terms and relies on the gate. Prompt/gate/chunker versions are recorded on every attempt.
+- **Batch seam + controls:** `run_batch` takes one optional run-scoped `AIEditor` at the
+  post-pipeline/pre-build seam; **Stop After Current File** and Pause/Continue work with AI on; a
+  dry-run can optionally exercise the AI pass without writing a PDF. AI attempt provenance is appended
+  to the JSONL replacement log (hashes, not full text).
+- **GUI (Phase 7):** an opt-in "Run an AI proofreading pass" card that **always starts OFF**, a model
+  dropdown filled only from a live `list_models()`, a status line carrying the provider's own state,
+  an "if the AI is unavailable" policy choice (use the scripted result / stop the batch), and a
+  running-average sec/chapter + ETA readout. The core app still starts with no Ollama and no AI
+  packages installed.
+
+### Added — adopted pilot decision: qwen3:14b + Strategy M as the out-of-the-box default (Phase 9)
+- After a 120-run stratified pilot (Phase 8, `PILOT-REPORT.md`, DECISIONS #057), **`qwen3:14b` +
+  Strategy M** is now the committed default in `config.toml` — the model the GUI pre-selects when a
+  user opts in (98 % mask acceptance with only legitimate minimal edits; 8b intermittently corrupts
+  non-protected words the gate cannot catch). **This does not turn AI on** — `enabled = false` is
+  unchanged. No model tag is hardcoded in the UI; the pre-selection comes from config data.
+  (DECISIONS #058.)
+
+### Verification (Phase 9)
+- Release-hardening bug hunt: **no Critical/Major** findings; two Minor items flagged for review
+  (DECISIONS #059), both since closed before release (DECISIONS #060): the dead
+  `[ai.validation] max_change_ratio` key was **removed** from `config.toml` (nothing read it; the real
+  ±3 % gate stays hardcoded in `ai/validation.py` and is deliberately not made configurable), and the
+  changelog filename case turned out to be a **local working-tree** mismatch only — git has tracked
+  `CHANGELOG.md` throughout, so no repo change was required.
+- Full suite green **with and without the `ollama` SDK importable** (687 passed / 9 skipped);
+  clean-room script-only regression confirms AI-off output is byte-for-byte the v0.11.0 baseline.
+
 ## v0.11.0 — 2026-07-19 — GUI & Batch Overhaul (Plan 1): Two-Mode Input, Auto-Numbered Mirrored Output, "Universal" Default, Pause/Continue + Condensed Log, Decorative-Run TTS Sweep
 
 The "GUI & Batch Overhaul" plan (Plan 1, Phases 1–6) on `feature/gui-batch-overhaul`,

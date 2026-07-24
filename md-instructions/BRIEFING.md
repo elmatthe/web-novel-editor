@@ -1,16 +1,77 @@
 # Webnovel Editor — Project Briefing
 
-## Version: v0.11.0
+## Version: v0.12.0
+
+**v0.12.0 is RELEASED** — merged to `main` and tagged `v0.12.0`, the project's first release tag
+(DECISIONS #061). It is the shipped baseline, superseding v0.11.0.
 
 ## Last Updated
-2026-07-19 — v0.11.0: GUI & Batch Overhaul (Plan 1, Phases 1–6): two-mode input +
-natural-order folder scanning, auto-numbered mirrored Downloads output, "Universal"
-default dropdown entry, pause/continue + condensed log, decorative-run TTS sweep,
-Plan-2 seam documented
+2026-07-24 — **Plan 2a is complete and v0.12.0 is released.** Phases 1–6 built the provider-neutral
+AI stack and the live-validated Ollama adapter; Phase 7 added the opt-in GUI controls; Phase 8 ran the
+stratified pilot; **Phase 9 adopted `qwen3:14b` + Strategy M as the committed default, ran the bug hunt
+and the clean-room regression, and wrote these v0.12.0 docs.** A release-hygiene pass then closed the
+two Phase-9 Minor items (DECISIONS #060) before the merge. AI remains **opt-in and OFF by default**
+(`config.toml enabled = false`). The plan drop has been deleted per its Definition of Done.
 
-## Current State (v0.11.0)
-The "GUI & Batch Overhaul" plan (Plan 1, Phases 1–6) is complete on
-`feature/gui-batch-overhaul`. Headlines:
+## Current State (v0.12.0 — released)
+The "GUI & Batch Overhaul" plan (Plan 1, Phases 1–6) was merged into `main` by `ce96359` and shipped as
+v0.11.0. **Plan 2a (the optional local AI editorial stage) is complete and released as v0.12.0**, merged
+into `main` from `feature/plan-2a-provider-foundation` (itself branched from `9ca90fd`). With the AI pass
+off — the default — output is byte-for-byte the v0.11.0 deterministic result. Headlines:
+- **Optional local AI editorial stage (Plan 2a, Phases 1–9 — complete, released in v0.12.0):**
+  `scripts/Universal/ai/` defines frozen provider request/result/capability models, a cloud-ready
+  typed error taxonomy, the four-method provider protocol, and lazy factory construction. Root
+  `config.toml` is committed and secret-free with **AI disabled by default**; the committed default
+  model is **`qwen3:14b` + Strategy M** (the Phase 8 pilot choice, DECISIONS #058) — the tag the GUI
+  pre-selects when a user opts in, never an auto-on switch. Per-user settings use
+  atomic JSON outside the repository. Python 3.10 remains supported through
+  `tomli==2.4.1`. Versioned prompt assembly renders the canonical protected lexicon
+  at runtime; gate v1.0 validates structure, protected terms, placeholders, truncation,
+  minimal diffs, and canonical spaced-em-dash behavior without mutating candidates.
+  Chunker v1.0 splits only between complete paragraphs, preserves headings and explicit
+  newline boundaries, and asserts byte-exact unchanged reassembly. Provider-neutral
+  `AIEditor` now implements both explicit protection strategies: default Strategy M masks
+  with the canonical lexicon before chunk planning and unmasks only after exact reassembly;
+  Strategy V verifies exact spelling plus paragraph/sentence/word position. Gate/malformed/
+  truncated retries use versioned stricter prompt `1.0-retry.1`; transient transport retries
+  retain prompt `1.0`, with one total retry maximum. Attempt provenance includes lexicon,
+  strategy, chunk, chunker, attempt, status, and error metadata while never storing complete
+  text. Provider construction/availability is cached for the run: script-only constructs
+  nothing, prefer-AI falls back honestly after outages, and AI-required raises instead of
+  degrading. `run_batch` now accepts one optional run-scoped `AIEditor` at the exact
+  post-pipeline/pre-build seam. AI-off remains byte-for-byte the deterministic string;
+  default dry-run performs no provider work, while an explicit per-run option permits AI
+  in dry-run without writing a PDF. Bounded attempt/result records join ReplacementLog
+  JSONL, with one concise run-scoped outage warning. Phase 6A adds a lazy official
+  `ollama==0.6.2` adapter behind that boundary: it permits only an explicitly configured
+  loopback HTTP endpoint and complete model tag, distinguishes package/service/model/
+  configuration/timeout health states, serializes requests at concurrency one, disables
+  thinking output, and fails closed on reasoning or incomplete output. Each request uses
+  deterministic temperature/seed/keep-alive settings plus conservative computed
+  `num_ctx` and bounded `num_predict`; no provider default context or model pull is used.
+  Phase 6B validated the adapter live on HOME-PC against Ollama server 0.32.1 with client
+  `ollama==0.6.2` and the installed tag `qwen3:8b`: all seven health states were
+  distinguished honestly, the recorded wire call carried temperature 0, a fixed seed,
+  `think=False`, non-streaming, a computed `num_ctx` and a positive bounded `num_predict`,
+  and `ollama ps` confirmed 100% GPU execution at exactly the computed context with the
+  configured 30m keep-alive. Timeout, unreachable-service, prefer-AI byte-exact fallback,
+  and honest AI-required failure were all exercised without touching the Ollama service.
+  Live measurement showed the conservative `bytes/3` token estimator over-reserves by
+  ~1.7×–1.9× against a real ~4.6–5.3 bytes/token ratio, which is the fail-safe direction, so
+  **no constant was changed** (DECISIONS #053). **Phase 6 is complete.**
+  **Phase 7 (GUI AI controls)** added the opt-in card described above (always starts OFF, live-only
+  model list, provider-status line, unavailable-policy choice, sec/chapter + ETA); the core app still
+  starts with no Ollama and no AI packages. **Phase 8** ran a 120-run stratified pilot on real corpus
+  ({8b, 14b} × {M, V}, 40 chapters) that drove the real edit seam: the gate held with **0 accepted
+  protected-term failures across 80 profiled runs**, the 8 KB "expansion" did not reproduce on real
+  prose (done_reason `stop` on 119/120, single-chunk output/input p50 = 0.997), and the deciding
+  evidence was edit quality — 14b produced only legitimate minimal corrections while 8b intermittently
+  slipped small non-protected-word corruptions past a minimal-diff gate. **Phase 9** adopted the pilot
+  choice: `config.toml` now defaults to **`qwen3:14b` + Strategy M** (DECISIONS #058), the release-
+  hardening bug hunt found no Critical/Major issues (two Minor items flagged — DECISIONS #059), and a
+  clean-room regression re-confirmed AI-off output is byte-for-byte the v0.11.0 baseline. The estimator
+  and ±3 % gate stand unchanged, by evidence. The one deferred item is a possible future narrow gate
+  check for in-place corruption of non-protected words — test-first, out of Plan 2a scope.
 - **Two-mode input (Phase 1):** the GUI's Input card offers mutually exclusive
   **Upload PDFs** / **Select Folder** radio modes. Folder mode runs
   `core/input_scanner.scan_folder` — a depth-first recursive scan where each
@@ -40,6 +101,10 @@ The "GUI & Batch Overhaul" plan (Plan 1, Phases 1–6) is complete on
   plus an end-of-batch summary block; verbose stage chatter lives only in the JSONL;
   "⚠" integrity warnings still surface. The per-file `ReplacementLog` is always
   constructed (feeds the edit count); `integrity_flag` records never count as edits.
+- **Stop After Current File (Plan 2a Phase 5):** a `stop_event` is checked at the
+  same safe between-files seam as Pause. The current provider response, validation,
+  and PDF write complete atomically; the next file does not start. The Stop button is
+  directly beside Pause, enabled only while running, and resets between batches.
 - **Decorative-run TTS sweep (Phase 5):** `rules/junk_strip.py` Tier 1 removes
   whitespace-delimited runs of `~ \ - = * #` (≥3 symbols, internal spaces allowed —
   `* * *`, `-=-=-`, `~~~`) that TTS would voice character by character. Everything
@@ -60,24 +125,23 @@ The "GUI & Batch Overhaul" plan (Plan 1, Phases 1–6) is complete on
 wrapped in its own try/except (continue-on-failure), and the pause gate is consulted
 only between files.
 
-**The post-pipeline pre-build hook (Plan 2's insertion seam).** There is exactly one
-clean structural seam for a future AI editing stage: inside the per-file loop of
+**The post-pipeline pre-build hook (Plan 2's insertion seam).** The optional
+provider-neutral AI stage is integrated at the one clean structural seam inside
 `scripts/Universal/core/batch_runner.py`, **after** `text = dispatch.run_pipeline(...)`
 returns (currently lines ~185–187) and **before** `build_pdf(text, out_path)`
 (currently line ~214). At that point the file's fully rule-edited text exists as a
 plain string, its `ReplacementLog` is live, and nothing has been written to disk.
-Plan 2's Ollama/Qwen stage slots in there as a text-in/text-out call — ideally
-immediately after the rule pipeline and **before the edit count / dry-run check**, so
+`AIEditor.edit` is called there as a text-in/text-out operation, immediately after
+the rule pipeline and **before the edit count / dry-run check**, so
 its edits appear in the condensed "X edits" count and dry runs exercise the full text
-path without writing PDFs. The hook is **documented only — deliberately not built**
-(no empty callback exists in the code). A Plan-2 implementation must honor this
-contract:
+path without writing PDFs when explicitly enabled. With AI absent/off, the historical
+script-only path is exact. The integrated contract remains:
 - **Text-in/text-out, no I/O:** transform the string; never touch the input file;
   `build_pdf` stays the only writer, so output naming/mirroring/collision handling
   are inherited unchanged.
-- **Dry-run:** with `dry_run=True` the loop skips PDF output but still runs the text
-  path — an AI stage placed at the seam runs in dry runs too (in-memory only), which
-  is the intended preview behavior.
+- **Dry-run:** with `dry_run=True` the loop skips PDF output and always runs the
+  deterministic text path. Provider construction/calls remain off by default; only
+  explicit per-run `use_ai_in_dry_run=True` permits the AI stage in memory.
 - **Pause-gate interaction:** the Phase-4 gate holds only BETWEEN files, so the AI
   stage runs to completion for the in-flight file — AI latency lengthens the "current
   file will finish first" window; do not add a mid-file hold without a superseding

@@ -9,6 +9,497 @@ its original decision date. New decisions continue to be appended here (newest o
 
 ---
 
+## 061 — v0.12.0 is the first git-tagged release; merge-commit strategy and branch retention follow existing practice — 2026-07-24 — Claude Code
+
+**Status:** Accepted; the user's explicit call at the release gate. **This establishes a new convention:
+releases are annotated-tagged from v0.12.0 forward.**
+
+**Context:** Releasing v0.12.0 required three conventions that AI-WORKSPACE.md does not state. Two were
+settled by reading actual history; the third genuinely was not, and was escalated rather than guessed.
+- **Merge strategy — existing practice, followed.** All four merges into `main` are merge commits with
+  two parents. The one directly comparable precedent (a *local terminal* release merge rather than a
+  GitHub PR) is `94999a8` — `Merge feature/junk-strip-hardening into main — v0.10.0` with a
+  release-summary body. v0.12.0 reuses that exact shape via `--no-ff`.
+- **Branch retention — existing practice, followed.** Every merged feature branch still exists locally
+  *and* on `origin` (`feature/gui-batch-overhaul`, `feature/junk-strip-hardening`,
+  `feature/novel-dropdown`, `release-main`). `feature/plan-2a-provider-foundation` is therefore **kept**,
+  not deleted.
+- **Tagging — genuinely undocumented; the user decided.** v0.9.0, v0.10.0 and v0.11.0 all shipped
+  **untagged**; the repo's only pre-existing tag, `stale-local-main-backup`, is an ad-hoc safety marker
+  on a Phase-1 scaffold commit, not a release tag. AI-WORKSPACE.md is silent on tags. Against that, the
+  Phase 9 docs repeatedly described the unreleased state as "no merge to `main`, no tag, no PR", which
+  read as though a tag were expected. Because history and doc phrasing pointed opposite ways, this was
+  put to the user instead of inferred.
+
+**Decision:** **Tag `v0.12.0`** (annotated, on the merge commit, pushed). Format is a bare `v<semver>`
+matching how every doc already writes versions. Prior releases are **not** retroactively tagged —
+back-filling tags would assert a precision about historical release points that the history does not
+actually record.
+
+**Consequences:** From v0.12.0 forward, a release is: `--no-ff` merge into `main` → annotated `v<semver>`
+tag on the merge commit → push `main` and the tag; feature branches are retained. `main` remains the
+latest tested working state per AI-WORKSPACE. Nothing is force-pushed and no history is rewritten. The
+release is local-repo + `origin` only — no GitHub Release object, release notes, or external
+announcement, since this is a personal repo and no doc asks for one.
+
+## 060 — v0.12.0 release hygiene: dead `[ai.validation]` key removed; the CHANGELOG case problem was local-only (corrects #059 Minor 2) — 2026-07-24 — Claude Code
+
+**Status:** Accepted; both items closed. Relates to and partially **corrects #059**.
+
+**Context:** The two Minor items #059 flagged for the user's call were actioned immediately before the
+v0.12.0 release merge. Both were re-verified against live files and live code rather than trusted from
+the prior session's write-up — and that re-verification overturned one of them.
+
+**Decision 1 — removed `[ai.validation] max_change_ratio = 0.08` from `config.toml`.** Confirmed dead by
+live grep: the only occurrences outside doc prose were the key itself. `ai/config.py:39` loads the whole
+`[ai]` table, so the key was reaching `resolve_ai_config` as an unread `resolved["validation"]` sub-dict;
+every consumer (`_create_provider`, `build_ai_editor`) reads named keys via explicit `prefs.get(...)` and
+there is **no `**kwargs` splat anywhere in `scripts/`**, so nothing could ever have observed it. Removal
+is therefore behaviour-inert. The real length-variance gate remains **hardcoded `0.03`** at
+`ai/validation.py:167`. It was deliberately **not** wired up: making the ±3 % gate configurable is a
+gate-adjacent behaviour change needing its own tests and its own ADR, and the Phase-8 evidence
+(#053/#057) says the threshold is correct as-is. Removing the misleading key is the whole fix.
+
+**Decision 2 — #059's Minor 2 was misdiagnosed; no repo change was needed.** Git has tracked the file as
+`md-instructions/CHANGELOG.md` all along — confirmed in `HEAD`, in `origin/main`, and back through
+history (`cfbf0ea` → `9865297` → `03dbc7d` → `4fc470d`). `git mv Changelog.md CHANGELOG.md` fails with
+*"not under version control"* because no such tracked path exists. The actual fault was **local to this
+machine's working tree**: the checked-out file was named `Changelog.md`, and `core.ignorecase = true`
+hid the divergence from `git status`. Fixed by renaming the working-tree file to match the tracked
+casing — a filesystem-only change with no commit content. **A fresh clone on a case-sensitive filesystem
+was never at risk**, so the "fragile on Linux CI" concern in #059 does not hold; what it really caused
+was stale `Changelog.md` paths in agent write-ups and a near-miss when staging by that path.
+
+**Consequences:** `config.toml` no longer advertises a gate knob that does not exist. `verify.py`'s
+`CHANGELOG` resolution is now exact-case on this machine instead of relying on Windows case-insensitivity.
+Historical `Changelog.md` references inside earlier `HANDOFF.md` work logs and #059 itself are left
+verbatim — those docs are append-only records of what was believed at the time, and this entry is the
+correction. The deferred in-token-corruption gate check (#057/#059) is still deferred, still test-first.
+
+## 058 — Plan 2a Phase 9: adopt qwen3:14b + Strategy M as the committed default in config.toml, not IN_CODE_DEFAULTS — 2026-07-24 — Claude Code
+
+**Status:** Accepted; wired. `config.toml [ai] model = "qwen3:14b"`, `protection_strategy = "mask"`
+(unchanged — Strategy M was already the default). `IN_CODE_DEFAULTS["model"]` deliberately **left
+empty**. `enabled = false` is **unchanged** — adopting a default model is not turning AI on.
+
+**Context:** Phase 8 (DECISIONS #057, `PILOT-REPORT.md`) recommended **qwen3:14b + Strategy M**:
+98 % mask acceptance with only legitimate minimal edits in the manual sample, versus 8b's
+intermittent corruption of non-protected words the minimal-diff gate cannot catch. The user
+adopted that recommendation for Phase 9. The question was *where* the chosen default should live so
+the GUI pre-selects it out of the box.
+
+**Decision:** Put the default in the committed **`config.toml`**, the file the Phase 7 panel already
+reads (`ai_settings.DEFAULT_CONFIG_PATH`) and resolves through
+`resolve_ai_config(IN_CODE_DEFAULTS < config.toml < user settings < GUI)`. `IN_CODE_DEFAULTS["model"]`
+stays `""` on purpose: two tests (`test_missing_config_and_settings_files_yield_safe_defaults`,
+`test_corrupt_settings_file_does_not_break_startup`) assert that when *even config.toml* is missing or
+unreadable the safety net presents **no** pre-selected model, forcing an explicit pick — a contract we
+keep. No model tag is hardcoded in GUI source; `app.py` pre-fills the box from the resolved config
+value, and the dropdown's *values* still come only from a live `list_models()`. Strategy is data, not
+code: `protection_strategy = "mask"` was already the committed default and the editor already reads it,
+so Strategy M needed no code change — only confirmation and documentation.
+
+**Alternatives considered:** Setting `IN_CODE_DEFAULTS["model"] = "qwen3:14b"` as well (rejected — it
+would break the two safety-net tests and duplicate the source of truth; the empty in-code fallback is a
+deliberate "no silent default when config is gone" contract). Hardcoding the tag in `app.py`'s combobox
+(rejected — violates the Phase 7 "no model name hardcoded in the UI" principle; the tag belongs in data).
+
+**Consequences:** A user who opts the AI pass on sees `qwen3:14b` pre-selected; if it is not installed
+the provider's own honest `model_missing` status says so, and they pick from the live list. AI remains
+**off by default**. The Phase-8 token/gate thresholds are unchanged (upholds #053/#057).
+
+## 059 — Plan 2a Phase 9 release-hardening bug hunt: no Critical/Major; two Minor items flagged, not fixed — 2026-07-24 — Claude Code
+
+**Status:** Accepted (findings recorded; code deliberately unchanged for both Minors).
+
+**Context:** Phase 9 ran a Phase-6-style end-to-end review of the AI path (GUI panel → `ai_settings` →
+factory/`OllamaProvider` → `batch_runner` seam → `build_pdf`) plus an offline suite run with the
+`ollama` package unimportable and a clean-room script-only regression.
+
+**Findings:**
+- **No Critical, no Major.** The full suite is green (687 passed / 9 skipped) both with and without the
+  `ollama` SDK importable; AI-off output is byte-for-byte the v0.11.0 deterministic baseline (every
+  deterministic-path module is source-identical to the `ce96359` merge except an additive,
+  AI-only-active change in `replacement_log.py`); no SDK import at package load; no TODO/FIXME in the
+  AI package.
+- **Minor 1 — dead validation config.** `config.toml [ai.validation] max_change_ratio = 0.08` is read by
+  **no code**; the real length-variance gate is hardcoded at `0.03` (±3 %) in `ai/validation.py`. The
+  stale key could mislead a future maintainer into "wiring" `0.08` and silently loosening the gate. Left
+  in place — removing or reconciling it changes gate-adjacent config and is a test-first change the pilot
+  explicitly deferred; flagged for the user.
+- **Minor 2 — CHANGELOG filename case.** The file is `md-instructions/Changelog.md` but `verify.py` and
+  the docs reference `CHANGELOG.md`. It resolves on case-insensitive Windows/macOS but is fragile on a
+  case-sensitive filesystem (e.g. Linux CI). Pre-existing; left unchanged; flagged.
+
+**Consequences:** Both Minors await the user's call. The known Phase-8 future item — a narrow gate check
+for in-place corruption of non-protected words (e.g. a comma inserted mid-token) — remains deferred,
+test-first, out of Phase 9 scope.
+
+## 057 — Plan 2a Phase 8: pilot evidence recommends qwen3:14b + Strategy M; thresholds unchanged; user decides adoption — 2026-07-24 — Claude Code
+
+**Status:** Evidence recorded; **final model/strategy adoption deferred to the user at the
+Phase 8 gate** (Phase 9 wires the choice). Full aggregate in `md-instructions/PILOT-REPORT.md`.
+
+**Decision (methodology):** A 120-run stratified pilot drove the real
+`extract → deterministic pipeline → AIEditor.edit` seam against live Ollama on HOME-PC —
+40 chapters (10 each from the session-swapped corpus: profiled Shadow Slave + The Noble
+Queen, universal-only Renegade Immortal + Reverend Insanity) × {qwen3:8b, qwen3:14b} ×
+{Strategy M, Strategy V}. Universal-only novels ran M only because with 0 protected terms M
+and V are behaviorally identical. All pilot inputs, outputs, diffs, and reports live in
+gitignored `files/qa-tools/scratch/pilot/`; only text-free aggregates were committed.
+
+**Findings that drive the recommendation:**
+- **The gate held: 0 accepted protected-term failures across 80 profiled runs.** Every
+  protected-term change was rejected and fell back to deterministic output.
+- **The Phase 6B "expansion" did not reproduce on real prose with the real prompt.**
+  done_reason = `stop` on 119/120 runs; single-chunk raw-output/input p50 = 0.997 (faithful
+  echo) for both models; max 1.23× (8b, one term-dense chapter) vs 1.07× (14b). It was a
+  synthetic-probe artifact, not a general failure mode.
+- **Edit-quality is where the models diverge.** Accepted changes were tiny (0–5 chars). In a
+  manual sample, **14b produced only legitimate minimal corrections; 8b intermittently
+  introduced damaging edits the gate accepts** (comma inserted mid-word, name truncated to a
+  syllable, a meaning-changing pronoun swap) because those tokens are not protected terms and
+  the change stays within ±3 %/structure. A minimal-diff gate cannot police in-place
+  corruption of arbitrary prose — model quality must, and 14b is materially safer.
+- **14b: 98 % accept / 1 fallback (mask); 8b: 92 % / 3 (mask). Strategy M beats V for both.**
+  14b costs ~1.6× latency (warm p50 40 s vs 25 s per chapter).
+
+**Recommendation (the user's call to accept):** default to **qwen3:14b + Strategy M**; offer
+**qwen3:8b + Strategy M** as a faster throughput option but not the default; do not default to
+Strategy V.
+
+**Thresholds / estimator — no change, by evidence (upholds DECISIONS #053).** The bytes/3
+estimator over-reserves (actual `prompt_eval_count` p50 ≈ 2,680, max ≈ 4,531 vs the 32,768
+limit), i.e. it stays fail-safe. The ±3 % character-variance gate correctly passed faithful
+echoes and caught expansions. Neither is changed here; any future change (e.g. a narrow
+in-token-corruption check) is test-first with its own entry.
+
+**Consequences:** Phase 9 wires the user's chosen model/strategy into `config.toml` defaults
+and the GUI, runs the clean-room script-only regression, and ships v0.12.0. The gate's
+inability to catch small non-protected-word corruption is documented as a known limitation and
+a candidate for a future narrow, test-first gate check — deliberately not attempted in Phase 8.
+
+## 056 — Plan 2a Phase 7: the window minimum height is a tested layout contract — 2026-07-23 — Claude Code
+
+**Status:** Accepted; `MIN_HEIGHT` raised 700 → 1020, `PREFERRED_HEIGHT` 1120 added.
+**Decision:** The AI card added ~169px of permanently-visible height to a window whose rows
+were already taller than its own minimum. Measured on a mapped window: before this phase the
+fixed rows needed ~1010px while the window opened at 700, so the Start button already sat 26px
+and the status strip 63px below the fold. Adding the card without acting would have pushed
+Start 273px off-screen — the one control a non-technical user must be able to find. The minimum
+is therefore now 1020 (the measured fixed-row total plus headroom), the opening height is 1120
+**clamped to the display** (`screenheight - 90`) so the window can never open taller than the
+screen it is on, and a test sums every non-log row's requested height and fails if the total
+exceeds `MIN_HEIGHT`.
+
+**Consequences:** The log is the only row that flexes, so every pixel above the minimum goes to
+it. On a 1080p display the app now opens near full height with a small log pane; the user can
+resize or maximise for more. The underlying cause is pre-existing and untouched here: the Input
+card (a six-row listbox, ~282px) and the novel card's three-line helper text dominate the fixed
+budget. Shrinking either is a layout change to code this phase did not own, so it was flagged
+for review rather than made. Any future card must either fit the remaining budget or come with
+a raised, re-measured `MIN_HEIGHT` — the test makes that mechanical rather than a matter of
+someone noticing.
+
+## 055 — Plan 2a Phase 7: the AI opt-in switch is session-only; only model and policy persist — 2026-07-23 — Claude Code
+
+**Status:** Accepted on the user's explicit call when the plan's own wording proved ambiguous.
+**Decision:** `load_ai_preferences` always resolves `enabled` to False, and
+`save_ai_preferences` writes only `PERSISTED_KEYS = ("model", "policy")` — never the switch.
+The plan states both "opt-in checkbox (default OFF)" and a precedence rule in which a persisted
+GUI choice outranks `config.toml`; read literally together, a user who enabled AI once would
+find it already on at every later launch. Asked to choose, the user picked the strict reading:
+the app always starts deterministic and script-only, while the model tag and run policy are
+remembered so re-enabling is one click.
+
+**Consequences:** "AI is off by default" is now an absolute property of startup rather than a
+default that erodes with use, and it holds independently of `config.toml`, which keeps
+`enabled = false` untouched. The per-user settings file is merged, not overwritten: unrelated
+keys and unrelated sections survive a write, and a non-writable profile directory downgrades to
+a muted log line instead of an error, so the app still runs from a read-only location. The
+precedence machinery from Phase 1 is otherwise used exactly as designed — this narrows *which
+keys* the GUI persists, not how resolution works.
+
+## 054 — Plan 2a Phase 7: two GUI-level AI states sit alongside ProviderStatus, never in place of one — 2026-07-23 — Claude Code
+
+**Status:** Accepted; implemented in `scripts/Universal/gui/ai_settings.py`.
+**Decision:** The status line reports the adapter's own `ProviderStatus` verbatim — all nine
+values get their own distinct message, and the GUI re-implements none of that detection: it
+calls the real `health_check()` and `list_models()` and passes the result through. Two states
+are added *beside* those values, because the provider cannot express either:
+
+- `unchecked` — nothing has been asked of any provider yet. This is the script-only startup
+  state, and it is what makes "AI off constructs no provider" visible rather than merely true.
+- `no_model_selected` — the adapter refuses to talk to the service without a complete
+  `name:tag`, so enumerating installed models before the user has chosen one requires probing
+  with the placeholder `__no_model_selected__:list`. The service then honestly answers
+  `model_missing`. Reporting that verbatim would blame the service for a choice the user has
+  not made, so the probe — which knows the tag was never real — reports `no_model_selected`
+  instead, and only when no model is configured. A real selected-but-absent tag still surfaces
+  as `model_missing`.
+
+**Consequences:** The dropdown is filled *only* from a live `list_models()`; no "recommended"
+model is shipped, which keeps Phase 8's model comparison the thing that decides. A test greps
+the GUI sources for model names to keep it that way, and another confines the provider's own
+name to the factory/config boundary — the GUI names no provider, so 2b's cloud adapters need no
+change here. Probing runs on a worker thread because it blocks on the local service, and it
+never raises: an absent package, a closed port, or a timeout is a status the user can read, not
+a traceback. Verified live on HOME-PC: `ok`, `model_missing`, `service_down`,
+`invalid_configuration`, and `no_model_selected` each rendered from the real service.
+
+## 053 — Plan 2a Phase 6B: keep the bytes/3 estimator unchanged; real truncation is model fidelity, not budget — 2026-07-23 — Claude Code
+
+**Status:** Accepted on live HOME-PC evidence (Ollama server 0.32.1, client `ollama==0.6.2`,
+model tag `qwen3:8b`). No constant changed.
+**Decision:** `estimate_tokens` keeps `ceil(utf8_bytes / 3)`, and `request_budget` keeps its
+existing overhead/margin constants. Phase 6B measured the live tokenizer across synthetic
+English prose from 24 to 8,051 bytes and found a real ratio of roughly **4.6–5.3 UTF-8 bytes
+per token**, so the bytes/3 rule over-reserves input context by about **1.7×–1.9×**
+(estimated 692/823/1500 input tokens against measured `prompt_eval_count` of 366/448/878).
+The error is entirely in the fail-safe direction: every request reserves more context and
+more output allowance than the model actually needs. Refining the divisor toward the measured
+ratio would tighten headroom for no correctness gain, so the plan's "refine only if real
+evidence requires it" condition was **not** met.
+
+The 8 KB probe did fail, but the cause was not the budget. `num_predict` was 2,748 against a
+lossless echo need of roughly 1,750 tokens — a ~1.5× surplus. The model consumed the entire
+allowance (`eval_count == num_predict`, `done_reason == "length"`) and emitted **12,973 bytes
+from an 8,051-byte input**, i.e. it expanded on the text instead of returning it. The adapter
+did exactly the right thing and failed closed with a retryable `InvalidResponse`.
+
+**Consequences:** The estimator's conservative direction is now pinned by two evidence-backed
+regressions in `files/tests/test_ollama_provider.py` against a documented
+`MEASURED_BYTES_PER_TOKEN_FLOOR = 4.6`; raising the divisor past that floor fails the gate.
+Raw single-shot fidelity of `qwen3:8b` on whole-chapter-sized input is **not** established and
+remains a prompt/gate/model-selection problem for the later Plan 2a phases, not an adapter
+defect — production never sends an 8 KB single shot anyway, because `safe_input_budget` caps a
+chunk at 4,096 input tokens. Final model choice and capability-table numbers stay deferred.
+
+## 052 — Plan 2c: hard local-model offer gates and manifest-owned uninstall — 2026-07-23 — Codex
+
+**Status:** Accepted future architecture; no installer or uninstaller behavior implemented.
+**Decision:** Plan 2c's per-model capability table supplies minimum RAM/unified-memory and required
+free-disk hard offer gates. Failure suppresses every Ollama/model install, pull, and download offer
+for that model while preserving deterministic script-only mode; disk cannot be overridden, and
+normal launch has no memory override. The sanitized CSPW-PC restricted-standard-user profile is an
+acceptance case, never a hardcoded machine identity. Future uninstall removes only canonical paths
+and exact components proven tool-owned by the installation manifest, with separate confirmations;
+shared Python, Ollama, models, and configuration are kept by default.
+**Consequences:** Restricted or unsuitable PCs remain usable without policy bypasses or misleading
+local-AI prompts. Missing/corrupt ownership evidence fails closed, and pre-existing/shared runtimes
+or model data survive uninstall. HOME-PC Phase 6B/Phase 8 evidence still owns the exact model tag
+and capability-table numbers.
+
+## 051 — Plan 2a Phase 6A: exact official Ollama client, loopback-only transport, computed budgets, and fail-closed thinking — 2026-07-23 — Codex
+
+**Status:** Accepted for mocked/offline implementation; live HOME-PC validation pending.
+**Decision:** The only local adapter uses the official exact pin `ollama==0.6.2`
+(verified against the official PyPI release and `ollama/ollama-python` API). The SDK
+import and `Client` construction are lazy inside `ai.providers.ollama`; importing or
+starting script-only code never requires the package, daemon, model, corpus, or Git
+tree. Configuration permits only an explicit plain-HTTP loopback endpoint
+(`127.0.0.1`, `localhost`, or `::1`, with a port and no credentials/path/query) and
+requires the complete configured model tag. It never discovers a remote host, changes
+tags, or pulls/installs models.
+
+Each non-streaming request is serialized under one lock, passes temperature zero/fixed
+seed/configured `keep_alive`, and explicitly disables thinking. Any separate thinking
+field, `<think>` content, empty response, non-complete response, or non-`stop` finish
+fails closed as `InvalidResponse`; reasoning is never stripped into an accepted
+candidate. A conservative UTF-8-bytes/3 estimator sizes the complete system+user chat
+serialization plus formatting overhead, expected corrected-text output, output margin,
+and context safety margin. The request receives computed `num_ctx` and positive bounded
+`num_predict`; an over-limit request raises `ContextTooLong` before `chat`.
+
+Health states distinguish invalid configuration, missing Python package, unreachable
+service, timeout, generic provider error, missing exact model, and ready. Transport
+exceptions expose bounded error types only, never provider payloads, prompts, chapters,
+lexicons, or secrets. Available Ollama response counts/durations are retained; execution
+backend remains unknown because chat metadata does not reliably prove GPU versus CPU.
+**Consequences:** Batch/editor remain provider-neutral and existing run/dry-run/Stop
+policies do not change. The configured 32K context and output margins are conservative
+pre-pilot values, not a claim about the eventual Qwen tag; Phase 6B must record actual
+HOME-PC model/server behavior before Phase 6 can be complete.
+
+## 050 — Plan 2a Phase 5: batch owns the neutral seam, dry-run opt-in, safe stop, and one outage warning — 2026-07-23 — Codex
+
+**Status:** Accepted; extends #033, #043, #046, and #049.
+**Decision:** `core.batch_runner.run_batch` owns the sole integration seam after the
+authoritative deterministic pipeline and before edit counting/dry-run/PDF build. It accepts
+one optional, already run-scoped `AIEditor` and never branches on provider name. No editor
+means the legacy exact text and summary shape; script-only constructs nothing. Required-AI
+performs one provider-neutral health/model preflight before chapter processing. Prefer-AI
+uses chapter fallback, caches a confirmed outage for later chapters, and emits only one
+concise outage warning per run.
+
+Dry-run invokes no provider by default, including under an AI-required editor; only explicit
+`use_ai_in_dry_run=True` enables AI calls, and neither setting writes a PDF. Stop is a
+session-only `threading.Event` checked before files at the same safe seam as Pause: a request
+never interrupts a provider call, validation, or `build_pdf`, and no later file starts. The
+GUI adds only a run-enabled Stop button beside Pause and resets it between runs.
+
+AI attempt dictionaries are serialized as bounded structured `ai_provenance` JSONL rows;
+accepted validated diff hunks become bounded `ai_editor.diff_hunk` ReplacementLog entries
+for honest edit counting. Final accepted/fallback result hashes prove which complete text
+was handed to `build_pdf` without persisting that text. Integrity flags remain non-edits.
+**Consequences:** Phase 6 can add an Ollama adapter without changing batch orchestration;
+Plan 2b inherits a cost-safe dry-run default and run-scoped outage behavior; Stop cannot
+create partial AI chapters or PDFs. Normal GUI output remains condensed.
+
+## 049 — Plan 2a hardening: provider availability is run-scoped and AI-required never degrades — 2026-07-23 — Codex
+
+**Status:** Accepted; extends #046.
+**Decision:** One `AIEditor` instance owns one run-scoped provider and
+`ProviderRunState` (`uninitialized`, `available`, `unavailable`). Construction occurs at
+most once. An exhausted provider/model/network outage marks the run unavailable:
+`prefer_ai` falls back honestly for the affected and all later chapters without repeated
+construction/calls; `ai_required` raises for the affected and later chapters. Gate rejection
+is chapter-local, does not poison a healthy provider, and falls back only under `prefer_ai`;
+under `ai_required` it raises `InvalidResponse`. `script_only` returns before construction.
+**Consequences:** Phase 5 can reuse this state directly; no per-chapter provider dialog,
+silent AI-required fallback, or repeated outage storm is possible.
+
+## 048 — Plan 2a hardening: retry prompt and provenance describe every attempt — 2026-07-23 — Codex
+
+**Status:** Accepted; extends #043 and #045.
+**Decision:** The normal prompt remains v1.0. Only a gate-rejected, malformed, or truncated
+attempt uses the single stricter retry prompt v1.0-retry.1; transient provider/network retries
+reuse the normal prompt. Every attempt records its actual prompt version, lexicon hash/version,
+protection strategy, zero-based chunk index/count, chunker version, one-based attempt number,
+status, reasons, hashes/counts/timing, and bounded non-complete snippets. Provider-error
+attempts have the same metadata but no diff snippet because no candidate exists.
+**Consequences:** The one-retry limit is unchanged and provenance can reconstruct control flow
+without storing a full chunk/chapter, lexicon contents, or secret.
+
+## 047 — Plan 2a hardening: both protection strategies share the canonical lexicon — 2026-07-23 — Codex
+
+**Status:** Accepted; supersedes #041's paragraph-only Strategy-V position description.
+**Decision:** `EditorOptions.protection_strategy` explicitly selects `mask` (default) or
+`verify`, mirrored by secret-free `config.toml`. Strategy M calls canonical
+`core.protected_lexicon.mask_protected_terms` on the complete deterministic chapter before
+budgeting/chunking, validates placeholder identity per chunk, and calls canonical
+`unmask_placeholders` only after exact reassembly. The complete unmasked chapter then receives
+the whole-chapter gate; any `__WE_` residue fails. Strategy V sends unmasked text and identifies
+each exact protected occurrence by spelling, paragraph, sentence, and word ordinal. This
+rejects same-paragraph movement/equal-count swaps while allowing adjacent corrections that
+preserve word position.
+**Consequences:** Overlapping/multi-word/Unicode handling stays owned by the existing lexicon,
+mask length affects chunk planning correctly, and neither strategy permits protected-term
+damage or placeholder leakage.
+
+## 046 — Plan 2a foundation: three explicit run policies, script-only constructs nothing — 2026-07-23 — Codex
+
+**Status:** Accepted
+**Decision:** `RunPolicy` is `script_only`, `prefer_ai`, or `ai_required`. Script-only returns
+the immutable deterministic text before provider construction. Prefer-AI returns honest
+chapter fallback on provider/planning/request/gate failure. AI-required raises when provider
+setup is unavailable rather than silently degrading.
+**Consequences:** AI remains off by default and the engine does not branch on provider names.
+The later GUI/batch integration owns resolving one policy per run.
+
+## 045 — Plan 2a foundation: one bounded retry and chapter-atomic fallback — 2026-07-23 — Codex
+
+**Status:** Accepted
+**Decision:** Each independent chunk gets one normal request and at most one retry after a
+retryable provider/transport failure, malformed/truncated response, or gate rejection.
+Non-retryable typed failures stop immediately. Any exhausted first, middle, or final chunk
+stops later requests and discards every accepted chunk for that chapter. The reassembled
+candidate receives the canonical dash sweep and complete whole-chapter gate; that exact
+validated string is the returned `AIOutcome.text`.
+**Consequences:** Partial AI chapters are impossible and no provider/model switching occurs.
+
+## 044 — Plan 2a foundation: paragraph atoms with explicit reversible boundaries — 2026-07-23 — Codex
+
+**Status:** Accepted
+**Decision:** Chunker v1.0 removes the exact chapter-heading prefix from editable bodies,
+treats each complete paragraph as atomic, greedily packs consecutive paragraphs, and stores
+cross-chunk/trailing newline runs as boundary metadata. Unchanged reassembly is asserted
+byte-for-byte. The conservative neutral estimator is UTF-8 bytes/3; safe input budget subtracts
+serialized prompt, request overhead, and margin, then reserves equal output space and respects
+the provider output cap. An oversized paragraph raises `ContextTooLong` before any request.
+**Consequences:** No word/sentence/paragraph split, trim, normalization, disk chunk file, or
+boundary loss is possible. A future adapter tokenizer may replace only the estimator.
+
+## 043 — Plan 2a foundation: provenance is hashes plus bounded diff snippets — 2026-07-23 — Codex
+
+**Status:** Accepted
+**Decision:** Attempt provenance stores versions/status/reasons/timing/counts, SHA-256 input
+and output hashes, and at most 12 diff hunks with each side capped at 80 normalized characters.
+It never stores a full chapter, full chunk, protected lexicon, prompt secret, or credential.
+**Consequences:** Attempts remain auditable without duplicating copyrighted/private text into
+logs. The exact lexicon is represented only by its hash, version, and term count.
+
+## 042 — Plan 2a foundation: response normalization has one narrow fence exception — 2026-07-23 — Codex
+
+**Status:** Accepted
+**Decision:** Exactly one outer fenced block with no surrounding text may be unwrapped at the
+normalization boundary and the event is recorded. Fence plus prose, common explanatory
+preambles, multiple fences, and any `<think>` output are rejected. The validator never repairs
+a candidate.
+**Consequences:** A harmless transport wrapper is recoverable without disguising explanations
+or reasoning as chapter text.
+
+## 041 — Plan 2a foundation: fail-closed versioned gate preserves structure and canonical dash behavior — 2026-07-23 — Codex
+
+**Status:** Accepted
+**Decision:** Gate v1.0 returns a structured list of reasons. It checks finish/truncation,
+heading, exact newline shape, placeholder sequence, exact protected-term spelling/order/
+paragraph placement, ±3% length, deletion/duplication/reordering, added URL/domain material,
+and broad diffs. It calls `rules.em_dash.remove_spaced_em_dashes` as the canonical invariant:
+unspaced em dashes remain valid.
+**Consequences:** Candidate validation fails closed and is non-mutating. Strategy V does not
+bind adjacent ordinary words, so a permitted grammar correction beside a protected term can
+pass while term changes or movement cannot.
+
+## 040 — Plan 2a foundation: optional provider imports are lazy — 2026-07-23 — Codex
+
+**Status:** Accepted
+**Decision:** `ai.provider` contains only the neutral protocol and `ai.factory` imports an
+adapter only when that provider is explicitly constructed. Importing `ai` never imports
+Ollama, Gemini, Groq, or creates files. Provider SDKs may exist only in their adapter modules.
+**Consequences:** Script-only startup and offline tests remain independent of every optional
+provider. Unknown and unbuilt providers fail as typed, non-retryable `ProviderUnavailable`.
+
+## 039 — Plan 2a foundation: preserve Python 3.10 with Tomli fallback — 2026-07-23 — Codex
+
+**Status:** Accepted
+**Decision:** Preserve the Python 3.10 floor. Use stdlib `tomllib` on 3.11+ and exact-pinned
+`tomli==2.4.1` on 3.10. The dependency was checked against the current PyPI release before
+pinning.
+**Consequences:** No launcher or README minimum-version migration is needed.
+
+## 038 — Plan 2a foundation: config, user settings, and secrets are separate — 2026-07-23 — Codex
+
+**Status:** Accepted
+**Decision:** Committed `config.toml` contains secret-free defaults with AI disabled.
+Persisted choices live atomically in `%LOCALAPPDATA%/WebNovelEditor/settings.json` on Windows
+or `~/Library/Application Support/WebNovelEditor/settings.json` on macOS. No secrets system
+exists in 2a. Precedence is GUI run choice > per-user settings > `config.toml` > in-code
+defaults.
+**Consequences:** A read-only repository does not block settings, import creates nothing,
+and Plan 2b/2c must extend these paths instead of inventing competing stores.
+
+## 037 — Plan 2a foundation: shared typed provider failure taxonomy — 2026-07-23 — Codex
+
+**Status:** Accepted
+**Decision:** Adapters normalize failures into `ProviderUnavailable`, `AuthenticationError`,
+`ModelUnavailable`, `ContextTooLong`, `RateLimited`, `DailyQuotaExhausted`,
+`TransientNetworkError`, `InvalidResponse`, and `RequestCancelled`. Service/rate/network/
+invalid-response failures default retryable; auth/model/context/daily-quota/cancellation
+failures do not. A specific instance may override retryability when transport evidence
+requires it.
+**Consequences:** Orchestration can apply one bounded policy without provider branching.
+
+## 036 — Plan 2a foundation: provider-neutral contract fixed before adapters — 2026-07-23 — Codex
+
+**Status:** Accepted
+**Decision:** All adapters implement `capabilities()`, `health_check()`, `list_models()`, and
+`complete(CompletionRequest)`. Frozen request/result/capability models carry prompt/model,
+timeout/output bounds, request identity, finish/truncation, timing/token metadata, local/cloud
+and privacy/rate-limit capability fields. `ProviderStatus` reserves local and cloud states.
+**Consequences:** Ollama, Gemini, and Groq can be added without changing editor signatures;
+chunk indexing remains orchestration metadata rather than transport contract state.
+
 ## 035 — Plan 1 Phase 6: condensed-log edit count excludes `integrity_flag` records — 2026-07-19 — Claude Code
 
 **Status:** Accepted

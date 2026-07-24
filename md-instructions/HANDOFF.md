@@ -1,21 +1,785 @@
 # Web Novel Editor — Handoff
 
 ## Current Focus
-**Plan 1 — GUI & Batch Overhaul (v0.11.0) is COMPLETE** — all six phases implemented,
-verified, and committed on `feature/gui-batch-overhaul` (branched off `main` @ `c424d30`;
-the plan drop `plan-1-gui-batch-overhaul.md` has been **deleted** per its Definition of
-Done). The branch is pushed to origin and **NOT merged to `main` — awaiting the user's
-explicit end-of-plan sign-off** (per AI-WORKSPACE git habits, a finished phase is not
-approval). CHANGELOG has the v0.11.0 entry; BRIEFING reflects the new GUI/batch model and
-documents the **post-pipeline pre-build hook** (Plan 2's insertion seam in
-`core/batch_runner.py`, between `dispatch.run_pipeline(...)` and `build_pdf(...)`) —
-documented only, deliberately not built.
+**Plan 2a is COMPLETE and v0.12.0 is RELEASED.** `feature/plan-2a-provider-foundation` was merged
+into `main` with a `--no-ff` merge commit and `main` was tagged **`v0.12.0`** — the project's first
+release tag (DECISIONS #061). `main` is now the v0.12.0 shipped baseline, superseding v0.11.0
+(`ce96359`). The feature branch was **kept**, matching how every earlier merged branch was left in
+place. The plan drop `plan-2a-local-ai-editor.md` was **deleted** per its own Definition of Done.
+**AI remains opt-in and OFF by default** (`config.toml enabled = false`); with the pass off, output is
+byte-for-byte the v0.11.0 deterministic result.
 
-**Next: Plan 2 (AI editor integration, `plan-2-ai-editor-integration.md`).** That drop
-was drafted against a much earlier repo state — it must be **rewritten/reconciled against
-the real v0.11.0 tree before any implementation** (the same treatment Plan 1 got in its
-v2 reconciliation). Its AI stage slots into the documented seam and must honor the
-contract in BRIEFING's architecture section.
+Plan 2 was split into three canonical drops: `plan-2a-local-ai-editor.md` (local Ollama editor,
+v0.12.0 — **done, drop deleted**), `plan-2b-cloud-providers.md` (Gemini/Groq, target v0.13.0), and
+`plan-2c-installer-bootstrap.md` (bootstrap/onboarding, target v0.14.0). Phases 1–6 built the
+provider-neutral AI stack and the live-validated Ollama adapter; Phase 7 added the opt-in GUI card;
+Phase 8 ran the stratified pilot and recommended **qwen3:14b + Strategy M** (DECISIONS #057,
+`PILOT-REPORT.md`); Phase 9 wired that default (DECISIONS #058), ran the bug hunt (no Critical/Major;
+two Minor flagged — DECISIONS #059) and the clean-room regression. A release-hygiene pass then closed
+both Minors (DECISIONS #060), correcting one of them: the CHANGELOG-case issue was a **local
+working-tree** mismatch, not a tracked-filename problem.
+
+**Next continuation point is Plan 2b (cloud providers, target v0.13.0)**, whose drop is already in
+`md-instructions/`. Two items carry forward, both still deferred and both test-first: the narrow gate
+check for in-place corruption of a non-protected word (e.g. a comma inserted mid-token; #057/#059), and
+the two Phase-7 layout Minors (tall window; the Input card's six-row listbox dominating the height
+budget). Neither blocks Plan 2b.
+
+Stage A confirmed the live post-pipeline/pre-build seam in
+`scripts/Universal/core/batch_runner.py`: files are processed sequentially with
+per-file exception isolation; `pause_gate` is checked only between files;
+`dispatch.run_pipeline(...)` returns the deterministic text before the edit-count,
+dry-run, and build steps; and `build_pdf(...)` remains the sole PDF writer.
+Baseline on Python 3.14.2: `pip check` clean; `scripts/verify.py` PASS with
+**505 passed, 9 skipped** (environmental skips only).
+
+## Work Log — 2026-07-24 — Claude Code — v0.12.0 RELEASE: merge to main + first release tag (Work Item B)
+
+Ran on HOME-PC immediately after Work Item A (`c110e88`). **v0.12.0 is released.**
+
+**Conventions were established from evidence, not assumed.** AI-WORKSPACE.md documents *when* to merge
+("in ONE go, at the very end", then push `main`) but not the mechanics, so `git log --merges` on `main`
+was the authority. Merge strategy and branch retention were unambiguous and were followed; tagging was
+genuinely undocumented and was **escalated to the user rather than guessed**. All three are recorded in
+**DECISIONS #061**:
+- **Merge:** `--no-ff` merge commit, reusing the shape of `94999a8`
+  (`Merge feature/junk-strip-hardening into main — v0.10.0` + release-summary body) — the only prior
+  *local terminal* release merge. All four historical merges into `main` have two parents.
+- **Branch:** **kept.** Every earlier merged branch still exists locally and on `origin`.
+- **Tag:** the repo had **never** tagged a release (v0.9.0/v0.10.0/v0.11.0 all untagged; the only
+  pre-existing tag, `stale-local-main-backup`, is an ad-hoc marker on a Phase-1 commit). The user chose
+  to **start tagging at v0.12.0**: annotated `v0.12.0` on the merge commit. Earlier releases were not
+  retroactively tagged.
+
+**Doc flip from unreleased → released** (done on the feature branch first, verified, then merged):
+`CHANGELOG.md` v0.12.0 header `UNRELEASED (upcoming)` → `2026-07-24` with a released status line;
+`BRIEFING.md` version block, Last Updated, and Current State heading/headline; `README.md` Status
+(`Shipped: v0.11.0` + "upcoming v0.12.0" → `Shipped: v0.12.0`). `config.toml` already read `0.12.0`.
+`verify.py`'s changelog check was re-run after the flip — the `## v0.12.0 — 2026-07-24 — …` header still
+parses (the regex takes `v0.12.0` before the dot-free date) and matches BRIEFING.
+
+**Plan drop deleted.** `md-instructions/plan-2a-local-ai-editor.md` was removed as part of the release
+commit. Its Definition of Done requires deletion "after final verification and my sign-off" — both held —
+though **none of its 22 DoD checkboxes had ever been ticked**, so the user confirmed the deletion
+explicitly rather than it being inferred from the document's state. Content lives on in
+CHANGELOG/BRIEFING/DECISIONS/HANDOFF and in git history. The superseded, never-tracked
+`md-instructions/plan-2-ai-editor-integration.md` was left untracked, as in every prior phase.
+
+**Verification.** Pre-merge on the feature branch: `verify.py` **PASS — 686 passed, 10 skipped**;
+focused AI/provider/editor/seam **206 passed, 1 skipped**; focused GUI/startup/launcher **41 passed,
+1 skipped**; `pip check` clean; `git diff --check` clean. (Phase 9's 687/9 and this run's 686/10 are the
+same 696 collected — the documented Tk display skip that varies pass↔skip on this machine.) Re-run on
+`main` after the merge and after the doc flip: totals below.
+
+**Nothing was force-pushed and no history was rewritten.** No GitHub Release object, release notes, or
+external announcement was created — the release is this repo and `origin` only, per DECISIONS #061.
+
+## Work Log — 2026-07-24 — Claude Code — Release hygiene: the two Phase-9 Minor items (Work Item A)
+
+Ran on HOME-PC from `4fc470d` with local == `origin/feature/plan-2a-provider-foundation`. Context had
+been cleared, so both findings were re-verified against live files and live code rather than trusted
+from the Phase 9 write-up — **and that overturned one of them.** (DECISIONS #060.)
+
+**1. Dead config key — confirmed dead, removed.** Live grep across `scripts/` found `max_change_ratio`
+nowhere but the key itself. `ai/config.py:39` loads the entire `[ai]` table, so `[ai.validation]` was
+arriving in `resolve_ai_config` as an unread `resolved["validation"]` sub-dict; every consumer reads
+named keys through explicit `prefs.get(...)` and there is **no `**kwargs` splat anywhere in `scripts/`**,
+so nothing could observe it. Removed from `config.toml`. The real ±3 % length gate remains hardcoded
+`0.03` at `ai/validation.py:167` and was **deliberately not wired up** — that is a gate-adjacent
+behaviour change needing its own tests and ADR, out of scope here.
+
+**2. CHANGELOG filename case — Phase 9 misdiagnosed this; no repo change was needed.** Git has tracked
+`md-instructions/CHANGELOG.md` all along, confirmed in `HEAD`, in `origin/main`, and back through history
+(`cfbf0ea` → `9865297` → `03dbc7d` → `4fc470d`). `git mv Changelog.md CHANGELOG.md` fails with *"not
+under version control"*. The real fault was **local to this machine's working tree** — the checked-out
+file was named `Changelog.md` and `core.ignorecase = true` hid it from `git status`. Fixed by renaming
+the working-tree file to the tracked casing; **zero commit content**, `git status` clean before and
+after. A fresh clone was never at risk, so #059's "fragile on case-sensitive CI" concern does not hold;
+what it actually caused was stale `Changelog.md` paths in agent write-ups and the staging near-miss.
+
+**Verification.** Focused AI/config/GUI/validation suites (`test_ai_foundation`, `test_ai_gui_controls`,
+`test_ai_validation`): **89 passed, 0 failed**. Live config resolution after the removal still yields
+`enabled=False, model='qwen3:14b', protection_strategy='mask'` with no `validation` key present.
+`verify.py`'s `check_changelog()` resolves the **exact-case** path and returns PASS (v0.12.0, matches
+BRIEFING); `check_pinned_deps()` PASS.
+
+**Scope.** Tracked changes are `config.toml` (2 lines removed) and three docs. No code, test, pipeline,
+GUI, provider, or launcher change. Full suites and the release merge follow as Work Item B.
+
+### Session Sync Log
+- 2026-07-24 — HOME-PC — Work Item A (release hygiene) from `4fc470d`. Changed:
+  `config.toml` (removed dead `[ai.validation] max_change_ratio`), `md-instructions/DECISIONS.md`
+  (#060 appended, corrects #059 Minor 2), `md-instructions/CHANGELOG.md` (v0.12.0 Verification bullet
+  now records both Minors closed), `md-instructions/HANDOFF.md` (this entry). Local-only, uncommittable:
+  working-tree file `Changelog.md` renamed to its tracked casing `CHANGELOG.md`. Committed and pushed to
+  `feature/plan-2a-provider-foundation`. Next: Work Item B — full verification, then the v0.12.0 merge
+  to `main`.
+
+## Work Log — 2026-07-24 — Claude Code — Plan 2a Phase 9 (Release Hardening)
+
+Ran on HOME-PC from `d4df08a` (the Phase 8 pilot commit). Context was cleared before this phase; I
+re-oriented against the tracked docs and live code, confirmed local == `origin/...` at `d4df08a`, and
+worked only Phase 9. **Phase 9 is complete; Plan 2a is code-complete but v0.12.0 is NOT released.**
+
+**1. Adopted the pilot decision (the user's call: qwen3:14b + Strategy M).** Wired the default into the
+committed **`config.toml`** — the file the Phase 7 panel already resolves defaults from
+(`ai_settings.DEFAULT_CONFIG_PATH` → `resolve_ai_config`): `[ai] model = "qwen3:14b"`;
+`protection_strategy = "mask"` was already the committed default (Strategy M) and the editor already
+reads it, so the strategy needed no code change. **`IN_CODE_DEFAULTS["model"]` was deliberately left
+empty** so the two safety-net tests (missing/corrupt config → no pre-selected model) still hold; the
+default belongs in config data, not in the in-code fallback and not hardcoded in the GUI. `app.py`'s
+stale "the app ships no recommended model" comment was corrected to point at the config-resolved
+pre-fill. Verified the real config resolves to `enabled=False, model='qwen3:14b', strategy=mask`.
+**`enabled = false` is unchanged — a default model is not AI-on.** (DECISIONS #058.)
+
+**2. Bug hunt (Phase-6 style, panel → provider → batch seam → PDF).** **No Critical, no Major.** The AI
+package has no TODO/FIXME; no provider SDK imports at package load; the full suite is green **both with
+and without the `ollama` SDK importable** (687 passed / 9 skipped — I simulated a clean machine with an
+import blocker). Two **Minor** items, flagged and left unchanged per the "flag minors before touching"
+rule (DECISIONS #059): (a) `config.toml [ai.validation] max_change_ratio = 0.08` is **dead config** — no
+code reads it; the real ±3 % length gate is hardcoded `0.03` in `ai/validation.py`; (b) the changelog
+file is `Changelog.md` while `verify.py`/docs say `CHANGELOG.md` (fine on Windows/macOS, fragile on a
+case-sensitive FS).
+
+**3. Clean-room script-only regression — AI-off is byte-for-byte the v0.11.0 baseline.** Proven two ways.
+*Source-level:* every deterministic-path module (`rules/`, `pdf/`, `pipelines/`, `profiles/`,
+`protected_lexicon`, `edit_details`, `novel_registry`, `input_scanner`) is byte-identical to the
+`ce96359` v0.11.0 merge; the only deterministic-flow change is `batch_runner`'s additive `ai_editor`
+seam (inert when `None`) and an additive, AI-only-active `record_audit` in `replacement_log.py`.
+*Empirical:* a real `run_batch(..., ai_editor=None)` over 6 Shadow Slave fixtures produced 6/6 outputs,
+constructed **no** provider, and hashed byte-identical across two independent runs
+(`sha256 592be427…a6da9`). The regression test `test_ai_disabled_preserves_exact_build_text_and_
+constructs_no_provider` asserts the same at the seam.
+
+**4. Docs for v0.12.0 (each doc gets only what it owns).** `Changelog.md`: new **v0.12.0 — UNRELEASED**
+section summarizing Plan 2a. `BRIEFING.md`: version → v0.12.0 (marked unreleased), Phase 7–9 rolled into
+the foundation headline, architecture + provider seam current. `DECISIONS.md`: **#058** (default-model
+wiring) and **#059** (bug-hunt findings). `EDITING-RULES.md`: new **AI Editorial Stage** section stating
+the division of labor (script pipeline owns all mechanical normalization + protected terms; the AI owns
+only a tiny residual grammar/OCR class on non-protected words; fail-closed gate). `README.md`: Status
+line refreshed — optional local AI pass, opt-in, OFF by default, not in the shipped build. `config.toml`
+version → 0.12.0.
+
+**Verification.** `scripts/verify.py` PASS; `pip check` clean; `git diff --check` clean; suite 687
+passed / 9 skipped (with and without `ollama`). Numbers in the Session Sync Log below.
+
+**Corpus discipline (verified).** The clean-room run *read* gitignored corpus fixtures
+(`files/test-files/shadow_slave/*.pdf`) read-only and wrote outputs only to the session scratchpad —
+nothing under any corpus/pilot path was staged. `git check-ignore` and a scope scan were run before
+committing; only tracked source/docs are in the commit.
+
+**Release-scope boundary (explicit).** Nothing was tagged, merged, or marked "released". Docs describe
+v0.12.0 as **upcoming/unreleased** everywhere (CHANGELOG header, BRIEFING, README). The plan drop was
+**not** deleted (its Definition of Done requires the user's sign-off first). The one remaining Plan-2a
+step — the actual release/merge — is the user's decision and was left for them.
+
+**Deferred (unchanged, by scope):** the narrow gate check for in-place corruption of a non-protected
+word (e.g. a comma inserted mid-token) remains documented future work, test-first, out of Phase 9.
+
+### Session Sync Log
+- 2026-07-24 — HOME-PC — Phase 9 executed from `d4df08a` after a context clear. Wired
+  `config.toml` default (qwen3:14b + mask), ran the bug hunt (no Critical/Major; 2 Minor flagged),
+  the clean-room regression (AI-off byte-identical to v0.11.0; sha256 592be427…a6da9), and wrote the
+  v0.12.0 docs. `verify.py` PASS, `pip check` clean, `git diff --check` clean, suite 687 passed / 9
+  skipped both with and without the `ollama` SDK. Committed and pushed to
+  `feature/plan-2a-provider-foundation`. **No merge, no tag, no PR — v0.12.0 unreleased; release is the
+  user's call.** Next: v0.12.0 release step (user) or Plan 2b.
+
+## Work Log — 2026-07-24 — Claude Code — Plan 2a Phase 8 (Stratified Pilot + Report)
+
+Ran on HOME-PC from `00d4b50` (the dropdown-fix commit below). **Phase 8 is complete and
+STOPPED for the user's model/strategy decision**, per the plan. No production code changed —
+this phase is measurement only; the chosen model/strategy gets wired in Phase 9.
+
+**Corpus was swapped mid-session.** The old three-novel set (Supreme Magus / Noble Queen /
+Shadow Slave, dated Jul 5) was replaced during the session by a new four-novel set the user
+pointed me to: **Shadow Slave + The Noble Queen (profiled) and Renegade Immortal + Reverend
+Insanity (universal-only, 0 protected terms).** The universal-only pair doubles as the plan's
+required Universal-mode coverage. The whole pilot was re-based on the live set, and the earlier
+"single spine / Supreme Magus" sampling answer was superseded by the user's "~10 from each
+novel" instruction.
+
+**Selection.** Characterized ~1,120 chapters (cleaned length, script-edit load, dialogue and
+protected-term density) and chose **10 chapters/novel = 40**, stratified by size percentile
+(shortest/q25/median/q75/p90/p99/longest) plus trait cases (heaviest edit load, near-zero edits
+= already-clean over-edit probe, most dialogue, densest protected-term). Notably the
+deterministic pipeline already leaves this corpus very clean (0–2 script edits/chapter), so the
+dominant risk under test is **over-editing** and the ideal accepted outcome is a faithful echo.
+
+**Matrix: 120 runs** ({qwen3:8b, qwen3:14b} × {Strategy M, Strategy V}; universal novels ran M
+only because M≡V with 0 protected terms). The harness drove the **real**
+`extract → deterministic pipeline → AIEditor.edit(baseline, protected_terms)` seam — not a
+duplicate gate/provider path — with a wire-level recorder capturing raw output size even on
+truncation. Completed in 74.9 min. All artifacts (harness, `results.jsonl`, full-text `bundle/`,
+candidates/selection, local report) live in gitignored `files/qa-tools/scratch/pilot/`.
+
+**Results (full text-free aggregate in `md-instructions/PILOT-REPORT.md`; DECISIONS #057):**
+- **Gate held: 0 accepted protected-term failures across all 80 profiled runs.** Every
+  protected-term change was caught → clean deterministic fallback.
+- **Phase 6B "expansion" did NOT reproduce** on real prose with the real prompt: done_reason
+  `stop` on 119/120 runs; single-chunk raw-output/input p50 = 0.997 (near-exact echo); max
+  1.23× (8b, one term-dense chapter) vs 1.07× (14b). Explained as a synthetic-probe artifact.
+- **Model split on edit quality (the deciding evidence):** accepted diffs were tiny (0–5 chars);
+  in a manual sample **14b produced only legitimate minimal corrections (tense, dropped words,
+  OCR, one name-consistency fix), while 8b intermittently introduced damaging edits the gate
+  accepts** — a comma inserted mid-word, a name truncated to a syllable, a meaning-changing
+  pronoun swap — because those tokens aren't protected terms and the change stays within
+  ±3 %/structure. A minimal-diff gate can't police in-place corruption of arbitrary prose; model
+  quality must, and 14b is materially safer.
+- **Acceptance/fallback:** 14b mask 39/40 (98 %, 1 fallback); 14b verify 18/20; 8b mask 37/40
+  (92 %, 3); 8b verify 16/20 (80 %, 4). **Strategy M beat V for both models.**
+- **Latency (warm):** 14b p50 40.1 s / p95 104 s / max 129 s; 8b p50 25.3 s / p95 58 s /
+  max 83 s. 14b ~1.6× slower.
+- **Chunking {1:106, 2:10, 3:4}; 8/120 retried;** all multi-chunk accepted chapters reassembled
+  exactly. Fallbacks concentrated on the longest profiled chapters (gate working as intended).
+- **Estimator + ±3 % gate unchanged, by evidence** (upholds DECISIONS #053): bytes/3
+  over-reserves (actual `prompt_eval_count` p50 ≈ 2,680, max ≈ 4,531 vs 32,768); the variance
+  gate passed faithful echoes and caught expansions.
+
+**Recommendation (the user's call): qwen3:14b + Strategy M** as default; **qwen3:8b + Strategy
+M** as a faster non-default option; not Strategy V. A narrow future gate check for in-token
+corruption (e.g. a comma inside an alphabetic token) is flagged for Phase 9/later — test-first,
+not attempted here.
+
+**Corpus discipline (verified).** Nothing under any corpus/pilot path was committed: the entire
+`files/qa-tools/scratch/pilot/` tree (inputs, raw model outputs, diffs, `results.jsonl`,
+candidates/selection, local report) is gitignored, and `files/pdf-example-chapters/` is
+gitignored. The tracked docs contain **only aggregate statistics and abstract edit categories —
+zero verbatim corpus, prompt, or response text**, even short snippets. `git status` and
+`git diff --check` were confirmed clean of any scratch/corpus path before committing.
+
+**Not done, by instruction:** no production code changed; no model wired; `config.toml` still
+`enabled = false`; `README.md`/`BRIEFING.md`/`CHANGELOG.md` untouched (Phase 9 owns the release
+docs); v0.12.0 not released; no merge to `main`, no PR; Phase 9 not started.
+
+### Session Sync Log
+- 2026-07-24 — HOME-PC — Work Item A (novel dropdown width fix) committed `00d4b50` and pushed.
+- 2026-07-24 — HOME-PC — Phase 8 pilot executed (120 runs, 74.9 min) and documented; committed
+  separately and pushed to `feature/plan-2a-provider-foundation`. STOPPED for the user's
+  model/strategy decision. Next: Phase 9.
+
+## Work Log — 2026-07-24 — Claude Code — GUI fix: novel dropdown width (standalone)
+
+Small, self-contained cosmetic fix, committed on its own ahead of Phase 8 — **not**
+part of the Phase 8 work. The user visually confirmed the Phase 7 AI card looks correct
+but flagged a pre-existing bug in the Novel card's "Editing profile" dropdown: the
+combobox carried no explicit `width`, so it fell back to the ttk default (~20 chars) and
+truncated the longest roster label — "Circle of Inevitability — no profile yet" (40
+chars) — in both the closed display and the open list. The narrow, truncated list also
+read as "colliding" with the description text beneath it.
+
+**Fix (widget sizing only).** Added a pure module-level helper `_novel_combo_width(roster)`
+in `gui/app.py` that returns `max(len(label)) + 2` measured from the **live registry**
+(`available_novels()`), not a guessed constant, and passed it as the combobox `width`.
+The open list is a native override-redirect popup that draws in front of the card, so
+once the width is right it correctly covers — never collides behind — the description;
+no z-order work was needed. Did not touch `novel_registry.py`, the roster logic, or the
+Novel card structure.
+
+**Tests.** Two added to `files/tests/test_app.py`: a headless one asserting
+`_novel_combo_width(available_novels()) >= longest real label`, and a display-gated one
+asserting the realized widget's `width >= longest`. Both watched fail first (helper
+absent; realized width 20 < 40) then pass. Focused GUI/startup/launcher/AI-GUI run
+(`test_app`, `test_main_check_flag`, `test_launchers`, `test_scaffold`,
+`test_ai_gui_controls`): **91 passed, 0 failed**.
+
+## Work Log — 2026-07-23 — Claude Code — Plan 2a Phase 7 (GUI AI Controls)
+
+Ran on HOME-PC from clean, aligned local/remote SHA `a32de93`. **Phase 7 is complete.**
+No `ollama pull`, no model install/retag, and no start/stop/reconfigure of the Ollama
+service. No private corpus, chapter text, prompt text, or generated output was used or
+committed. All six items the plan names for this phase are implemented, plus the dry-run
+opt-in the user approved.
+
+**Two ambiguities were resolved by asking, not guessing** (both user-facing, both flagged
+by the standing rule). (1) The plan says the checkbox is "opt-in, default OFF" *and* that a
+persisted GUI choice outranks `config.toml` — read together, AI would silently come back on
+at the next launch. The user chose the strict reading: **always start OFF**, remember the
+model and policy (DECISIONS #055). (2) `use_ai_in_dry_run` exists in `run_batch` since
+Phase 5 but has no control, so the documented per-run opt-in was unreachable; the user
+approved exposing it as a sub-checkbox.
+
+**New `scripts/Universal/gui/ai_settings.py` — tkinter-free, so all of it is testable
+headlessly.** Preference resolution (in-code < `config.toml` < per-user settings, with
+`enabled` always forced False), atomic merge-not-clobber persistence of exactly
+`("model", "policy")`, status descriptions, provider probing, editor construction, and the
+rate/ETA maths. Every `ai.*` import that could need an optional dependency is deferred into
+the function that needs it, so importing it — and therefore starting the app — still works
+with no AI packages present.
+
+**Status reporting is the provider's, not a GUI reinvention.** `probe_provider` calls the
+real `health_check()` and `list_models()` and passes the `ProviderStatus` straight through;
+all nine values have their own distinct message (a test asserts distinctness). Two GUI-level
+states are additive, never substitutes: `unchecked` (nothing asked of any provider yet) and
+`no_model_selected` (DECISIONS #054 — the adapter needs a complete `name:tag` before it will
+talk to the service at all, so enumerating models before a choice exists requires the
+placeholder `__no_model_selected__:list`; blaming the service for `model_missing` there would
+be dishonest). A real selected-but-absent tag still reports `model_missing`.
+
+**The panel.** An "AI Editorial Pass (optional)" card between Advanced Options and the run
+row: enable checkbox (always OFF at launch) + "Check service" button; model combobox; an
+"If the AI is unavailable" radio pair mapping to `prefer_ai` / `ai_required`; the dry-run
+sub-checkbox; and the status line. Every control except the enable checkbox is disabled
+while the pass is off, and all of them lock while a batch runs. Probing happens on a worker
+thread (it blocks on the local service) and posts back through `after(0, ...)`.
+
+**Nothing is constructed while AI is off.** Turning the pass on is the only thing that ever
+probes; `AIEditor` is built only at Start, and its provider factory stays unevaluated until
+`run_batch` needs it. With the pass off, `run_batch` receives `ai_editor=None` — the exact
+historical script-only path. Start refuses to run with the pass on and no model chosen
+rather than launching a batch that would fail per-chapter.
+
+**Running average + ETA.** Computed from the existing `progress` callback: elapsed / files
+finished, and that rate against what remains. Blank until the first chapter completes — an
+ETA from zero samples would be a guess presented as information — and the ETA clause drops
+once the last file is done.
+
+**Layout regression found and fixed (DECISIONS #056).** Measured on a mapped window, the
+fixed rows already needed ~1010px before this phase while the window opened at 700, so the
+Start button sat 26px and the status strip 63px below the fold. The new card would have
+pushed Start 273px off-screen. The card was compacted 231px → 169px, `MIN_HEIGHT` raised
+700 → 1020, and a new `PREFERRED_HEIGHT = 1120` is clamped to `screenheight - 90` so the
+window can never open taller than the display. A test now sums every non-log row and fails
+if the total exceeds `MIN_HEIGHT`.
+
+**One real invariant caught mid-implementation and fixed properly, not widened.** The
+existing `test_ollama_name_is_confined_to_provider_factory_and_configuration_boundary`
+failed because the GUI defaulted the provider name to a literal. It now falls back to
+`IN_CODE_DEFAULTS["provider"]`, so the GUI names no provider at all and 2b's cloud adapters
+need no change here. Separately, `ai_settings` captured the AI enum *classes* at import
+time, which broke under the existing module-reload isolation test; it now captures only
+their string values at module level and re-imports the classes inside the functions that
+build objects with them.
+
+**Live validation on HOME-PC (read-only; the service was not touched).** Through the panel's
+own data path: no model chosen → `no_model_selected` with the real installed tags
+`('qwen3:14b', 'qwen3:8b')`; a chosen installed tag → `ok`; a bogus tag → `model_missing`;
+closed loopback port `127.0.0.1:1` → `service_down`; a remote `https` endpoint →
+`invalid_configuration`. Each rendered its own message. **No model is recommended or
+hardcoded anywhere in the UI** — a test greps both GUI sources for model names — so Phase 8
+still owns that decision, and `qwen3:14b` remains installed but unexercised.
+
+**Gates (real numbers from this session).** New `files/tests/test_ai_gui_controls.py`:
+**49 tests**. GUI/startup/launcher (`test_app`, `test_main_check_flag`, `test_launchers`,
+`test_scaffold`) **39 passed, 1 environmental skip**. AI/foundation/editor/validation/batch
+(`test_ollama_provider`, `test_ai_foundation`, `test_ai_editor`, `test_ai_validation`,
+`test_plan2a_phase5`, `test_batch`, `test_pause_and_condensed_log`, plus the new file)
+**205 passed, 1 skip**. Full `scripts/verify.py`: **PASS — 692 passed, 2 skipped, 0 failed**
+(694 collected; was 644/1 at the Phase 6B baseline, so +48 net). `pip check` clean;
+`git diff --check` clean. The Tk "no display available" skips vary pass↔skip between runs on
+this machine, as recorded in earlier phases.
+
+**Scope/security/artifact scan.** Tracked changes are one new GUI module, one new test
+module, `gui/app.py`, and three docs. No provider internals, batch seam, pipeline, PDF,
+launcher, `config.toml`, `requirements.txt`, or Plan 2c file was touched, and no dependency
+was added. Nothing prohibited was staged: no chapter/corpus text, prompt or candidate text,
+model file, machine identifier, secret, `.env`, log, generated PDF, `.venv`, or cache. The
+per-user settings file lives outside the repo and is never committed. Two pre-existing
+untracked paths (`.claude/` and the superseded
+`md-instructions/plan-2-ai-editor-integration.md`) were deliberately left untracked.
+
+**Not done, by instruction:** `CHANGELOG.md`/`BRIEFING.md`/`README.md` untouched — Phase 9
+owns those per the plan's own phase list, and `verify`'s changelog check stays green at
+v0.11.0. v0.12.0 is not released, no merge to `main`, no PR, no Phase 8 pilot work.
+
+**Open for the user (Minor, flagged not fixed):** the window is now tall. The cause is
+pre-existing and outside this phase — the Input card's six-row listbox (~282px) and the
+novel card's three-line helper text dominate the fixed height budget. Shrinking either
+would give the log pane back its room; that is a layout change to code Phase 7 did not own,
+so it is the user's call. **The panel has not been eyeballed by a human** — Tk cannot be
+screenshot-tested from here, so a visual confirmation pass is requested.
+
+## Work Log — 2026-07-23 — Claude Code — Plan 2a Phase 6B (Live Ollama/Qwen Validation)
+
+Ran on HOME-PC from clean, aligned local/remote SHA `cbb4222`. **Phase 6 is now complete.**
+No `ollama pull`, no model install/retag, and no start/stop/reconfigure of the user's Ollama
+service at any point. No private corpus, chapter text, prompt text, or generated output was
+used, recorded, or committed — every probe used tiny synthetic public English text.
+
+**Environment (recorded, no machine-unique details).** Ollama **server 0.32.1**; Python client
+**`ollama==0.6.2`**, matching the committed pin in `scripts/requirements.txt` exactly. The
+existing `.venv` (Python 3.13.12) was missing `ollama` and `tomli`; both were installed
+**from the committed `scripts/requirements.txt` into that venv only** — nothing system-wide,
+no pin edited. `pip check` clean afterwards. Client `Client.chat` signature was verified live
+against the adapter's call site: `model`, `messages`, `stream`, `think`, `keep_alive`, and
+`options` all match, so there is no 0.6.2 API drift.
+
+**Installed tags / selection.** `ollama list` reported exactly two complete Qwen tags:
+`qwen3:14b` (9.3 GB) and `qwen3:8b` (5.2 GB). Phase 6B used **`qwen3:8b`** — the smaller tag
+gives more VRAM headroom and faster iteration for a smoke pass. `qwen3:14b` is installed and
+available but was **not** exercised; the final model choice stays deferred to Plan 2a's later
+model-comparison work.
+
+**Live provider states — all seven distinguished honestly.** Against the committed loopback
+endpoint `http://127.0.0.1:11434` from `config.toml`:
+`list_models()` → the 2 real installed tags; `health_check()` → `ok`; clearly nonexistent
+complete tag → `model_missing`; remote `https` endpoint, incomplete tag `qwen3`, and blank
+`keep_alive` → `invalid_configuration`; simulated absent SDK loader → `package_unavailable`;
+closed loopback port `127.0.0.1:1` → `service_down`; a throwaway hanging local socket (a
+disposable test listener, **not** Ollama) → `timeout` in 2.53 s. Unreachable/hanging cases
+were simulated purely at the client/config level.
+
+**Computed budgets and runtime options.** For the tiny synthetic request (system prompt 1,563
+bytes + user text 24 bytes): `input_tokens=692`, `output_tokens=72`, `num_ctx=1020` against
+the 32,768 limit. Options recorded off the real wire call were
+`{"num_ctx": 1020, "num_predict": 72, "seed": 0, "temperature": 0.0}` with `stream=False`,
+`think=False`, `keep_alive="30m"`, and message roles `['system', 'user']`. Confirmed at
+runtime: temperature zero, fixed seed, thinking disabled, non-streaming complete response, a
+**positive bounded `num_predict` (never `-1`)**, a **request-specific computed `num_ctx`**,
+and the configured `keep_alive`.
+
+**Bounded completion metadata (no text recorded).** `finish_reason='stop'`, `truncated=False`,
+`duration_seconds=8.525` (wall 8.55 s, cold load), `prompt_eval_count=366`, `eval_count=5`,
+response 14 chars, `execution_backend=None`.
+
+**GPU/CPU observation.** `ollama ps` immediately after the kept-alive call reported
+`qwen3:8b … 5.1 GB … 100% GPU … CONTEXT 1020 … 29 minutes from now`. That is reliable
+evidence of GPU execution on this machine, and it independently confirms the adapter's
+computed `num_ctx` reached the server and that `keep_alive="30m"` was honored. Correctness
+does not depend on GPU execution.
+
+**Timeout / outage / fallback / failure paths.** A 0.01 s client timeout against the real
+loopback service mapped correctly to `TransientNetworkError: Ollama request timed out
+(ReadTimeout)`, `retryable=True`, in 0.20 s. (A 0.001 s timeout on `health_check` still
+returned `ok` — the local `list` endpoint answers inside that window; recorded as observed,
+not a defect.) With an unreachable provider: **`prefer_ai`** returned the **byte-exact
+deterministic baseline** for chapters 1, 2, and 3 with `used_ai=False`, `fallback_used=True`,
+reason `ProviderUnavailable`, and the provider constructed **once** across all three — the
+run-scoped unavailable state is retained as designed. **`ai_required`** failed honestly:
+`prepare_run()` raised `ProviderUnavailable: Provider preflight failed: service_down`
+(`retryable=False`), and the subsequent `edit()` also raised with **no partial candidate
+returned**. `script_only` constructed **zero** providers. `ai_required` preflight against the
+real service returned `run_state=available`.
+
+**Estimator: measured, deliberately left unchanged (DECISIONS #053).** Live measurement across
+24–8,051-byte synthetic prose put the real ratio at ~**4.6–5.3 UTF-8 bytes per token**, so the
+`bytes/3` rule over-reserves input context by ~**1.7×–1.9×** (estimated 692/823/1500 vs
+measured 366/448/878). The error is entirely fail-safe, so the "refine only if real evidence
+requires it" condition was **not** met and **no constant was changed**. Two evidence-backed
+regressions were added to `files/tests/test_ollama_provider.py` pinning the conservative
+direction against a documented `MEASURED_BYTES_PER_TOKEN_FLOOR = 4.6`.
+
+**Honest limitation found — model fidelity, not an adapter defect.** The 8 KB probe failed with
+`InvalidResponse: … incomplete or truncated`. Diagnosis: `num_predict` was 2,748 against a
+lossless-echo need of ~1,750 tokens (a ~1.5× surplus), yet the model consumed the whole
+allowance (`eval_count == num_predict`, `done_reason == "length"`) and produced **12,973 bytes
+from an 8,051-byte input** — it expanded on the text instead of returning it. The adapter
+failed closed correctly. Separately, the tiny probe returned 14 chars for a 24-byte input
+(dropping the heading), which the whole-chapter gate would reject. **Raw single-shot fidelity
+of `qwen3:8b` is therefore NOT established** and remains prompt/gate/model-selection work for
+later phases. Production never sends an 8 KB single shot: `safe_input_budget` caps a chunk at
+4,096 input tokens.
+
+**Gates (all real numbers from this session).** Focused Ollama/foundation/editor/validation
+**114 passed** (112 in 6A, +2 new); Phase 5 batch/pause/stop/isolation **51 passed**;
+GUI/startup/launcher **40 passed**. Full `scripts/verify.py`: **PASS — 644 passed, 1 skipped,
+0 failed** (645 collected; the single skip is environmental, `test_app.py:328 no display
+available for Tk`). `pip check` clean; `git diff --check` clean.
+
+**Scope/security/artifact scan.** The only tracked source change is `+26` lines of tests in
+`files/tests/test_ollama_provider.py`. No provider, pipeline, GUI, launcher, PDF, or config
+change. All three smoke scripts ran from the session scratchpad **outside the repo** and are
+not committed. Nothing prohibited was staged: no chapter/corpus text, prompt or candidate
+text, model file, machine identifier, secret, `.env`, log, smoke output, generated PDF,
+`.venv`, or cache. Two pre-existing untracked paths (`.claude/` and the superseded
+`md-instructions/plan-2-ai-editor-integration.md`) were deliberately left untracked and
+uncommitted.
+
+**Not done, by instruction:** README/CHANGELOG were not touched, v0.12.0 is not released, no
+Phase 7 / Plan 2b / Plan 2c runtime work, no uninstaller, no merge to `main`, no PR.
+
+## Work Log — 2026-07-23 — Codex — Plan 2c Restricted-PC/Uninstall Groundwork
+
+- Phase 6A remains implemented, but Phase 6 is incomplete. HOME-PC Phase 6B remains
+  the next live-provider continuation point; the precise
+  [HOME-PC Phase 6B continuation checklist](#home-pc-phase-6b-continuation-checklist-no-pulls-and-no-private-text)
+  below remains the single authoritative checklist.
+- HOME-PC must select an already-installed exact Qwen tag and establish real
+  model/context/hardware evidence. The private corpus remains HOME-PC-only and must
+  never be committed. Full representative chapter testing, model comparison,
+  prompt/gate tuning, and final capability-table numbers remain deferred.
+- The bounded CSPW-PC inspection is the sanitized **CSPW-PC — restricted
+  standard-user / local-AI eligibility pending model thresholds** profile. It covers
+  restricted operation, absent Ollama/service/model states, integrated-GPU reporting,
+  degraded script-only operation, and simulated capability-table RAM/disk failures.
+  It does not establish whether this physical PC passes or fails the final selected
+  model threshold, is not a machine fingerprint, and must never be hardcoded.
+- Plan 2c now specifies model-table RAM/disk hard offer gates and a final
+  manifest-driven root Windows uninstaller, `Uninstall_Web_Novel_Editor.bat`, with
+  separate ownership-based confirmations and keep-shared-components defaults.
+- No installer or uninstaller runtime behavior has been implemented.
+
+## Work Log — 2026-07-23 — Codex — Plan 2a Phase 6A (Mocked OllamaProvider)
+
+- Started from clean, aligned local/remote Phase 5 correction SHA
+  `53f2cb04d7b45bdb9e9852f3b6d071363ef91259`.
+- Added the production, provider-neutral-boundary Ollama adapter and exact official
+  `ollama==0.6.2` pin. The package/client import is lazy; script-only startup does not
+  import, construct, health-check, or call it. Configuration remains AI-off and adds
+  only loopback endpoint, keep-alive, deterministic seed, and inspectable budget fields.
+- The adapter permits only explicit HTTP loopback endpoints and complete configured
+  model tags; lists installed tags without pulling; distinguishes invalid config,
+  package absent, service down, timeout, provider error, missing model, and ready;
+  sanitizes exception payloads; and serializes calls at concurrency one.
+- Requests are non-streaming with temperature zero, fixed seed, `think=False`, and
+  configured `keep_alive`. A conservative bytes/3 estimator sizes the complete
+  system/user serialization plus formatting overhead, output allowance/margin, and
+  context margin. Every call gets computed `num_ctx` and positive bounded
+  `num_predict`; over-limit input fails before `chat`. Empty, unfinished, length-ended,
+  separate-thinking, and `<think>` responses fail closed.
+- Added `files/tests/test_ollama_provider.py` and adjusted the prior factory test.
+  Mocked coverage includes endpoint/tag safety, every health state, exact request
+  construction, budgets, no `-1`, preflight context rejection, typed/sanitized errors,
+  concurrency, release-shaped no-SDK startup, and provider-name boundary enforcement.
+  Existing editor/run-policy/dry-run/Pause/Stop/GUI/launcher regressions remain green.
+- Focused gates: Ollama/foundation/editor **112 passed**; Phase 5 batch/pause/stop
+  **44 passed**; GUI/startup/launcher **34 passed, 1 environmental skip**.
+  Full `scripts/verify.py`: **633 passed, 10 environmental skips, 0 failed**
+  (643 collected). `pip check` and `git diff --check` are clean.
+- Scope/security audit: no live provider/network/model operation, pull/install, corpus,
+  source-PDF mutation, secret, `.env`, generated artifact, launcher, PDF builder,
+  deterministic pipeline, cloud adapter, or unrelated GUI change. The only provider
+  SDK import is dynamic inside `ai.providers.ollama`.
+- Commit: `Plan 2a Phase 6A: implement mocked Ollama provider` (the resulting pushed
+  SHA is reported in the phase summary because a commit cannot contain its own SHA).
+- **Phase 6 remains incomplete.** This computer lacks the configured HOME-PC
+  Ollama/Qwen/RTX environment; Phase 6B below is the exact next continuation point.
+
+### HOME-PC Phase 6B continuation checklist (no pulls and no private text)
+
+> **COMPLETED 2026-07-23 on HOME-PC — all 10 items executed.** Results are recorded in the
+> Phase 6B work log at the top of this file. Retained below as the historical record of what
+> the phase was required to cover; it is no longer an open action list.
+
+1. Safety/reorientation: confirm this branch/remote SHA and a clean tree; use the
+   existing `.venv`; do not install system-wide or run any `ollama pull` command.
+2. Record versions without machine-unique details:
+   `ollama --version` and
+   `.venv\Scripts\python.exe -c "from importlib.metadata import version; print(version('ollama'))"`.
+   Confirm the Python client remains the committed exact pin.
+3. Run `ollama list` and record only the exact installed model tags needed for the
+   decision (plus their reported size/quantization if useful). Select one installed
+   complete tag; do not invent, alias, retag, download, or pull anything.
+4. From a local Python console, construct `OllamaProvider` with that exact tag and the
+   committed loopback endpoint. Run `list_models()` and `health_check()`; record the
+   status. Repeat with a clearly nonexistent complete tag to prove `MODEL_MISSING`.
+   Never use a remote endpoint.
+5. Send one tiny synthetic public test such as `Chapter 1\n\nHe walk home.` through
+   `CompletionRequest`/`complete()`—not a private chapter. Before calling, record
+   `request_budget()` (`input_tokens`, `output_tokens`, computed `num_ctx`); afterward
+   record only actual model tag, finish reason, truncated flag, duration, prompt/eval
+   counts, and hashes/counts—not prompt/candidate text or generated output files.
+6. Confirm the request is non-streaming, `think=False`, temperature 0, fixed seed,
+   bounded positive `num_predict`, computed `num_ctx`, and configured `keep_alive`.
+   If tokenizer/model behavior shows the estimator or limits need refinement, record
+   the evidence and update/test the conservative constants before claiming completion.
+7. Run `ollama ps` immediately after the kept-alive smoke call. Record only its bounded
+   processor/CPU/GPU indication and context figure. Treat it as an inference; do not
+   claim GPU when Ollama does not report enough evidence, and never make correctness
+   depend on GPU execution.
+8. Safely test timeout/outage behavior with canned public text and bounded settings:
+   use a very small timeout against the loopback service for timeout mapping, and a
+   closed loopback port (for example `127.0.0.1:1`) for service-down/fallback behavior.
+   Confirm `prefer_ai` returns the complete script baseline, `ai_required` raises,
+   later chapters retain the run-scoped unavailable state, and no partial candidate
+   is built. Do not stop/reconfigure the user's Ollama service merely to force a test.
+9. Rerun focused provider/foundation/editor tests, Phase 5 batch/Pause/Stop tests,
+   GUI/startup/launcher regressions, full `scripts/verify.py`, `pip check`, and
+   `git diff --check`; repeat the tracked scope/security/artifact scan.
+10. Before Phase 6 is marked complete, record: Ollama server/client versions; exact
+    tested installed tag; health/model-missing results; actual budget/options and
+    completion metadata; bounded GPU/CPU inference; timeout/outage/fallback results;
+    exact focused/full totals; whether constants changed; commit/push SHA; and any
+    model/tokenizer limitation. Commit no smoke output, machine identifiers, corpus,
+    model file, prompt/chapter text, secret, log, or generated PDF.
+
+## Work Log — 2026-07-23 — Codex — Plan 2a Phase 5 Stop/Pause Correction
+
+- Started from clean, aligned local/remote Phase 5 SHA
+  `ccf31ae6b8ff180d7ca6d2ef38faac25441b0e9a`.
+- Fixed the between-file race where GUI Stop set `stop_event` and released a paused
+  `pause_gate`, but `run_batch` proceeded directly into the next file. The loop now
+  re-checks Stop immediately after `pause_gate.wait()` returns, records the run as
+  stopped, logs that it ended before the next chapter, and breaks before logging
+  Continue or performing extraction, deterministic editing, AI, or PDF work.
+- Added a synchronized real-`threading.Event` regression: file 1 completes its PDF
+  write, the worker blocks between files, Stop sets its event and releases Pause, and
+  file 2 is proven to have zero extraction, pipeline, provider, and PDF calls.
+- Audited all Stop/Pause sites. There is no other blocking pause wait or equivalent
+  check-order gap; in-flight provider validation/PDF completion, ordinary Continue,
+  GUI reset, legacy summaries, and existing Stop behavior remain unchanged.
+- Focused gates: Phase 5 **16 passed**; batch/pause/stop/isolation **51 passed**;
+  GUI **17 passed**. Full `scripts/verify.py`: **604 passed, 9 environmental skips,
+  0 failed** (613 collected). `pip check` and `git diff --check` are clean.
+- Commit: `Plan 2a Phase 5: honor stop released from pause` (exact resulting SHA is
+  reported in the phase summary because a commit cannot contain its own final SHA).
+- Phase 6 (`OllamaProvider`) remains the next continuation point and was not started.
+
+## Work Log — 2026-07-23 — Codex — Plan 2a Phase 5
+
+- Started from clean, aligned local/remote SHA
+  `67b1235146a62c5744794d48dec5c26a8885d02b` on
+  `feature/plan-2a-provider-foundation`.
+- Integrated one optional run-scoped `AIEditor` into the exact Plan-1 seam:
+  deterministic pipeline → neutral AI edit → edit count/dry-run → `build_pdf`.
+  Existing callers pass no editor and retain the exact script-only text and summary
+  shape; no provider is constructed, checked, or called.
+- Added provider-neutral `prepare_run()` for `ai_required`: one cached provider is
+  health/model checked before deterministic chapter processing. Prefer-AI retains
+  chapter fallback and the established unavailable state; one outage warning is shown
+  per run. Gate rejection is a chapter fallback and never produces a partial AI chapter.
+- Dry-run defaults to the complete deterministic in-memory path with zero provider
+  initialization/calls and no PDF. `use_ai_in_dry_run=True` is the sole explicit
+  per-run opt-in; it may call the fake/neutral provider but still writes no PDF.
+- Added `stop_event` at the existing safe between-files seam and a run-only Stop button
+  directly beside Pause. The current file, AI response validation, and PDF write finish
+  completely; no next file begins. State clears before later runs and after completion.
+- Extended `ReplacementLog` with bounded structured AI audit rows. Run settings,
+  attempt provenance, fallback/result hashes/counts, versions, strategy/model/chunk/
+  attempt/retry state, and bounded accepted diff hunks use `ai_editor.*` naming.
+  `integrity_flag` remains excluded from edits and no full chapter/chunk/lexicon/secret
+  is stored.
+- Files changed: `scripts/Universal/ai/editor.py`,
+  `scripts/Universal/core/batch_runner.py`,
+  `scripts/Universal/core/replacement_log.py`, `scripts/Universal/gui/app.py`,
+  `files/tests/test_ai_editor.py`, `files/tests/test_app.py`,
+  new `files/tests/test_plan2a_phase5.py`, plus this handoff, `BRIEFING.md`, and
+  `DECISIONS.md`.
+- Focused final gates: AI/seam **97 passed**; batch/isolation/pause/stop
+  **50 passed**; GUI **17 passed**. Final full `scripts/verify.py`: **601 passed,
+  11 environmental skips, 0 failed** (612 collected); the preceding run before the
+  final two regression tests was 601/9, also with zero failures. `pip check` and
+  `git diff --check` are clean.
+- Commit: `Plan 2a Phase 5: integrate batch seam and safe stop` (the resulting SHA is
+  reported in the phase summary because a commit cannot contain its own final SHA).
+- Remaining limitations: no real provider adapter/SDK, no live provider call, no Phase-7
+  AI controls, and no corpus test. Next continuation is Plan 2a Phase 6,
+  **OllamaProvider**, only after review of this checkpoint.
+
+## Work Log — 2026-07-23 — Codex — Provider-Neutral Foundation Hardening
+
+- Resumed the clean pushed branch at exact remote HEAD `aa5869c`.
+- Closed the five confirmed audit gaps without starting Plan 2a Phase 5:
+  - Strategy M now uses canonical `mask_protected_terms` before budget/chunk planning and
+    canonical `unmask_placeholders` only after exact reassembly; Strategy V remains
+    unmasked. Selection is explicit in `EditorOptions` and `config.toml` (default `mask`).
+  - Strategy V now pins exact spelling plus paragraph, sentence, and word ordinal,
+    rejecting same-paragraph movement/equal-count swaps while allowing adjacent grammar
+    corrections that preserve position.
+  - Gate-rejected/malformed/truncated attempts alone use stricter prompt
+    `1.0-retry.1`; transient provider retries retain prompt `1.0`. One retry remains.
+  - Every candidate and provider-error attempt records lexicon hash/version, protection
+    strategy, chunk index/count, chunker version, attempt number, actual prompt version,
+    status/reasons, hashes/counts/timing, and safe bounded snippets (no provider-error diff).
+  - `AIEditor` now caches provider/run availability. Script-only constructs nothing;
+    prefer-AI falls back for an outage and all later chapters without repeated calls;
+    AI-required raises and never silently degrades. Gate rejection stays chapter-local.
+- Added 17 focused tests (AI foundation total 63 → 80) for overlapping/multi-word/Unicode
+  masking, collision/damage rejection, exact unmasking, masking-before-chunking, Strategy-V
+  same-paragraph movement/swaps/adjacent correction, normal vs stricter retry versions,
+  complete provider-error provenance, and initial/mid-run/gate/subsequent-chapter policies.
+- Focused AI gate: **80 passed**. Full `scripts/verify.py`: **584 passed,
+  10 environmental skips** (594 collected, zero failures); `pip check` clean.
+- Verification wording reconciliation: the prior foundation's authoritative final audit
+  was **566 passed / 11 environmental skips**. Its immediately preceding run was
+  **567 / 10**. Both collected 577 tests with zero failures; 567/10 was not the final run.
+- No architecture conflict was found. No provider, batch runner, GUI, launcher, cloud,
+  installer, PDF, or corpus code was added or changed.
+- STOP after this hardening checkpoint. Next authorized work remains Plan 2a Phase 5:
+  **“Batch seam + Stop After Current File + dry-run policy.”**
+
+## Work Log — 2026-07-23 — Codex — Plan 2a Foundation Stage A
+
+- The supplied `web-novel-editor` directory was an extracted copy with no `.git`.
+  Per the groundwork safety contract, cloned the verified origin into sibling
+  `web-novel-editor-git`; no file in the extracted copy was modified.
+- Confirmed clean `main` at `9ca90fda67c2da981c383415e0124b3db442201d`,
+  origin URL `https://github.com/elmatthe/web-novel-editor.git`, and verified
+  `ce96359` is an ancestor of `origin/main`.
+- Created `feature/plan-2a-provider-foundation`; created only the authorized local
+  `.venv` in the fresh clone and installed `scripts/requirements.txt`.
+- Mapped the live batch seam and reconciled stale current-state wording in this
+  handoff and `BRIEFING.md`. No source, test, pipeline, GUI, launcher, or version
+  file changed.
+- Baseline gate: Python 3.14.2; `pip check` clean; `scripts/verify.py` PASS,
+  505 passed / 9 skipped.
+- Next: Stage B provider contract, configuration, and offline test foundation.
+
+## Work Log — 2026-07-23 — Codex — Plan 2a Foundation Stage B
+
+- Added `scripts/Universal/ai/` contract models, typed failures, runtime-checkable
+  protocol, lazy factory, TOML/default resolution, and atomic per-user settings helpers.
+- Added secret-free root `config.toml` with AI disabled. Preserved Python 3.10 using
+  current exact pin `tomli==2.4.1`; no SDK or adapter was added.
+- Added `files/tests/test_ai_foundation.py` covering contracts, retryability,
+  `FakeProvider` conformance, factory failures, import isolation, precedence, Windows/macOS
+  paths, atomic writes, no import side effects, and committed-config secret hygiene.
+- Documentation ownership: ADRs #036–#040 record contract, taxonomy, settings/config,
+  TOML compatibility, and lazy imports; BRIEFING contains only the concise architecture.
+- Targeted gate: 17 passed. Full `scripts/verify.py`: PASS, 520 passed / 11 skipped;
+  `pip check` clean and SDK-import grep empty. Commit/push follow this entry.
+- Next after the verified checkpoint: Stage C versioned prompt, validation, and bounded
+  provenance. No batch-runner or GUI integration.
+
+## Work Log — 2026-07-23 — Codex — Plan 2a Foundation Stage C
+
+- Added `UNIVERSAL-AI.md` fresh from Appendix A and `ai.prompt` runtime lexicon
+  rendering with version/hash/count metadata; no per-novel AI prompt copies.
+- Added non-mutating gate v1.0 and its sole response-normalization exception (one exact
+  outer fence, recorded). Rejects reasoning/preambles, truncation, heading/newline,
+  placeholder/protected-term, length, deletion/duplication/reordering, junk/domain,
+  broad-rewrite, and canonical spaced-em-dash violations. Valid unspaced dashes pass.
+- Added bounded provenance: hashes, counts, timings, status/reasons, and capped diff
+  snippets; never full chapter/chunk or lexicon contents.
+- Added `files/tests/test_ai_validation.py`; targeted provider-free gate currently
+  passes 20 tests. Full verification and commit/push follow this entry.
+- ADRs #041–#043 record the gate, normalization, and provenance boundaries.
+- Next after checkpoint: Stage D exact paragraph chunking and provider-neutral
+  `AIEditor` orchestration using only fake providers.
+
+## Work Log — 2026-07-23 — Codex — Plan 2a Foundation Stage D
+
+- Added chunker v1.0: conservative computed budgets, heading exclusion, paragraph-only
+  greedy packing, explicit cross-chunk/trailing separators, stable zero-based indexes,
+  oversized-paragraph preflight failure, and asserted byte-exact unchanged reassembly.
+- Added provider-neutral `AIEditor`, `AIOutcome`, `RunPolicy`, and `EditorOptions`.
+  Stateless requests receive at most one bounded retry; non-retryable failures stop;
+  any first/middle/final failure discards all chapter changes. Reassembly receives only
+  the canonical dash sweep and a whole-chapter gate; returned text is that exact result.
+- Script-only never constructs a provider. Prefer-AI falls back honestly. AI-required
+  refuses unavailable setup. No provider/model branching, disk chunks, provider SDK,
+  network, batch-runner, GUI, launcher, or corpus integration.
+- Added `files/tests/test_ai_editor.py`; targeted suite passes 26 tests, including
+  exact whitespace/separator round trips, zero-call over-limit, retry/error classes,
+  first/middle/last atomic fallback, whole-chapter reordering defense, and no full-text
+  provenance.
+- ADRs #044–#046 record exact chunking, retry/fallback, and run policies. Full
+  verification and commit/push follow this entry.
+- Full AI-foundation targeted gate: 63 passed. Full `scripts/verify.py`: PASS,
+  567 passed / 10 environmental skips. Commit/push follow this entry.
+- Next: final tracked-diff/security/scope audit. The exact canonical continuation is
+  Plan 2a **Phase 5, "Batch seam + Stop After Current File + dry-run policy"**. That
+  integration was explicitly out of scope for this groundwork session; Ollama remains
+  Phase 6 and the GUI remains Phase 7.
+
+## Work Log — 2026-07-23 — Codex — Plan 2a Foundation Final Audit
+
+- Stage commits, all pushed to `origin/feature/plan-2a-provider-foundation`:
+  `9a68ef9` (Stage A reconciliation), `f48f14d` (Stage B contract/config),
+  `27e4e9f` (Stage C prompt/gate/provenance), and `d8b1d5e` (Stage D
+  chunking/orchestration).
+- `origin/main...HEAD` contains 22 expected files: provider-neutral AI foundation,
+  three offline test modules, secret-free config/dependency pin, prompt resource, and
+  the three current-state/ADR docs. No batch runner, GUI, launcher, PDF, `.env`,
+  `.venv`, cache, generated log, corpus, or unrelated pipeline file changed.
+- Security/scope scans found no API-key/private-key/password-like values and no Ollama,
+  Gemini, Groq, or Google SDK import. `git diff --check` and `pip check` are clean.
+- Final `scripts/verify.py`: PASS, 566 passed / 11 environmental skips. The immediately
+  preceding Stage D gate was 567 / 10; one Windows environment-gated test varied
+  pass↔skip between runs, with the same 577 tests collected and zero failures.
+- No live Ollama/cloud call, API key, private corpus, GUI, launcher, or PDF processing
+  occurred. No source PDF was modified. The extracted original directory remained
+  untouched throughout.
 
 **Phase 5 (TTS jargon sweep rule) is DONE** (2026-07-19, committed on the branch):
 `rules/junk_strip.py` gained a conservative Tier-1 **decorative-run rule**
@@ -903,6 +1667,76 @@ summary record.
 ---
 
 ## Session Sync Log (newest first)
+
+### 2026-07-23 — HOME-PC — PUSHED (Plan 2a Phase 7: GUI AI controls — PHASE 7 COMPLETE)
+- Branch:  feature/plan-2a-provider-foundation (1 commit this session on top of a32de93)
+- Env:     existing .venv, Python 3.13.12. No dependency added, no pin edited, no
+           `ollama pull`, no model install/retag, the Ollama service never touched.
+           Live probing was read-only (`health_check` / `list_models`) only.
+- Added:   scripts/Universal/gui/ai_settings.py (new — tkinter-free preference
+           resolution, per-user persistence, provider probing, editor construction,
+           rate/ETA maths)
+           files/tests/test_ai_gui_controls.py (new — 49 tests)
+- Changed: scripts/Universal/gui/app.py (AI Editorial Pass card, run-policy radios,
+           dry-run opt-in, status line, rate/ETA readout, batch wiring, MIN_HEIGHT
+           700 -> 1020 + PREFERRED_HEIGHT 1120 clamped to the display)
+           md-instructions/DECISIONS.md (appended #054 GUI-level AI states, #055
+           session-only opt-in switch, #056 window-height layout contract)
+           md-instructions/HANDOFF.md (Current Focus, Phase 7 work log, this entry)
+- Deleted: nothing
+- Not touched (Phase 9 owns them): CHANGELOG.md, BRIEFING.md, README.md, config.toml,
+           scripts/requirements.txt, scripts/Universal/ai/** (provider internals),
+           core/batch_runner.py (the Phase-5 seam was consumed as-is, not modified)
+- Decided: two user-facing ambiguities were put to the user rather than guessed — the
+           AI switch always starts OFF (model/policy persist), and the dry-run AI
+           opt-in is exposed as a sub-checkbox.
+- Evidence: live on this machine through the panel's own path — no model chosen ->
+           no_model_selected with real tags ('qwen3:14b', 'qwen3:8b'); installed tag
+           -> ok; bogus tag -> model_missing; closed port 127.0.0.1:1 -> service_down;
+           remote https endpoint -> invalid_configuration.
+- Note:    no corpus, chapter text, prompt/response text, model file, machine
+           identifier, secret, log, or generated PDF was recorded or staged. The
+           per-user settings file lives outside the repo. Pre-existing untracked
+           `.claude/` and `md-instructions/plan-2-ai-editor-integration.md` were left
+           untracked.
+- Result:  python scripts/verify.py -> PASS (692 passed, 2 skipped, 0 failed;
+           was 644/1 at the Phase 6B baseline). pip check clean; git diff --check clean.
+- Next:    Plan 2a Phase 8 — stratified pilot + report, then STOP for the user's
+           model/strategy decision. A human visual confirmation of the new panel is
+           requested first (Tk cannot be screenshot-tested from the agent side).
+
+### 2026-07-23 — HOME-PC — PUSHED (Plan 2a Phase 6B: live Ollama/Qwen smoke validation — PHASE 6 COMPLETE)
+- Branch:  feature/plan-2a-provider-foundation (1 commit this session on top of cbb4222)
+- Env:     Ollama server 0.32.1; client ollama==0.6.2 (matches the committed pin);
+           venv Python 3.13.12. Installed the already-committed `ollama`/`tomli` pins
+           into the existing .venv only — no system-wide install, no pin edited,
+           no `ollama pull`, no model install/retag, service never touched.
+- Tested:  model tag `qwen3:8b` (also installed but NOT exercised: `qwen3:14b`)
+- Changed: files/tests/test_ollama_provider.py (+2 evidence-backed estimator guards
+           pinning the conservative bytes/3 direction against a measured
+           MEASURED_BYTES_PER_TOKEN_FLOOR = 4.6; +26 lines),
+           md-instructions/DECISIONS.md (appended #053 — estimator left unchanged on
+           live evidence; the 8 KB truncation is model fidelity, not budget),
+           md-instructions/HANDOFF.md (Current Focus, Phase 6B work log, checklist
+           marked completed, this entry)
+- Evidence: health ok / model_missing / invalid_configuration / package_unavailable /
+           service_down / timeout all distinguished; wire options
+           {num_ctx 1020, num_predict 72, seed 0, temperature 0.0} with stream=False,
+           think=False, keep_alive="30m"; completion finish_reason='stop',
+           truncated=False, 8.525 s, prompt_eval_count 366, eval_count 5;
+           `ollama ps` → 100% GPU, CONTEXT 1020, 29 minutes left.
+           prefer_ai fell back byte-exactly for 3 chapters with one provider
+           construction; ai_required raised honestly with no partial candidate.
+- Note:    three smoke scripts ran from the session scratchpad OUTSIDE the repo and are
+           not committed. No corpus, chapter text, prompt/response text, model file,
+           machine identifier, secret, log, or generated PDF was recorded or staged.
+           Pre-existing untracked `.claude/` and the superseded
+           `md-instructions/plan-2-ai-editor-integration.md` were left untracked.
+- Result:  python scripts/verify.py → PASS (644 passed, 1 skipped — environmental Tk
+           display skip, 0 failed). Focused: 114 / 51 / 40. pip check and
+           git diff --check clean. Phase 6 complete; v0.12.0 NOT released, AI still
+           disabled by default; branch pushed, NOT merged. Next: Phase 7 (GUI AI
+           controls).
 
 ### 2026-07-19 — HOME-PC — PUSHED (Plan 1 Phase 6: bug hunt + seam doc + final docs — PLAN COMPLETE)
 - Branch:  feature/gui-batch-overhaul (1 commit this session on top of 12b62df)

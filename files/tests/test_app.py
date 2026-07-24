@@ -119,6 +119,44 @@ def test_app_layout_order_matches_scraper():
         app.destroy()
 
 
+def test_novel_combo_width_fits_longest_real_roster_entry():
+    """The novel dropdown must be wide enough to show the longest real roster label
+    (e.g. 'Circle of Inevitability — no profile yet') without truncation. The width is
+    computed from the live registry, not a guessed constant, so onboarding a longer
+    novel name keeps the widget correct. Pure-helper level: needs tkinter importable
+    but no display."""
+    pytest.importorskip("tkinter")
+    from gui import app as appmod
+    from core.novel_registry import available_novels
+
+    roster = available_novels()
+    longest = max(len(label) for label in roster)
+    # The helper returns a character width in font-average units; it must be at least
+    # as wide as the longest label so the closed display and the open list both fit it.
+    assert appmod._novel_combo_width(roster) >= longest
+
+
+def test_app_novel_combo_wide_enough_for_longest_entry():
+    """Display-gated: the realized combobox widget is sized to the longest roster label,
+    so the closed display and the dropdown list never truncate 'Circle of Inevitability
+    — no profile yet'."""
+    tk = pytest.importorskip("tkinter")
+    from gui import app as appmod
+    from core.novel_registry import available_novels
+
+    try:
+        app = appmod.WebnovelEditorApp()
+    except tk.TclError:
+        pytest.skip("no display available for Tk")
+    try:
+        app.withdraw()
+        app.update_idletasks()
+        longest = max(len(label) for label in available_novels())
+        assert int(app.novel_combo["width"]) >= longest
+    finally:
+        app.destroy()
+
+
 def test_app_input_mode_defaults_to_upload_with_both_toggles():
     """Plan 1 Phase 1: two mutually exclusive input modes exist; Upload is default."""
     tk = pytest.importorskip("tkinter")
@@ -574,5 +612,47 @@ def test_app_start_batch_passes_pause_gate_and_resets_button(tmp_path, monkeypat
         assert app._running is False
         assert str(app.pause_button["state"]) == "disabled"
         assert str(app.pause_button["text"]) == "Pause"
+    finally:
+        app.destroy()
+
+
+def test_app_stop_button_state_placement_and_reset(tmp_path, monkeypatch):
+    """Stop sits beside Pause, is run-only, and a later run starts cleared."""
+    tk = pytest.importorskip("tkinter")
+    from gui import app as appmod
+
+    pdf = tmp_path / "a.pdf"
+    pdf.write_bytes(b"%PDF-stub")
+    try:
+        app = appmod.WebnovelEditorApp()
+    except tk.TclError:
+        pytest.skip("no display available for Tk")
+    try:
+        app.withdraw()
+        app.update_idletasks()
+        assert str(app.stop_button["state"]) == "disabled"
+        assert int(app.stop_button.grid_info()["column"]) == (
+            int(app.pause_button.grid_info()["column"]) + 1
+        )
+
+        app._running = True
+        app.stop_button.configure(state=tk.NORMAL)
+        app.stop_event.clear()
+        app._request_stop()
+        assert app.stop_event.is_set()
+        assert str(app.stop_button["state"]) == "disabled"
+
+        app._reset_stop_control()
+        assert not app.stop_event.is_set()
+        assert str(app.stop_button["state"]) == "disabled"
+
+        calls = _wire_batch_spy(appmod, monkeypatch, tmp_path)
+        app._running = False
+        app.file_paths.append(str(pdf))
+        app._refresh_file_list()
+        app._start_batch()
+        app.update()
+        assert calls[0]["stop_event"] is app.stop_event
+        assert not app.stop_event.is_set()
     finally:
         app.destroy()

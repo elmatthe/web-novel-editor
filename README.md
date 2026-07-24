@@ -53,6 +53,14 @@ only (there is no macOS-exclusive code today).
 
 ## Status
 
+**Shipped: v0.12.0.** This version adds an **optional local AI proofreading pass** that runs after the
+scripted editing and before the PDF is written. It is **opt-in and OFF by default** — with it off, the
+output is exactly the same as the scripted result in v0.11.0. When switched on it runs entirely on your
+own machine via a local Ollama model (default `qwen3:14b`), makes only tiny high-confidence grammar/OCR
+corrections, and is held by a strict gate that keeps your protected names and the chapter's structure
+byte-for-byte intact — anything it is not sure about is left unchanged. Because it is off by default,
+the program behaves exactly as before unless you deliberately turn it on.
+
 Version 0.11.0 adds the overhauled batch flow: two input modes (upload PDFs / select a
 folder with natural-order recursive scanning), automatic mirrored output into an
 auto-numbered Downloads folder with original filenames, **"Universal" as the default
