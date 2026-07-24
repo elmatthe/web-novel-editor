@@ -89,6 +89,19 @@ MIN_HEIGHT = 1020
 PREFERRED_HEIGHT = 1120
 
 
+def _novel_combo_width(roster: list[str]) -> int:
+    """Character width (font-average units) for the novel dropdown.
+
+    Sized from the *actual* roster so the longest label — e.g. "Circle of
+    Inevitability — no profile yet" — is never truncated in either the closed
+    display or the open list, and so onboarding a longer novel name keeps the
+    widget correct without a hand-tuned constant. The +2 leaves room beside the
+    dropdown arrow.
+    """
+    longest = max((len(label) for label in roster), default=0)
+    return longest + 2
+
+
 class WebnovelEditorApp(tk.Tk):
     """The single main application window."""
 
@@ -264,9 +277,14 @@ class WebnovelEditorApp(tk.Tk):
         roster = available_novels()
         default = DEFAULT_NOVEL if DEFAULT_NOVEL in roster else (roster[0] if roster else "")
         self.novel_var = tk.StringVar(value=default)
+        # Width is measured from the real roster so the longest label shows in full
+        # in both the closed display and the open dropdown list. The list itself is a
+        # native override-redirect popup that draws in front of the card content, so
+        # it correctly covers (never collides behind) the description below — no
+        # z-order handling is needed once the width is right.
         self.novel_combo = ttk.Combobox(
             frame, textvariable=self.novel_var, values=roster, state="readonly",
-            font=self.font_body,
+            font=self.font_body, width=_novel_combo_width(roster),
         )
         self.novel_combo.grid(row=0, column=1, sticky="w")
         self.novel_combo.bind("<<ComboboxSelected>>", self._on_novel_changed)

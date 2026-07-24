@@ -29,6 +29,31 @@ dry-run, and build steps; and `build_pdf(...)` remains the sole PDF writer.
 Baseline on Python 3.14.2: `pip check` clean; `scripts/verify.py` PASS with
 **505 passed, 9 skipped** (environmental skips only).
 
+## Work Log — 2026-07-24 — Claude Code — GUI fix: novel dropdown width (standalone)
+
+Small, self-contained cosmetic fix, committed on its own ahead of Phase 8 — **not**
+part of the Phase 8 work. The user visually confirmed the Phase 7 AI card looks correct
+but flagged a pre-existing bug in the Novel card's "Editing profile" dropdown: the
+combobox carried no explicit `width`, so it fell back to the ttk default (~20 chars) and
+truncated the longest roster label — "Circle of Inevitability — no profile yet" (40
+chars) — in both the closed display and the open list. The narrow, truncated list also
+read as "colliding" with the description text beneath it.
+
+**Fix (widget sizing only).** Added a pure module-level helper `_novel_combo_width(roster)`
+in `gui/app.py` that returns `max(len(label)) + 2` measured from the **live registry**
+(`available_novels()`), not a guessed constant, and passed it as the combobox `width`.
+The open list is a native override-redirect popup that draws in front of the card, so
+once the width is right it correctly covers — never collides behind — the description;
+no z-order work was needed. Did not touch `novel_registry.py`, the roster logic, or the
+Novel card structure.
+
+**Tests.** Two added to `files/tests/test_app.py`: a headless one asserting
+`_novel_combo_width(available_novels()) >= longest real label`, and a display-gated one
+asserting the realized widget's `width >= longest`. Both watched fail first (helper
+absent; realized width 20 < 40) then pass. Focused GUI/startup/launcher/AI-GUI run
+(`test_app`, `test_main_check_flag`, `test_launchers`, `test_scaffold`,
+`test_ai_gui_controls`): **91 passed, 0 failed**.
+
 ## Work Log — 2026-07-23 — Claude Code — Plan 2a Phase 7 (GUI AI Controls)
 
 Ran on HOME-PC from clean, aligned local/remote SHA `a32de93`. **Phase 7 is complete.**
