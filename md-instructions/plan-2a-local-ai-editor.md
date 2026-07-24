@@ -552,6 +552,27 @@ fallback rate; meaningful corrections per chapter; script-only vs AI diffs. Trea
 
 Then **STOP** and ask me to choose: adopt a model + strategy, revise and repeat, or postpone AI.
 
+### Phase 8 findings (recorded 2026-07-24, HOME-PC)
+Executed. Full text-free aggregate in `md-instructions/PILOT-REPORT.md`; decision recorded as
+DECISIONS #057; local-only bundle in gitignored `files/qa-tools/scratch/pilot/`.
+
+- **Corpus was swapped for this phase.** The live set became Shadow Slave + The Noble Queen
+  (profiled) and Renegade Immortal + Reverend Insanity (universal-only, 0 protected terms —
+  these also serve as the required Universal-mode coverage). Selection: **10 chapters/novel =
+  40**, stratified by size percentile + trait, drawn from a ~1,120-chapter characterization.
+- **Matrix: 120 runs** ({8b, 14b} × {M, V}; universal novels ran M only since M≡V with no
+  terms). Drove the real `AIEditor.edit` seam; 74.9 min total.
+- **Gate held: 0 accepted protected-term failures / 80 profiled runs.**
+- **Phase 6B expansion did NOT reproduce** on real prose with the real prompt: done_reason
+  `stop` on 119/120; single-chunk raw/in p50 = 0.997; max 1.23× (8b) / 1.07× (14b).
+- **Model split on edit quality:** accepted diffs were tiny (0–5 chars); 14b's sampled edits
+  were all legitimate corrections, whereas 8b intermittently corrupted non-protected words/
+  names in ways the minimal-diff gate cannot catch. **14b: 98 % accept / 1 fallback (mask);
+  8b: 92 % / 3.** Strategy M beat V for both. 14b ~1.6× slower (warm p50 40 s vs 25 s).
+- **Recommendation (user to adopt): qwen3:14b + Strategy M**; 8b + M as a faster non-default
+  option; not Strategy V. Estimator and ±3 % gate unchanged by evidence (fail-safe confirmed).
+- **STOP:** awaiting the user's model/strategy decision before Phase 9 wires it.
+
 ## Definition of Done
 - [ ] Started from the recorded, approved Plan 1 v0.11.0 merged commit (SHA in `HANDOFF.md`).
 - [ ] All phases done; Phase 8 paused for and received my model/strategy call.

@@ -9,6 +9,50 @@ its original decision date. New decisions continue to be appended here (newest o
 
 ---
 
+## 057 — Plan 2a Phase 8: pilot evidence recommends qwen3:14b + Strategy M; thresholds unchanged; user decides adoption — 2026-07-24 — Claude Code
+
+**Status:** Evidence recorded; **final model/strategy adoption deferred to the user at the
+Phase 8 gate** (Phase 9 wires the choice). Full aggregate in `md-instructions/PILOT-REPORT.md`.
+
+**Decision (methodology):** A 120-run stratified pilot drove the real
+`extract → deterministic pipeline → AIEditor.edit` seam against live Ollama on HOME-PC —
+40 chapters (10 each from the session-swapped corpus: profiled Shadow Slave + The Noble
+Queen, universal-only Renegade Immortal + Reverend Insanity) × {qwen3:8b, qwen3:14b} ×
+{Strategy M, Strategy V}. Universal-only novels ran M only because with 0 protected terms M
+and V are behaviorally identical. All pilot inputs, outputs, diffs, and reports live in
+gitignored `files/qa-tools/scratch/pilot/`; only text-free aggregates were committed.
+
+**Findings that drive the recommendation:**
+- **The gate held: 0 accepted protected-term failures across 80 profiled runs.** Every
+  protected-term change was rejected and fell back to deterministic output.
+- **The Phase 6B "expansion" did not reproduce on real prose with the real prompt.**
+  done_reason = `stop` on 119/120 runs; single-chunk raw-output/input p50 = 0.997 (faithful
+  echo) for both models; max 1.23× (8b, one term-dense chapter) vs 1.07× (14b). It was a
+  synthetic-probe artifact, not a general failure mode.
+- **Edit-quality is where the models diverge.** Accepted changes were tiny (0–5 chars). In a
+  manual sample, **14b produced only legitimate minimal corrections; 8b intermittently
+  introduced damaging edits the gate accepts** (comma inserted mid-word, name truncated to a
+  syllable, a meaning-changing pronoun swap) because those tokens are not protected terms and
+  the change stays within ±3 %/structure. A minimal-diff gate cannot police in-place
+  corruption of arbitrary prose — model quality must, and 14b is materially safer.
+- **14b: 98 % accept / 1 fallback (mask); 8b: 92 % / 3 (mask). Strategy M beats V for both.**
+  14b costs ~1.6× latency (warm p50 40 s vs 25 s per chapter).
+
+**Recommendation (the user's call to accept):** default to **qwen3:14b + Strategy M**; offer
+**qwen3:8b + Strategy M** as a faster throughput option but not the default; do not default to
+Strategy V.
+
+**Thresholds / estimator — no change, by evidence (upholds DECISIONS #053).** The bytes/3
+estimator over-reserves (actual `prompt_eval_count` p50 ≈ 2,680, max ≈ 4,531 vs the 32,768
+limit), i.e. it stays fail-safe. The ±3 % character-variance gate correctly passed faithful
+echoes and caught expansions. Neither is changed here; any future change (e.g. a narrow
+in-token-corruption check) is test-first with its own entry.
+
+**Consequences:** Phase 9 wires the user's chosen model/strategy into `config.toml` defaults
+and the GUI, runs the clean-room script-only regression, and ships v0.12.0. The gate's
+inability to catch small non-protected-word corruption is documented as a known limitation and
+a candidate for a future narrow, test-first gate check — deliberately not attempted in Phase 8.
+
 ## 056 — Plan 2a Phase 7: the window minimum height is a tested layout contract — 2026-07-23 — Claude Code
 
 **Status:** Accepted; `MIN_HEIGHT` raised 700 → 1020, `PREFERRED_HEIGHT` 1120 added.

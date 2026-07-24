@@ -16,10 +16,13 @@ Phase 6. **Phase 7 (GUI AI controls) is now DONE**, so the AI pass is reachable 
 app for the first time: an opt-in card that always starts OFF, a model dropdown filled only
 from a live `list_models()`, a status line carrying the provider's own `ProviderStatus`,
 the run-policy choice, and a running-average sec/chapter + ETA readout. v0.12.0 is **not**
-released and AI remains disabled by default in `config.toml`. No launcher, release, or
-corpus work has begun; **Phase 8 (stratified pilot + report, then STOP for the user's
-model/strategy decision)** is the next continuation point. No model is recommended anywhere
-in the UI — that choice is still Phase 8's to make.
+released and AI remains disabled by default in `config.toml`. **Phase 8 (stratified pilot +
+report) is now DONE and STOPPED for the user's model/strategy decision** — the pilot ran the
+full {8b, 14b} × {M, V} matrix on real corpus and recommends **qwen3:14b + Strategy M**
+(evidence in `md-instructions/PILOT-REPORT.md`, DECISIONS #057). Nothing is wired: no model is
+set as default anywhere, `config.toml` still has `enabled = false`, and adoption is Phase 9's
+job once the user chooses. **Next continuation point is Phase 9 (adopt decision + bug hunt +
+docs + release gate for v0.12.0).**
 
 Stage A confirmed the live post-pipeline/pre-build seam in
 `scripts/Universal/core/batch_runner.py`: files are processed sequentially with
@@ -28,6 +31,79 @@ per-file exception isolation; `pause_gate` is checked only between files;
 dry-run, and build steps; and `build_pdf(...)` remains the sole PDF writer.
 Baseline on Python 3.14.2: `pip check` clean; `scripts/verify.py` PASS with
 **505 passed, 9 skipped** (environmental skips only).
+
+## Work Log — 2026-07-24 — Claude Code — Plan 2a Phase 8 (Stratified Pilot + Report)
+
+Ran on HOME-PC from `00d4b50` (the dropdown-fix commit below). **Phase 8 is complete and
+STOPPED for the user's model/strategy decision**, per the plan. No production code changed —
+this phase is measurement only; the chosen model/strategy gets wired in Phase 9.
+
+**Corpus was swapped mid-session.** The old three-novel set (Supreme Magus / Noble Queen /
+Shadow Slave, dated Jul 5) was replaced during the session by a new four-novel set the user
+pointed me to: **Shadow Slave + The Noble Queen (profiled) and Renegade Immortal + Reverend
+Insanity (universal-only, 0 protected terms).** The universal-only pair doubles as the plan's
+required Universal-mode coverage. The whole pilot was re-based on the live set, and the earlier
+"single spine / Supreme Magus" sampling answer was superseded by the user's "~10 from each
+novel" instruction.
+
+**Selection.** Characterized ~1,120 chapters (cleaned length, script-edit load, dialogue and
+protected-term density) and chose **10 chapters/novel = 40**, stratified by size percentile
+(shortest/q25/median/q75/p90/p99/longest) plus trait cases (heaviest edit load, near-zero edits
+= already-clean over-edit probe, most dialogue, densest protected-term). Notably the
+deterministic pipeline already leaves this corpus very clean (0–2 script edits/chapter), so the
+dominant risk under test is **over-editing** and the ideal accepted outcome is a faithful echo.
+
+**Matrix: 120 runs** ({qwen3:8b, qwen3:14b} × {Strategy M, Strategy V}; universal novels ran M
+only because M≡V with 0 protected terms). The harness drove the **real**
+`extract → deterministic pipeline → AIEditor.edit(baseline, protected_terms)` seam — not a
+duplicate gate/provider path — with a wire-level recorder capturing raw output size even on
+truncation. Completed in 74.9 min. All artifacts (harness, `results.jsonl`, full-text `bundle/`,
+candidates/selection, local report) live in gitignored `files/qa-tools/scratch/pilot/`.
+
+**Results (full text-free aggregate in `md-instructions/PILOT-REPORT.md`; DECISIONS #057):**
+- **Gate held: 0 accepted protected-term failures across all 80 profiled runs.** Every
+  protected-term change was caught → clean deterministic fallback.
+- **Phase 6B "expansion" did NOT reproduce** on real prose with the real prompt: done_reason
+  `stop` on 119/120 runs; single-chunk raw-output/input p50 = 0.997 (near-exact echo); max
+  1.23× (8b, one term-dense chapter) vs 1.07× (14b). Explained as a synthetic-probe artifact.
+- **Model split on edit quality (the deciding evidence):** accepted diffs were tiny (0–5 chars);
+  in a manual sample **14b produced only legitimate minimal corrections (tense, dropped words,
+  OCR, one name-consistency fix), while 8b intermittently introduced damaging edits the gate
+  accepts** — a comma inserted mid-word, a name truncated to a syllable, a meaning-changing
+  pronoun swap — because those tokens aren't protected terms and the change stays within
+  ±3 %/structure. A minimal-diff gate can't police in-place corruption of arbitrary prose; model
+  quality must, and 14b is materially safer.
+- **Acceptance/fallback:** 14b mask 39/40 (98 %, 1 fallback); 14b verify 18/20; 8b mask 37/40
+  (92 %, 3); 8b verify 16/20 (80 %, 4). **Strategy M beat V for both models.**
+- **Latency (warm):** 14b p50 40.1 s / p95 104 s / max 129 s; 8b p50 25.3 s / p95 58 s /
+  max 83 s. 14b ~1.6× slower.
+- **Chunking {1:106, 2:10, 3:4}; 8/120 retried;** all multi-chunk accepted chapters reassembled
+  exactly. Fallbacks concentrated on the longest profiled chapters (gate working as intended).
+- **Estimator + ±3 % gate unchanged, by evidence** (upholds DECISIONS #053): bytes/3
+  over-reserves (actual `prompt_eval_count` p50 ≈ 2,680, max ≈ 4,531 vs 32,768); the variance
+  gate passed faithful echoes and caught expansions.
+
+**Recommendation (the user's call): qwen3:14b + Strategy M** as default; **qwen3:8b + Strategy
+M** as a faster non-default option; not Strategy V. A narrow future gate check for in-token
+corruption (e.g. a comma inside an alphabetic token) is flagged for Phase 9/later — test-first,
+not attempted here.
+
+**Corpus discipline (verified).** Nothing under any corpus/pilot path was committed: the entire
+`files/qa-tools/scratch/pilot/` tree (inputs, raw model outputs, diffs, `results.jsonl`,
+candidates/selection, local report) is gitignored, and `files/pdf-example-chapters/` is
+gitignored. The tracked docs contain **only aggregate statistics and abstract edit categories —
+zero verbatim corpus, prompt, or response text**, even short snippets. `git status` and
+`git diff --check` were confirmed clean of any scratch/corpus path before committing.
+
+**Not done, by instruction:** no production code changed; no model wired; `config.toml` still
+`enabled = false`; `README.md`/`BRIEFING.md`/`CHANGELOG.md` untouched (Phase 9 owns the release
+docs); v0.12.0 not released; no merge to `main`, no PR; Phase 9 not started.
+
+### Session Sync Log
+- 2026-07-24 — HOME-PC — Work Item A (novel dropdown width fix) committed `00d4b50` and pushed.
+- 2026-07-24 — HOME-PC — Phase 8 pilot executed (120 runs, 74.9 min) and documented; committed
+  separately and pushed to `feature/plan-2a-provider-foundation`. STOPPED for the user's
+  model/strategy decision. Next: Phase 9.
 
 ## Work Log — 2026-07-24 — Claude Code — GUI fix: novel dropdown width (standalone)
 
