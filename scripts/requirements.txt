@@ -26,3 +26,17 @@ ollama==0.6.2
 # path still run with this package absent. Latest stable verified on PyPI 2026-07-24
 # (Plan 2b Phase 2); the Phase 0 candidate 2.14.0 is still current and is now pinned.
 google-genai==2.14.0
+# Official Groq SDK. Imported lazily only when the Groq provider builds a client
+# (ai/providers/groq.py); nothing in the app imports it at package load, so the suite
+# and the whole script-only path still run with this package absent. Requires Python
+# >= 3.10, matching config.toml python_minimum.
+#
+# WHY 1.6.0, re-checked on PyPI 2026-07-25 (Plan 2b Phase 3). Phase 0 flagged 1.6.0 as a
+# SAME-DAY release and refused to pin it blind. Re-checked a day later: 1.6.0 is still
+# the latest, no 1.6.1 hotfix followed, and nothing was yanked. Its changelog entry over
+# 1.5.0 is repository infrastructure only — CI runner configuration in the workflow
+# templates, plus CODEOWNERS — with no client-code or breaking change, so its runtime
+# diff against the month-settled 1.5.0 is effectively nil. Pinning back to 1.5.0 would
+# have bought no extra soak time on the code that actually ships while giving up a
+# month of upstream API-schema updates.
+groq==1.6.0

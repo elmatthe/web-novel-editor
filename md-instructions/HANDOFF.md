@@ -1,13 +1,189 @@
 # Web Novel Editor — Handoff
 
 ## Current Focus
-**Plan 2b (Cloud AI Providers — Gemini, Groq — target v0.13.0) is UNDERWAY. Phases 0, 1 and 2 are
-complete; Phase 3 (GroqProvider) is the next authorized work.** Working branch
-**`feature/plan-2b-cloud-providers`**, cut from the approved merged release commit **`72d68ca`**
-(`main`, tag `v0.12.0`). Baseline `verify.py` at branch creation: **688 passed / 8 skipped**; after
-Phase 1: **739 passed / 8 skipped**; after Phase 2: **801 passed / 9 skipped**. **`GeminiProvider`
-exists and `google-genai==2.14.0` is pinned; no Groq adapter and no `groq` pin yet.** No live cloud
+**Plan 2b (Cloud AI Providers — Gemini, Groq — target v0.13.0) is UNDERWAY. Phases 0, 1, 2 and 3 are
+complete; Phase 4 (rate limiting + quota classification) is the next authorized work.** Working
+branch **`feature/plan-2b-cloud-providers`**, cut from the approved merged release commit
+**`72d68ca`** (`main`, tag `v0.12.0`). Baseline `verify.py` at branch creation: **688 passed /
+8 skipped**; after Phase 1: **739 / 8**; after Phase 2: **801 / 9**; after Phase 3: **892 passed /
+9 skipped**. **Both cloud adapters now exist** — `GeminiProvider` (`google-genai==2.14.0`) and
+`GroqProvider` (`groq==1.6.0`), both pinned, neither SDK imported at package load. No live cloud
 call has ever been made from this repo. See the phase work logs below.
+
+## Work Log — 2026-07-25 — Claude Code — Plan 2b Phase 3 (GroqProvider)
+
+Ran on HOME-PC. **Phase 3 is complete and STOPPED per instruction; Phase 4 was not started.**
+**No live cloud call was made** — every test injects an in-process fake transport. `AIEditor`, the
+validation gate, the prompt layer, the chunker, the deterministic pipeline, `config.toml`, and the
+Gemini and Ollama adapters are byte-for-byte unchanged, confirmed by `git diff --stat HEAD` over
+each file.
+
+**The 2a base contract required NO change.** `provider.py`, `models.py` and `errors.py` are
+untouched and the diff proves it; `factory.py` needed no edit because its lazy `groq` →
+`ai.providers.groq.GroqProvider` mapping already existed. The one design question this phase forced
+is recorded below under *the rate-limit snapshot*, and the answer was **not** to extend the shared
+contract.
+
+**Web re-verification first, before any provider code (mandatory step).** Groq's own docs only;
+third-party aggregators were checked and discarded again as mutually contradictory (one still lists
+"Llama 4 Scout / Qwen3 32B / DeepSeek R1 Distill" and a flat 30K TPM / 14.4K RPD for all models —
+none of which matches Groq's per-model table). **All four Groq `[[ai.approved_models]]` records were
+re-verified field by field and needed no change.** Written into the drop as a dated *Phase 3
+research re-verification* section (items 12–15): the production lineup and every context/output
+figure are unchanged and none of the four models is deprecated (two are the named *replacements* for
+models shutting down 2026-08-16); the free-plan per-model limits are unchanged from Phase 0's record,
+so correction #5 stands and **TPD still binds long before RPD**; and the headers are confirmed with
+an asymmetry that matters — `x-ratelimit-*-requests` are **per day**, `x-ratelimit-*-tokens` are
+**per minute**.
+
+**The Qwen finding, refined.** Phase 0 correction #6 said Groq offers no Qwen model. The
+load-bearing half is **re-confirmed — there is still no Qwen model in Groq's production lineup** —
+but Groq now lists `qwen/qwen3.6-27b` in the **preview** section (131,072 / 16,384), explicitly "for
+evaluation purposes only". So the Phase 7 comparison is still **cross-family with no continuity to
+the 2a `qwen3:14b` baseline**, and it would not have been continuity anyway: a 27B 3.6-generation
+model is not the local 14B 3-generation one. Being preview it is refused twice over by strict
+free-only mode, and a test asserts exactly that.
+
+**SDK pinned: `groq==1.6.0`.** Phase 0 refused to pin it blind as a same-day release. Re-checked on
+PyPI a day later: still the latest, **no `1.6.1` hotfix, nothing yanked**, and its changelog diff
+over 1.5.0 is *repository infrastructure only* — CI runner configuration in the workflow templates
+plus CODEOWNERS, no client-code and no breaking change. Its runtime diff against the month-settled
+1.5.0 is therefore effectively nil, so pinning back to 1.5.0 would have bought no extra soak time on
+the code that actually ships while giving up a month of upstream API-schema updates. Surface
+confirmed through Context7 against the SDK's own source. **The SDK is imported in exactly one
+place** — `ai/providers/groq.py`'s `_load_sdk()`, called only when a client is built — and a test
+asserts `groq` is absent from `sys.modules` after importing both `ai` and the adapter.
+
+**Phase 2's shape was mirrored deliberately; five divergences are real and each has a reason.**
+Refusals stored not raised at construction, max-output from the reviewed record (an explicit
+argument may lower it, never raise it), retirement checked once per instance and cached, plain-string
+finish-reason comparison, one lazy import site — all identical. What differs: (1) **model IDs are
+passed through byte-for-byte** — Gemini strips a `models/` resource prefix, and doing anything of the
+sort here would rewrite `openai/gpt-oss-120b`, a whole ID that merely contains a slash, into one that
+does not exist; (2) **finish reasons are lowercase** (`stop`/`length`/`tool_calls`) where Gemini's
+are uppercase; (3) **the SDK's own retries are disabled** (`max_retries=0`) because it retries twice
+by default, which would double-spend a free tier where TPD binds and would hide from Phase 4's
+limiter the very 429s it exists to see; (4) **reasoning is disabled on the `openai/gpt-oss` family
+only** — reasoning tokens come out of the output budget, the same trap Gemini's "thinking" posed, but
+sending the parameter to a Llama model is a 400, so it is sent per model family exactly as Gemini
+sends its thinking setting; (5) **status codes are read from `status_code`** (Groq/httpx) rather than
+Gemini's `code`.
+
+**THE ASYMMETRY — what Phase 4 can rely on.** `capabilities().exposes_rate_limits` is **True** for
+Groq and **False** for Gemini, and that flag is the switch: **header-driven for Groq,
+floored-and-conservative for Gemini.** Every response — success *and* 429 — is scraped into a
+`RateLimitSnapshot`, readable as `provider.last_rate_limits` and attached to the raised error as
+`exc.rate_limits` / `exc.retry_after_seconds`. Captured fields and their true meanings:
+
+| Header | Snapshot field | Real meaning |
+|---|---|---|
+| `x-ratelimit-limit-requests` | `limit_requests` | requests **per day** (RPD) |
+| `x-ratelimit-remaining-requests` | `remaining_requests` | RPD remaining |
+| `x-ratelimit-reset-requests` | `reset_requests_seconds` | Go duration → seconds |
+| `x-ratelimit-limit-tokens` | `limit_tokens` | tokens **per minute** (TPM) |
+| `x-ratelimit-remaining-tokens` | `remaining_tokens` | TPM remaining |
+| `x-ratelimit-reset-tokens` | `reset_tokens_seconds` | Go duration → seconds |
+| `retry-after` | `retry_after_seconds` | seconds; 429 only |
+| `x-groq-request-id` | `CompletionResult.provider_request_id` | falls back to `x_groq.id`, then `id` |
+
+The request=day / token=minute split is load-bearing: read the other way round, Phase 4 would wait a
+minute for a quota that resets tomorrow. Durations parse `"7.66s"`, `"2m59.56s"`, `"1h2m3s"`,
+`"500ms"` and bare seconds; **anything that does not parse cleanly and completely returns `None`**
+rather than a guess, because a limiter waiting on a misread header is worse than one falling back to
+its floor. `is_empty` tells Phase 4 when nothing usable came back. Headers are read case-insensitively
+and an older SDK without `with_raw_response` degrades to a plain call — losing the figures, not the
+run.
+
+**The rate-limit snapshot is a provider-specific extra, NOT a contract change — and that is the
+right answer, not a workaround.** Two reasons it does not belong on `CompletionResult`: the shared
+result has no field that could carry it without abusing one, and — decisively — **the reading Phase 4
+needs most arrives on a 429, where there is no `CompletionResult` at all**. A field on the success
+type would have covered only the easy half. A snapshot held on the provider and attached to the
+raised error covers both, and it is the same shape the local adapter already uses for its inspectable
+`RequestBudget`, which 2a's Phase 0 contract map confirmed sits outside the four-method protocol on
+purpose.
+
+**The 429 split.** The drop forbids inferring daily exhaustion from *every* 429, so it needs positive
+evidence, and Groq supplies two independent kinds: its own wording naming the exact limit ("on tokens
+per day (TPD)"), and — failing that — the header rule that `x-ratelimit-remaining-requests` is a
+per-**day** counter, so zero remaining is daily exhaustion even when the body says only "Too Many
+Requests". Anything else stays a retryable per-minute `RateLimited`. **Availability is
+per-model and per-organization**, so no observed figure is generalised and none is hardcoded: limits
+come from live headers, sizes from the reviewed record, and availability from *this key's* own model
+list.
+
+**Finish-reason and error mapping (the table).**
+
+| Groq signal | Mapped to | Retryable | Effect |
+|---|---|---|---|
+| `stop` + non-empty text | `CompletionResult` | — | accepted, then gated as usual |
+| `stop` + empty text | `InvalidResponse` | yes | one stricter retry, then fallback |
+| `length` | `InvalidResponse` ("truncated") | yes | one stricter retry, then fallback |
+| `tool_calls` / `function_call` | `InvalidResponse` | **no** | immediate chapter-atomic fallback |
+| absent / `""` / `none` / `unspecified` | `InvalidResponse` | **no** | **fails closed** |
+| **any unrecognised value** (e.g. `content_filter`) | `InvalidResponse` | **no** | **fails closed — text discarded, never returned** |
+| no choices at all | `InvalidResponse` | yes | retry then fallback |
+| local estimate over the record's context | `ContextTooLong` | no | refused **before** the call is paid for |
+| HTTP 413 | `ContextTooLong` | no | — |
+| HTTP 400 naming a token/context limit | `ContextTooLong` | no | — |
+| HTTP 400 otherwise | `ProviderUnavailable` | no | — |
+| HTTP 401 / 403 | `AuthenticationError` | no | — |
+| HTTP 404 | `ModelUnavailable` | no | names no replacement |
+| HTTP 429 naming per-day/TPD/RPD, **or** zero RPD remaining | `DailyQuotaExhausted` | no | Phase 5 checkpoint case |
+| HTTP 429 otherwise | `RateLimited` | yes | Phase 4 limiter case |
+| HTTP 5xx | `ProviderUnavailable` | yes | — |
+| timeout / connection fault | `TransientNetworkError` | yes | — |
+| missing `groq` | `ProviderUnavailable` → `PACKAGE_UNAVAILABLE` | no | — |
+| no key in any precedence slot | `AuthenticationError` → `AUTH_MISSING` | no | — |
+
+**Redaction.** Every message the adapter raises or logs is built from
+`redaction.redact_exception(...)` and bounded to 300 characters. A key passed directly to the
+constructor is registered with the redactor immediately (it never passed through `ai.secrets`), and
+the module logger carries the Phase 1 `RedactingFilter`, installed at construction. Five tests cover
+it, including a real `gsk_…`-shaped key echoed inside a provider error, inside an
+`Authorization: Bearer` header in a list failure, and in a log record.
+
+**The same pre-existing invariant caught the same class of mistake as in Phase 2.** A docstring in
+the new adapter named the other provider, tripping
+`test_ollama_name_is_confined_to_provider_factory_and_configuration_boundary`. The docstring was
+reworded — **the test was not widened**. Not a product defect.
+
+**Tests: 91 new, in `files/tests/test_groq_provider.py` (936 lines)**, all offline and hermetic —
+each passes explicit non-existent `secrets_file`/`dotenv_path` locations or an injected key, so a
+developer with a real `GROQ_API_KEY` on this machine cannot make the suite pass or fail for the wrong
+reason. Coverage: SDK isolation and lazy factory construction; capabilities from the reviewed record;
+`exposes_rate_limits = True`; the max-output override capping but never raising; namespaced IDs
+preserved untouched; approved-choice filtering (live ∩ reviewed ∩ selectable, preview and
+cross-provider excluded); refusal of non-approved, unknown-confidence, preview, alias and
+wrong-provider models; retired model → provider unavailable naming no replacement; empty live list
+treated as unverifiable rather than retired; availability checked **once**, not per chapter; absence
+of any substitution helper (source scan); the full happy path into `CompletionResult` including the
+model **actually used**, request ID and token usage; missing usage reported as `None` rather than
+invented; the exact outbound payload (bounded max-output, temperature, seed, `n`, `stream`, separate
+system/user messages, reasoning disabled per family, SDK retries off); every row of the mapping table
+including the **fail-closed unknown finish reason**; local and provider-side context-too-long; auth
+missing, rejected and env-resolved; the full header block — parsing, case-insensitivity, malformed,
+absent, retry-after, snapshot on the raised error, and the no-`with_raw_response` fallback; and
+redaction with an injected fake key.
+
+**Five guards were mutation-tested**, so they are proven load-bearing rather than incidentally green:
+breaking the fail-closed finish-reason branch, the header-driven daily classification, the
+reasoning-effort family gate, the disabled SDK retries, or the byte-for-byte model-ID passthrough
+each makes its own test fail.
+
+**Gates.** `scripts/verify.py` **PASS — 892 passed, 9 skipped** (901 collected, 0 failed); pins PASS;
+CHANGELOG at v0.12.0 matching BRIEFING. That is **+91 exactly** against the 801/9 Phase 2 baseline,
+with zero regressions. `pip check` clean; `git diff --check` clean. **Clean-room re-run: identical
+892 passed / 9 skipped** with `ollama`, `groq`, `google.genai` and `google.generativeai` all blocked
+by an injected import blocker and `GEMINI_API_KEY`/`GROQ_API_KEY`/`GOOGLE_API_KEY` unset — the suite
+genuinely passes offline with no keys and no SDKs installed. Neither cloud SDK is installed on this
+machine, matching Phase 2.
+
+**Not done, by instruction:** no rate limiter or quota state machine (Phase 4); no run manifest or
+resume (Phase 5); no GUI widget, provider dropdown, or disclosure dialog (Phase 6); no comparison run
+(Phase 7); no CHANGELOG/BRIEFING/DECISIONS entry (v0.13.0 docs belong to Phase 8). `config.toml` was
+**not** touched — `[ai.groq] enabled = false` and `model = ""` still ship, so Groq is inert and
+nothing pre-selects a cloud model.
 
 ## Work Log — 2026-07-24 — Claude Code — Plan 2b Phase 2 (GeminiProvider)
 
@@ -346,6 +522,16 @@ key storage, no consent dialog, no rate limiter, no GUI change, no dependency ad
 CHANGELOG/BRIEFING/DECISIONS entry (v0.13.0 docs belong to Phase 8), no merge, no tag, no PR.
 
 ### Session Sync Log
+- 2026-07-25 — HOME-PC — Plan 2b Phase 3 (GroqProvider), verify 892/9 on
+  `feature/plan-2b-cloud-providers`. Changed: `scripts/Universal/ai/providers/groq.py` (new, 862
+  lines), `files/tests/test_groq_provider.py` (new, 936 lines, 91 tests),
+  `scripts/requirements.txt` (+14 lines — `groq==1.6.0` pinned with rationale),
+  `md-instructions/plan-2b-cloud-providers.md` (+53 lines — dated Phase 3 re-verification section,
+  items 12–15), `md-instructions/HANDOFF.md` (this entry + Current Focus). **2a base contract
+  unchanged** — no edit to `provider.py`, `models.py`, `errors.py`, `factory.py`, `editor.py`,
+  `validation.py`, `prompt.py` or `chunking.py`. No `config.toml`, GUI, pipeline, launcher, Gemini
+  or Ollama change. No live cloud call. Committed and pushed to the working branch.
+  Next: Phase 4 — rate limiting + quota classification.
 - 2026-07-24 — HOME-PC — Plan 2b Phase 0 from `72d68ca` on new branch
 - 2026-07-24 — HOME-PC — Plan 2b Phase 2 (GeminiProvider), verify 801/9 on
   `feature/plan-2b-cloud-providers`. Changed: `scripts/Universal/ai/providers/gemini.py` (new, 623

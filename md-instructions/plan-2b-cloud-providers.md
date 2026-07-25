@@ -168,6 +168,59 @@ Context7 against the SDK's own source and via PyPI as the current latest; `requi
 >= 3.10` matches `config.toml python_minimum`. The Phase 0 candidate was still current, so
 nothing had drifted. It is *not* the deprecated `google-generativeai`.
 
+### Phase 3 research re-verification — 2026-07-25 (Claude Code, HOME-PC)
+Mandatory re-check of the Groq production lineup, per-model free-plan limits, rate-limit
+headers and deprecations against **Groq's own documentation** before any provider code
+was written. Third-party aggregators were checked again and again discarded: they
+disagree with each other and with Groq (one still lists "Llama 4 Scout / Qwen3 32B /
+DeepSeek R1 Distill" and a flat "30K TPM, 14.4K RPD for all models", none of which
+matches Groq's own per-model table). **All four Groq `[[ai.approved_models]]` records
+were re-verified field by field and needed no change.** Four findings:
+
+12. **The lineup is unchanged and none of the four approved models is deprecated.**
+    Production remains `llama-3.3-70b-versatile` (131,072 / 32,768),
+    `llama-3.1-8b-instant` (131,072 / 131,072), `openai/gpt-oss-120b` and
+    `openai/gpt-oss-20b` (both 131,072 / 65,536), plus Whisper audio and the
+    `groq/compound` systems, which stay out of contract. Every context/output figure in
+    the approved records still matches the model page exactly. The deprecations page
+    lists none of the four; two of them are named as the *recommended replacements* for
+    models shutting down 2026-08-16.
+13. **Correction #6 holds for production, but needs one refinement: Groq now lists a
+    Qwen tag — as a PREVIEW model.** `qwen/qwen3.6-27b` (131,072 / 16,384) appears in
+    the preview section, explicitly "intended for evaluation purposes only and should
+    not be used in production". So the load-bearing half of #6 is re-confirmed —
+    **there is still no Qwen model in Groq's production lineup** — and the Phase 7
+    comparison remains **cross-family with no continuity to the 2a `qwen3:14b`
+    baseline**. It would not have been continuity in any case: a 27B 3.6-generation
+    model is not the local 14B 3-generation one. Being preview, it is refused twice
+    over by strict free-only mode (non-`stable`), and a test asserts exactly that.
+14. **The free-plan per-model limits are unchanged from Phase 0's record**:
+    `llama-3.3-70b-versatile` 30 RPM / 1K RPD / 12K TPM / 100K TPD;
+    `llama-3.1-8b-instant` 30 / 14.4K / 6K / 500K; both gpt-oss models 30 / 1K / 8K /
+    200K. Correction #5 therefore stands unchanged — **TPD binds long before RPD**, and
+    a ~3,000-chapter cloud run is not viable on Groq free. The docs restate that limits
+    apply **at the organization level**, vary per model, and that "there may be
+    exceptions", so no observed figure generalises and none is hardcoded anywhere.
+15. **The headers are confirmed, and they are not symmetrical.** Groq returns
+    `retry-after` (seconds, on 429 only) plus `x-ratelimit-{limit,remaining}-requests`
+    which are **per day (RPD)** and `x-ratelimit-{limit,remaining}-tokens` which are
+    **per minute (TPM)**, with `x-ratelimit-reset-{requests,tokens}` as Go-style
+    duration strings (`"2m59.56s"`, `"7.66s"`). All but `retry-after` are returned on
+    ordinary successful responses too. That request=day / token=minute asymmetry is
+    load-bearing: reading it the other way round would make Phase 4 wait a minute for a
+    quota that resets tomorrow.
+
+**SDK pinned: `groq==1.6.0`** (`scripts/requirements.txt`). Phase 0's correction #8
+refused to pin it blind as a same-day release; re-checked on PyPI 2026-07-25 it is still
+the latest with no `1.6.1` hotfix and nothing yanked, and its changelog diff over 1.5.0
+is repository infrastructure only (CI runner configuration in the workflow templates,
+CODEOWNERS) with no client-code or breaking change. Surface confirmed through Context7
+against the SDK's own source: `Groq(api_key=…, timeout=…, max_retries=…)`,
+`client.chat.completions.create(...)`, `client.chat.completions.with_raw_response.create(...)`
+→ `.headers` / `.parse()`, `client.models.list()` → `.data[].id`, and
+`APIStatusError.status_code` / `.message` / `.response.headers`. `requires_python >= 3.10`
+matches `config.toml python_minimum`.
+
 ## The honest safety contract (replaces "architecturally incapable of billing")
 The previous draft promised the app was "architecturally incapable of opting the user into paid
 usage." A desktop app holding a user-supplied key cannot determine authoritatively whether the
