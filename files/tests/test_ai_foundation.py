@@ -138,9 +138,29 @@ def test_import_has_no_filesystem_or_sdk_side_effects(monkeypatch, tmp_path):
 
 
 def test_committed_config_is_disabled_and_secret_free():
+    """No credential may be committed — checked by shape, not by keyword.
+
+    Plan 2b Phase 1 documents the ``GEMINI_API_KEY`` / ``GROQ_API_KEY`` environment
+    variables in this file's comments, which a bare substring scan would flag. The two
+    checks below are strictly stronger than that scan: nothing may *assign* a
+    credential-shaped setting, and no key-shaped value may appear anywhere in the file
+    (the redactor recognises Google, Groq, and OpenAI-style keys, so an accidentally
+    pasted one would change the text and fail here).
+    """
+    import re
+
+    from ai.redaction import redact
+
     root = __import__("pathlib").Path(__file__).resolve().parents[2]
     text = (root / "config.toml").read_text(encoding="utf-8")
     loaded = load_config(root / "config.toml")
     assert loaded["enabled"] is False
     assert loaded["protection_strategy"] == "mask"
-    assert not any(word in text.lower() for word in ("api_key", "secret", "password", "token ="))
+
+    assigned = re.findall(
+        r"(?im)^\s*([A-Za-z0-9_]*(?:api_?key|apikey|secret|password|credential"
+        r"|access_token|auth_token|api_token)[A-Za-z0-9_]*)\s*=",
+        text,
+    )
+    assert assigned == [], f"credential-shaped assignment in config.toml: {assigned}"
+    assert redact(text) == text, "a key-shaped value is present in config.toml"

@@ -2,11 +2,11 @@
 
 This module is deliberately tkinter-free, so every rule below is unit-testable
 headlessly. It also keeps the optional parts of the AI stack out of import time:
-only ``ai.models`` and ``ai.settings`` (pure stdlib) are imported at module load,
-while ``ai.config`` (needs ``tomli`` on Python 3.10), ``ai.factory`` and
-``ai.editor`` are imported inside the function that needs them. Importing this
-module — and therefore starting the app — must work on a machine with no local
-AI service and no optional AI packages installed.
+only ``ai.models``, ``ai.settings`` and ``ai.cloud`` (all pure stdlib) are imported
+at module load, while ``ai.config`` (needs ``tomli`` on Python 3.10), ``ai.secrets``,
+``ai.factory`` and ``ai.editor`` are imported inside the function that needs them.
+Importing this module — and therefore starting the app — must work on a machine with
+no local AI service and no optional AI packages installed.
 
 **The status the panel shows is the provider's own.** ``probe_provider`` calls the
 adapter's real ``health_check()`` and ``list_models()`` and passes the resulting
@@ -34,6 +34,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Callable, Mapping
 
+from ai.cloud import STATUS_CONSENT_REQUIRED, STATUS_PROVIDER_DISABLED
 from ai.models import ProviderStatus, RunPolicy
 from ai.settings import settings_path, write_settings_atomic
 
@@ -101,7 +102,29 @@ _STATUS_MESSAGES: dict[str, tuple[str, str]] = {
     STATUS_NO_MODEL: (
         "The service answered. Choose one of the installed models to use the "
         "AI pass.", "warn"),
+    # Cloud-level states (Plan 2b Phase 1), additive in exactly the same way.
+    STATUS_CONSENT_REQUIRED: (
+        "Chapter text would leave this computer. Review and accept the cloud "
+        "privacy and billing notice before using this provider.", "warn"),
+    STATUS_PROVIDER_DISABLED: (
+        "This provider is turned off in the AI settings.", "muted"),
 }
+
+
+# ---------------------------------------------------------------------------
+# Cloud key presence — presence only, never a value
+# ---------------------------------------------------------------------------
+def describe_key_presence(provider: str, **kwargs) -> tuple[str, str]:
+    """Report whether a cloud key was found, and from where — never the key itself.
+
+    ``ai.secrets.describe_key`` returns a record that cannot hold a key value, so
+    there is nothing here for the panel to render by accident. Keyword arguments are
+    passed straight through so tests can supply hermetic locations.
+    """
+    from ai.secrets import describe_key
+
+    presence = describe_key(provider, **kwargs)
+    return presence.message, ("success" if presence.found else "warn")
 
 
 # ---------------------------------------------------------------------------

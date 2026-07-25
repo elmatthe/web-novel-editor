@@ -32,6 +32,47 @@ prompt_version = "1"
 gate_version = "1"
 
 # ---------------------------------------------------------------------------
+# Cloud providers (Plan 2b Phase 1) — SECRET-FREE SETTINGS ONLY
+# ---------------------------------------------------------------------------
+# No API key belongs in this file, ever. Keys are read from the GEMINI_API_KEY /
+# GROQ_API_KEY environment variables, or from secrets.json in the per-user application
+# data directory (%LOCALAPPDATA%/WebNovelEditor on Windows) — never from the repo.
+#
+# Both providers ship `enabled = false` and `model = ""`. An empty model is deliberate:
+# the Plan 2b Phase 7 comparison run chooses the default, so nothing pre-selects a cloud
+# model before that evidence exists. Until one is chosen the provider reports
+# "no model selected" rather than guessing.
+#
+# `strict_free_tier_only = true` is the safety default. With it on, only approved models
+# that are `status = "stable"` AND `free_tier_confidence = "confirmed"` may be called;
+# anything `unknown`, `not-free`, or preview is refused outright.
+#
+# `exposes_rate_limits` records which provider actually returns rate-limit headers, and
+# the two differ (Phase 0 correction #4): Groq returns retry-after plus
+# x-ratelimit-{limit,remaining,reset}-{requests,tokens}; Google documents no equivalent,
+# so Gemini must run off a conservative configured floor. Phase 4 owns those floors.
+
+[ai.gemini]
+enabled = false
+model = ""
+timeout_seconds = 120
+max_output_tokens = 4096
+strict_free_tier_only = true
+exposes_rate_limits = false
+billing_url = "https://aistudio.google.com/app/plan_information"
+limits_url = "https://ai.google.dev/gemini-api/docs/rate-limits"
+
+[ai.groq]
+enabled = false
+model = ""
+timeout_seconds = 120
+max_output_tokens = 4096
+strict_free_tier_only = true
+exposes_rate_limits = true
+billing_url = "https://console.groq.com/settings/billing"
+limits_url = "https://console.groq.com/settings/limits"
+
+# ---------------------------------------------------------------------------
 # Approved cloud models (Plan 2b Phase 0 — reviewed 2026-07-24)
 # ---------------------------------------------------------------------------
 # Reviewed records replace runtime "pick the newest model" selection. Each entry is an

@@ -1,10 +1,102 @@
 # Web Novel Editor — Handoff
 
 ## Current Focus
-**Plan 2b (Cloud AI Providers — Gemini, Groq — target v0.13.0) is UNDERWAY. Phase 0 is complete;
-Phase 1 is the next authorized work.** Working branch **`feature/plan-2b-cloud-providers`**, cut from
-the approved merged release commit **`72d68ca`** (`main`, tag `v0.12.0`). No provider code exists yet.
-Baseline `verify.py`: **688 passed / 8 skipped** at branch creation. See the Phase 0 work log below.
+**Plan 2b (Cloud AI Providers — Gemini, Groq — target v0.13.0) is UNDERWAY. Phases 0 and 1 are
+complete; Phase 2 (GeminiProvider) is the next authorized work.** Working branch
+**`feature/plan-2b-cloud-providers`**, cut from the approved merged release commit **`72d68ca`**
+(`main`, tag `v0.12.0`). Baseline `verify.py` at branch creation: **688 passed / 8 skipped**; after
+Phase 1: **739 passed / 8 skipped**. **No provider adapter code exists yet and no provider SDK is
+installed or pinned** — Phase 1 built only the keys/consent/approved-model rails the adapters will
+sit behind. See the phase work logs below.
+
+## Work Log — 2026-07-24 — Claude Code — Plan 2b Phase 1 (Keys, Settings, Consent, Safety Rails)
+
+Ran on HOME-PC. **Phase 1 is complete and STOPPED per instruction; Phase 2 was not started.**
+No provider API call was made, no provider SDK was imported, and `scripts/requirements.txt` was not
+touched. `AIEditor`, the validation gate, the prompt layer, and the deterministic pipeline are
+byte-for-byte unchanged.
+
+**Five new modules under `scripts/Universal/ai/`, all pure-stdlib and side-effect-free at import:**
+`redaction.py` (the single redaction boundary), `secrets.py` (key precedence + per-user storage +
+presence-only reporting), `approved_models.py` (the reviewed-record loader and every refusal rule),
+`disclosure.py` (the versioned privacy/billing disclosure and its acknowledgement record), and
+`cloud.py` (readiness reporting plus the one gate every cloud request must pass).
+
+**Key precedence** is env var (`GEMINI_API_KEY` / `GROQ_API_KEY`) → per-user `secrets.json` →
+session-only in-memory key → repo-root `.env` **read-only developer override** → unavailable with a
+plain-English reason. The drop numbers only the first three slots and calls `.env` an override, so
+`.env` was placed *below* the session key rather than at the top: an override that silently
+outranked the user's own saved key is a good place for a wrong key to hide. Reading `.env` never
+mutates `os.environ`, which would otherwise leak the value into every child process the app spawns.
+Storage **reuses 2a's `runtime_dir()` and `write_settings_atomic()`** rather than reimplementing
+either; after the atomic replace the file is tightened to owner-only (`chmod 0600`, plus a
+best-effort `icacls /inheritance:r /grant:r <user>:F` on Windows, which is the only real mechanism
+there — failure is swallowed so a weak ACL never costs the user their saved key).
+
+**One redaction boundary, two independent layers.** `ai.secrets` registers every key it resolves,
+from any source, the moment it resolves it, so the exact value is masked wherever it later appears;
+independently, Google (`AIza…`), Groq (`gsk_…`) and OpenAI-style (`sk-…`) key shapes,
+`Authorization: Bearer …`, and `api_key=…` assignments are masked whether or not they were ever
+registered — that second layer is what covers a key echoed by a third-party SDK that never passed
+through our resolver. `redact_obj` covers serialized structures (JSONL, the Phase 5 manifest),
+`redact_argv` covers command lines, `redact_exception`/`redact_traceback` cover error text, and a
+`logging.Filter` covers stdlib logging. The GUI's single log sink, `WebnovelEditorApp._log`, now
+routes every message through it, and a test asserts that it does.
+
+**Approved-model rules.** Records load from the existing `[[ai.approved_models]]` entries written in
+Phase 0 (they were not rewritten). Refusals, all non-retryable `ModelUnavailable`: not in the
+approved list; approved for a different provider; a `latest`-style moving alias (refused at load
+*and* at call, even if hand-edited in); `free_tier_confidence` other than `confirmed` while strict
+free-only mode is on; non-`stable` status in strict mode; and an empty selection. A retired model —
+configured, approved, but absent from the provider's live list — marks the provider unavailable with
+a message that deliberately names no alternative. An **empty** live list is treated as
+"unverifiable", not "retired", so an unreachable list endpoint cannot fake a retirement. The module
+contains no substitution helper of any kind, and a test asserts that.
+
+**Disclosure record shape:** `settings.json` → `ai.cloud_disclosure` → `{provider: version}`, e.g.
+`{"gemini": "1"}`. Only the version string is stored — no name, date, account, path, chapter text, or
+key — and acknowledgement is **per provider**, because the disclosure text names which company
+receives the chapters. Bumping `DISCLOSURE_VERSION` invalidates every existing acknowledgement.
+`DisclosureNotAcknowledged` is defined in `disclosure.py`, **not** in `errors.py`, so 2a's shared
+error taxonomy stays untouched (Definition of Done: "the 2a base contract required no change").
+
+**`config.toml`** gained secret-free `[ai.gemini]` / `[ai.groq]` subtables. Both ship
+`enabled = false` and **`model = ""`** — an empty default is deliberate, because the Phase 7
+comparison run chooses the default and nothing should pre-select a cloud model before that evidence
+exists. `strict_free_tier_only = true` is the shipped safety default, and `exposes_rate_limits`
+records the Phase 0 correction #4 asymmetry (Groq true, Gemini false) for Phase 4 to act on.
+
+**One existing test was strengthened, not weakened.** `test_committed_config_is_disabled_and_secret_free`
+used a bare substring scan for `api_key`/`secret`, which the new comments documenting the
+`GEMINI_API_KEY`/`GROQ_API_KEY` variable names would have tripped. It now asserts (a) no line
+*assigns* a credential-shaped setting and (b) `redact(config_text) == config_text`, i.e. no
+Google/Groq/OpenAI-shaped key value appears anywhere in the file. Both checks catch real committed
+credentials that the old substring scan would have missed.
+
+**Tests: 51 new, in `files/tests/test_cloud_keys_and_consent.py`**, all offline and hermetic (every
+test passes explicit `secrets_file`/`settings_file`/`dotenv_path` locations, so a developer who
+happens to have a real key on this machine cannot make the suite pass or fail for the wrong reason).
+Coverage: each precedence slot and absence; the precedence order itself; atomic write and permission
+restriction; presence-only reporting proven not to carry a value; redaction of plain text,
+structures, argv, exceptions, tracebacks and log records, including unregistered keys caught by
+shape; approved-record loading from the committed config; malformed records skipped with reasons;
+every refusal rule; retired-model handling and the absence of any substitution helper; the
+disclosure record's exact shape and per-provider scoping; the gate blocking on each rail in turn;
+readiness reporting never raising; and script-only output byte-identical with the whole cloud layer
+loaded, a key registered, and consent recorded.
+
+**`verify.py`: PASS — 739 passed, 8 skipped** (747 collected, 0 failed); pins PASS; CHANGELOG at
+v0.12.0 matching BRIEFING. That is +51 tests and zero regressions against the 688/8 branch baseline.
+
+**Not done, by instruction:** no provider adapter, no SDK import or pin, no provider API call, no
+rate limiter, no run manifest, no GUI widgets (only the tkinter-free
+`ai_settings.describe_key_presence` helper and two new status messages), no masked-prompt dialog
+(the session-key *resolution* slot exists; the dialog belongs with Phase 6's GUI work), and no
+CHANGELOG/BRIEFING/DECISIONS entry — v0.13.0 docs belong to Phase 8.
+
+**Carried into Phase 2:** `ai/__init__.py` was deliberately left unchanged, so the new modules are
+imported by path (`from ai.cloud import …`) and `import ai` keeps its 2a surface and its
+tomli-free import cost on Python 3.10.
 
 **Plan 2a is COMPLETE and v0.12.0 is RELEASED.** `feature/plan-2a-provider-foundation` was merged
 into `main` with a `--no-ff` merge commit and `main` was tagged **`v0.12.0`** — the project's first
@@ -118,6 +210,7 @@ CHANGELOG/BRIEFING/DECISIONS entry (v0.13.0 docs belong to Phase 8), no merge, n
 
 ### Session Sync Log
 - 2026-07-24 — HOME-PC — Plan 2b Phase 0 from `72d68ca` on new branch
+- 2026-07-24 — HOME-PC — Plan 2b Phase 1 (keys/redaction/approved models/consent), verify 739/8
   `feature/plan-2b-cloud-providers`. Changed: `config.toml` (+9 `[[ai.approved_models]]` records and
   dated research comments), `.gitignore` (credential + agent-config ignore rules added),
   `md-instructions/plan-2b-cloud-providers.md` (dated Phase 0 corrections section, contract map,

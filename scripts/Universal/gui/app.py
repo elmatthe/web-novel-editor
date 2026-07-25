@@ -34,6 +34,7 @@ import tkinter as tk
 from pathlib import Path
 from tkinter import filedialog, messagebox, ttk
 
+from ai.redaction import redact
 from core.batch_runner import run_batch
 from core.input_scanner import scan_folder
 from core.novel_registry import DEFAULT_NOVEL, available_novels, clean_novel_name
@@ -882,6 +883,11 @@ class WebnovelEditorApp(tk.Tk):
         self._update_rate(value)
 
     def _log(self, message: str, level: str = "info") -> None:
+        # The single GUI log sink, and therefore the place credentials would surface
+        # if anything upstream ever put one in a message. Everything written to the
+        # panel goes through the one redaction boundary (Plan 2b Phase 1) — never
+        # bypass this by writing to log_text directly.
+        message = redact(message)
         self.log_text.configure(state=tk.NORMAL)
         self.log_text.insert(tk.END, message + "\n", level)
         self.log_text.see(tk.END)
