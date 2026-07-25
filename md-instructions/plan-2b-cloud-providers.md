@@ -131,6 +131,43 @@ disagree, **this section wins**; approved-model records live in `config.toml`.
    require Python >= 3.10, matching `config.toml python_minimum`. `groq==1.6.0` released
    2026-07-24, so re-check it at Phase 3 rather than pinning a same-day release blind.
 
+### Phase 2 research re-verification — 2026-07-24 (Claude Code, HOME-PC)
+Mandatory re-check of the Gemini lineup, free-tier limits, and billing behaviour against
+Google's own documentation before any provider code was written. **All five Gemini
+`[[ai.approved_models]]` records were re-verified and needed no change** — still `stable`,
+still "Free of charge" on the Standard tier, still 1,048,576 input / 65,536 output
+(`gemini-3.6-flash` and `gemini-2.5-flash` were spot-checked field by field on their own
+model pages). No approved record was edited. Three findings:
+
+9. **Correction #1 above is half wrong and is refined here.** It says Gemini limits are
+   "per project, **not** at the billing-account level". Both halves of the picture are on
+   Google's own pages and they are complementary, not contradictory: the rate-limits page
+   says *"Rate limits are applied per project, not per API key"*, while the billing page
+   says *"Tiers, rate limits, and billing account caps are all determined at the billing
+   account level."* The accurate statement is: **the tier is set by the billing account
+   and the quota is enforced per project; neither is per API key.** The original draft's
+   "per billing account" was not wrong so much as incomplete, and correction #1
+   over-corrected it. User-facing wording should say *project* for quota and *billing
+   account* for tier. RPD still resets at **midnight Pacific**.
+10. **"Limits unknown" is re-confirmed as the normal Gemini case.** The rate-limits page
+    still publishes **no** free-tier RPM/TPM/RPD table and still defers entirely to AI
+    Studio. It also still documents **no** rate-limit response headers of any kind — no
+    `retry-after`, no `x-ratelimit-*`. Correction #4's Groq-driven / Gemini-floored
+    asymmetry therefore stands unchanged, and `GeminiProvider.capabilities()` reports
+    `exposes_rate_limits = False` for that documented reason. No number was invented.
+11. **Correction #7's lineup holds, with two additions.** `gemini-2.5-flash-lite` and
+    `gemini-2.5-pro` are also currently stable, and `gemini-3-flash-preview` /
+    `gemini-3.1-pro-preview` remain preview. **`gemini-2.0-flash` and
+    `gemini-2.0-flash-lite` are now listed as "Shut down"** — neither was ever in the
+    approved list, so nothing needed removing. The two extra stable models were
+    deliberately *not* added: an approved record is a review commitment, and adding
+    models nobody has piloted widens the callable surface for no benefit.
+
+**SDK pinned: `google-genai==2.14.0`** (`scripts/requirements.txt`). Confirmed via
+Context7 against the SDK's own source and via PyPI as the current latest; `requires_python
+>= 3.10` matches `config.toml python_minimum`. The Phase 0 candidate was still current, so
+nothing had drifted. It is *not* the deprecated `google-generativeai`.
+
 ## The honest safety contract (replaces "architecturally incapable of billing")
 The previous draft promised the app was "architecturally incapable of opting the user into paid
 usage." A desktop app holding a user-supplied key cannot determine authoritatively whether the

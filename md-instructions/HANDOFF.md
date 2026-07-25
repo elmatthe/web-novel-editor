@@ -1,13 +1,150 @@
 # Web Novel Editor — Handoff
 
 ## Current Focus
-**Plan 2b (Cloud AI Providers — Gemini, Groq — target v0.13.0) is UNDERWAY. Phases 0 and 1 are
-complete; Phase 2 (GeminiProvider) is the next authorized work.** Working branch
+**Plan 2b (Cloud AI Providers — Gemini, Groq — target v0.13.0) is UNDERWAY. Phases 0, 1 and 2 are
+complete; Phase 3 (GroqProvider) is the next authorized work.** Working branch
 **`feature/plan-2b-cloud-providers`**, cut from the approved merged release commit **`72d68ca`**
 (`main`, tag `v0.12.0`). Baseline `verify.py` at branch creation: **688 passed / 8 skipped**; after
-Phase 1: **739 passed / 8 skipped**. **No provider adapter code exists yet and no provider SDK is
-installed or pinned** — Phase 1 built only the keys/consent/approved-model rails the adapters will
-sit behind. See the phase work logs below.
+Phase 1: **739 passed / 8 skipped**; after Phase 2: **801 passed / 9 skipped**. **`GeminiProvider`
+exists and `google-genai==2.14.0` is pinned; no Groq adapter and no `groq` pin yet.** No live cloud
+call has ever been made from this repo. See the phase work logs below.
+
+## Work Log — 2026-07-24 — Claude Code — Plan 2b Phase 2 (GeminiProvider)
+
+Ran on HOME-PC. **Phase 2 is complete and STOPPED per instruction; Phase 3 was not started.**
+**No live cloud call was made** — every test injects an in-process fake transport. `AIEditor`, the
+validation gate, the prompt layer, the chunker, and the deterministic pipeline are byte-for-byte
+unchanged, confirmed by `git diff --stat HEAD` over each file.
+
+**The 2a base contract required NO change.** `provider.py`, `models.py` and `errors.py` are
+untouched, and the diff proves it. Everything Gemini needed already existed: `AUTH_MISSING` and
+`QUOTA_EXHAUSTED` on `ProviderStatus`; `AuthenticationError`, `RateLimited`, `DailyQuotaExhausted`,
+`ContextTooLong`, `TransientNetworkError`, `InvalidResponse`, `ModelUnavailable`,
+`ProviderUnavailable` in the taxonomy; `provider_request_id` / `input_tokens` / `output_tokens` /
+`truncated` / `finish_reason` on `CompletionResult`; `exposes_rate_limits` and
+`privacy_disclosure_id` on `ProviderCapabilities`; and `factory.py`'s existing lazy `gemini` →
+`ai.providers.gemini.GeminiProvider` mapping, which needed no edit. The one thing worth recording is
+that the taxonomy has **no dedicated safety/content-block error**, so a Gemini safety refusal is
+mapped to `InvalidResponse(retryable=False)`. That is not a gap: `editor.py` sets
+`stricter_retry = isinstance(exc, InvalidResponse)` and then `if not exc.retryable: break`, so a
+non-retryable `InvalidResponse` goes straight to chapter-atomic script-only fallback, which is the
+correct behaviour for a permanent content refusal. Adding an error type would have changed the
+shared contract to express something it already expresses.
+
+**Web re-verification first, before any provider code (mandatory step).** All five Gemini
+`[[ai.approved_models]]` records were re-checked against Google's own docs and **needed no change** —
+still `stable`, still "Free of charge" on the Standard tier, still 1,048,576 / 65,536. Three findings
+are written into the drop as a dated *Phase 2 research re-verification* section (items 9–11):
+Phase 0's correction #1 was **over-corrected** and is refined (the **tier** is set at the billing
+account, the **quota** is enforced per project — neither is per API key); Google still publishes
+**no** free-tier limits table and **no** rate-limit response headers, so "limits unknown" is
+re-confirmed as the normal Gemini case and `exposes_rate_limits = False` is a documented fact rather
+than a guess; and `gemini-2.0-flash`/`-lite` are now "Shut down" (never approved, nothing to remove)
+while `gemini-2.5-flash-lite` and `gemini-2.5-pro` are stable but were **deliberately not added** —
+an approved record is a review commitment, and widening the callable surface with un-piloted models
+buys nothing.
+
+**SDK pinned: `google-genai==2.14.0`** — the current official Google SDK, *not* the deprecated
+`google-generativeai`. Surface confirmed through Context7 against the SDK's own source
+(`Client(api_key=…, http_options=…)`, `client.models.generate_content(model, contents, config)`,
+`client.models.list()`, `GenerateContentConfig`, `ThinkingConfig`, `FinishReason`,
+`GenerateContentResponseUsageMetadata`, `errors.APIError.code`) and cross-checked on PyPI as the
+latest release with `requires_python >= 3.10`, matching `config.toml python_minimum`. The Phase 0
+candidate had not drifted. **The SDK is imported in exactly one place** —
+`ai/providers/gemini.py`'s `_load_sdk()`, called only when a client is actually built. A test asserts
+`google.genai` is absent from `sys.modules` after importing both `ai` and the adapter module itself.
+
+**Design decisions worth keeping.** *Refusals are stored, not raised, at construction* — the GUI has
+to be able to build a provider in order to display why it cannot be used, so an unapproved model
+yields `capabilities().model_ids == ()` and `health_check() → MODEL_MISSING`, and only `complete()`
+raises. *Max output comes from the reviewed record*, never a constant in the adapter; an explicit
+argument may **lower** it (a config cap) and can never raise it above what was reviewed. *Retirement
+is checked once per provider instance and cached* — a 3,000-chapter run must not pay for a
+`models.list()` per chapter — and a transport failure during that check is **not** treated as
+evidence of retirement. *The config is built as a plain dict*, not a `types.GenerateContentConfig`,
+which keeps the SDK import confined to client construction. *Thinking is turned off* (`thinking_level
+= MINIMAL` on the 3.x series, `thinking_budget = 0` on 2.5 — sending the wrong one is a 400), because
+thinking tokens are drawn from the output budget and would otherwise produce a paid-for `MAX_TOKENS`
+finish with no visible text.
+
+**Finish-reason and error mapping (the table).** Finish reasons are compared as **plain strings**,
+never against the SDK's enum — an enum this module does not import cannot grow a member this module
+silently accepts.
+
+| Gemini signal | Mapped to | Retryable | Effect |
+|---|---|---|---|
+| `STOP` + non-empty text | `CompletionResult` | — | accepted, then gated as usual |
+| `STOP` + empty text | `InvalidResponse` | yes | one stricter retry, then fallback |
+| `MAX_TOKENS` | `InvalidResponse` ("truncated") | yes | one stricter retry, then fallback |
+| `SAFETY`/`RECITATION`/`BLOCKLIST`/`PROHIBITED_CONTENT`/`SPII`/`LANGUAGE`/`IMAGE_SAFETY`/tool-call | `InvalidResponse` | **no** | immediate chapter-atomic fallback |
+| `prompt_feedback.block_reason` set | `InvalidResponse` ("blocked") | **no** | immediate fallback, read before candidates |
+| absent / `""` / `FINISH_REASON_UNSPECIFIED` | `InvalidResponse` | **no** | **fails closed** |
+| **any unrecognised value** | `InvalidResponse` | **no** | **fails closed — candidate text discarded, never returned** |
+| no candidates at all | `InvalidResponse` | yes | retry then fallback |
+| local estimate over the record's context | `ContextTooLong` | no | refused **before** the call is paid for |
+| HTTP 400 naming a token/context limit | `ContextTooLong` | no | — |
+| HTTP 400 otherwise | `ProviderUnavailable` | no | — |
+| HTTP 401 / 403 | `AuthenticationError` | no | — |
+| HTTP 404 | `ModelUnavailable` | no | names no replacement |
+| HTTP 429 naming a per-day/daily quota | `DailyQuotaExhausted` | no | Phase 5 checkpoint case |
+| HTTP 429 otherwise | `RateLimited` | yes | Phase 4 limiter case |
+| HTTP 5xx | `ProviderUnavailable` | yes | — |
+| timeout / connection fault | `TransientNetworkError` | yes | — |
+| missing `google-genai` | `ProviderUnavailable` → `PACKAGE_UNAVAILABLE` | no | — |
+| no key in any precedence slot | `AuthenticationError` → `AUTH_MISSING` | no | — |
+
+The 429 split matters and is deliberate: the drop forbids inferring daily exhaustion from *every*
+429, so only a quota Google itself names per-day becomes `DailyQuotaExhausted`.
+
+**Redaction.** Every message the adapter raises or logs is built from
+`redaction.redact_exception(...)` and bounded to 300 characters, because Google puts the API key in
+the request URL and that URL lands in the exception text — redaction here is the only thing between a
+403 and a key in the user's log. A key passed directly to the constructor is registered with the
+redactor immediately (it never passed through `ai.secrets`). The module logger carries the Phase 1
+`RedactingFilter`, installed at construction. Four tests cover it, including a real `AIza…`-shaped key
+echoed inside a provider error and a log record.
+
+**A real pre-existing invariant caught a genuine mistake.** A comment in the new adapter named the
+other provider, which tripped
+`test_ollama_name_is_confined_to_provider_factory_and_configuration_boundary`. The comment was
+reworded — the test was **not** widened. Separately, the factory test initially failed only in the
+full-suite run: the foundation import-isolation tests reload the `ai` package, so the lazily imported
+class is not the same object the test module imported. 2a hit this exact problem and documented the
+answer, so the same pattern was applied (assert `type(x).__name__` and the capability, not class
+identity). Neither was a product defect.
+
+**Tests: 63 new, in `files/tests/test_gemini_provider.py` (633 lines)**, all offline and hermetic —
+each passes explicit non-existent `secrets_file`/`dotenv_path` locations or an injected key, so a
+developer with a real `GEMINI_API_KEY` on this machine cannot make the suite pass or fail for the
+wrong reason. Coverage: SDK isolation and lazy factory construction; capabilities driven by the
+reviewed record; the max-output override capping but never raising it; live model list with the
+`models/` prefix stripped; approved-choice filtering (live ∩ reviewed ∩ selectable, cross-provider
+excluded); refusal of a non-approved, unknown-confidence, preview/not-free, alias, and
+wrong-provider model; retired model → `MODEL_MISSING` + a message naming no replacement; an empty
+live list treated as unverifiable rather than retired; the absence of any substitution helper
+(asserted by source scan); the full happy path mapped into `CompletionResult` including the model
+**actually used**, request ID and token usage; missing usage metadata reported as `None` rather than
+invented; the exact outbound config (bounded max-output, temperature, seed, `candidate_count`,
+thinking disabled per model family); every row of the mapping table above including the
+**fail-closed unknown finish reason**; local and provider-side context-too-long; auth missing,
+rejected, and env-resolved; and redaction with an injected fake key. The fail-closed branch was
+**mutation-tested** — replacing its condition with `if False:` makes
+`test_an_unknown_finish_reason_fails_closed_and_never_returns_the_text` fail, so the guard is proven
+load-bearing rather than incidentally green.
+
+**Gates.** `scripts/verify.py` **PASS — 801 passed, 9 skipped** (810 collected, 0 failed); pins PASS;
+CHANGELOG at v0.12.0 matching BRIEFING. That is **+62 net** against the 739/8 Phase 1 baseline (63 new
+tests, with the usual Tk display skip flipping pass↔skip on this machine). `pip check` clean;
+`git diff --check` clean. **Clean-room re-run: identical 801 passed / 9 skipped** with `ollama`,
+`google.genai`, `google.generativeai` and `groq` imports all blocked by an injected import blocker and
+`GEMINI_API_KEY`/`GROQ_API_KEY`/`GOOGLE_API_KEY` unset — the suite genuinely passes offline with no
+keys and no SDKs installed.
+
+**Not done, by instruction:** no Groq adapter and no `groq` pin (Phase 3); no rate limiter or quota
+state machine (Phase 4); no run manifest or resume (Phase 5); no GUI widget, provider dropdown, or
+disclosure dialog (Phase 6); no comparison run (Phase 7); no CHANGELOG/BRIEFING/DECISIONS entry
+(v0.13.0 docs belong to Phase 8). `config.toml` was **not** touched — `[ai.gemini] enabled = false`
+and `model = ""` still ship, so Gemini is inert and nothing pre-selects a cloud model.
 
 ## Work Log — 2026-07-24 — Claude Code — Plan 2b Phase 1 (Keys, Settings, Consent, Safety Rails)
 
@@ -210,6 +347,15 @@ CHANGELOG/BRIEFING/DECISIONS entry (v0.13.0 docs belong to Phase 8), no merge, n
 
 ### Session Sync Log
 - 2026-07-24 — HOME-PC — Plan 2b Phase 0 from `72d68ca` on new branch
+- 2026-07-24 — HOME-PC — Plan 2b Phase 2 (GeminiProvider), verify 801/9 on
+  `feature/plan-2b-cloud-providers`. Changed: `scripts/Universal/ai/providers/gemini.py` (new, 623
+  lines), `files/tests/test_gemini_provider.py` (new, 633 lines, 63 tests),
+  `scripts/requirements.txt` (+7 lines — `google-genai==2.14.0` pinned with rationale),
+  `md-instructions/plan-2b-cloud-providers.md` (dated Phase 2 re-verification section, items 9–11),
+  `md-instructions/HANDOFF.md` (this entry + Current Focus). **2a base contract unchanged** — no edit
+  to `provider.py`, `models.py`, `errors.py`, `factory.py`, `editor.py`, `validation.py`, `prompt.py`
+  or `chunking.py`. No `config.toml`, GUI, pipeline, or launcher change. No live cloud call.
+  Committed and pushed to the working branch. Next: Phase 3 — GroqProvider.
 - 2026-07-24 — HOME-PC — Plan 2b Phase 1 (keys/redaction/approved models/consent), verify 739/8
   `feature/plan-2b-cloud-providers`. Changed: `config.toml` (+9 `[[ai.approved_models]]` records and
   dated research comments), `.gitignore` (credential + agent-config ignore rules added),

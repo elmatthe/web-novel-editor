@@ -19,3 +19,10 @@ natsort==8.4.0
 tomli==2.4.1
 # Official local Ollama client. Imported lazily only when the Ollama provider is selected.
 ollama==0.6.2
+# Official Google Gen AI SDK — the current `google-genai`, NOT the deprecated
+# `google-generativeai`. Requires Python >= 3.10, matching config.toml python_minimum.
+# Imported lazily only when the Gemini provider builds a client (ai/providers/gemini.py);
+# nothing in the app imports it at package load, so the suite and the whole script-only
+# path still run with this package absent. Latest stable verified on PyPI 2026-07-24
+# (Plan 2b Phase 2); the Phase 0 candidate 2.14.0 is still current and is now pinned.
+google-genai==2.14.0
