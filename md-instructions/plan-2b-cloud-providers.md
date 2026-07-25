@@ -49,6 +49,19 @@ machinery free tiers actually require: keys, approved-model records, privacy con
 provider-specific rate limiting, and a durable answer to what happens when a run is longer than
 a day.
 
+**Phase 0 contract map — 2a's base contract is already cloud-shaped and needs no change.**
+Verified against the code, not this document: `ProviderStatus` already carries `AUTH_MISSING`
+and `QUOTA_EXHAUSTED`; `errors.py` already defines `AuthenticationError`, `RateLimited`,
+`DailyQuotaExhausted`, `ContextTooLong` and `RequestCancelled`; `ProviderCapabilities` already
+has `exposes_rate_limits` and `privacy_disclosure_id`; `CompletionResult` already has
+`provider_request_id`, `input_tokens`, `output_tokens`, `truncated` and `finish_reason`; and
+`factory.py` already maps `"gemini" -> ai.providers.gemini.GeminiProvider` and
+`"groq" -> ai.providers.groq.GroqProvider` behind its lazy import. Phases 2–3 therefore only
+add the two adapter modules. The `AIProvider` protocol is exactly four methods —
+`capabilities`, `health_check`, `list_models`, `complete`. `request_budget()` is an
+Ollama-only extra and is **not** part of the protocol, so cloud adapters must expose their
+limits through `ProviderCapabilities`, as this plan already specifies.
+
 ## Goal
 The user picks Ollama, Gemini, or Groq from the GUI. Cloud providers run against exact,
 release-reviewed stable models on free tiers, respect per-minute limits, handle daily-quota
@@ -75,6 +88,48 @@ Free-tier terms change without notice and third-party sources disagree. Facts ve
 **Therefore: hardcode no limits, and treat every published number here as stale.** Read actual
 rate-limit response headers where the transport exposes them, and fall back to conservative
 configured values where it does not.
+
+### Phase 0 research corrections — 2026-07-24 (Claude Code, HOME-PC)
+Verified against the providers' own documentation. Where this section and the text above
+disagree, **this section wins**; approved-model records live in `config.toml`.
+
+1. **Gemini's rate-limit scoping was stated wrong above.** Google's rate-limits page says
+   limits are applied **per project, not per API key** — not "at the billing-account level".
+   RPD resets at **midnight Pacific**. Correct the user-facing wording accordingly.
+2. **Gemini no longer publishes a free-tier limits table at all.** The page defers entirely to
+   AI Studio ("rate limits ... can be viewed in Google AI Studio"). So Gemini free-tier
+   *quota* is **unknowable from documentation** — stronger than "stale". The ETA and limiter
+   must handle "limits unknown" as the normal Gemini case, not an edge case.
+3. **Free-of-charge status *is* confirmable, separately from quota.** Google's pricing page
+   marks the approved models "Free of charge" on the Standard tier. `free_tier_confidence`
+   therefore records *eligibility only* and never implies a known quota. This split is not
+   described above and must not be collapsed.
+4. **Groq is the opposite case and the plan should stop treating the two symmetrically.** Groq
+   publishes exact per-model free-plan RPM/RPD/TPM/TPD *and* returns `retry-after` plus
+   `x-ratelimit-{limit,remaining,reset}-{requests,tokens}`. Gemini documents no equivalent
+   headers. Phase 4's "header-driven where documented, conservative floor where not" is
+   therefore **Groq-driven and Gemini-floored** — that asymmetry is the design, not a gap.
+5. **The workload scale assumption is wrong.** The plan reasons about "a few hundred requests
+   per day" against RPD. On Groq free, **TPD binds far earlier**: 100K TPD
+   (`llama-3.3-70b-versatile`) is roughly *ten chapters a day*, and `llama-3.1-8b-instant`'s
+   6K TPM is smaller than a single chapter round-trip. A ~3,000-chapter cloud run is not
+   viable on Groq free; cloud is realistically for **subsets and comparison runs**, with
+   Ollama remaining the bulk path. Phase 6's ETA must say this plainly before a run starts.
+6. **"Groq may still offer a Qwen tag" — it does not.** Groq's production lineup as of
+   2026-07-24 is `llama-3.3-70b-versatile`, `llama-3.1-8b-instant`, `openai/gpt-oss-120b`,
+   `openai/gpt-oss-20b` (plus Whisper audio and the `groq/compound` agentic systems, both
+   out of contract). No Qwen model is in production, so **no continuity with the 2a local
+   `qwen3:14b` baseline exists on Groq** — the Phase 7 comparison is cross-family by
+   necessity.
+7. **Model lineup is far ahead of this document's assumptions.** Current Gemini *stable*
+   includes `gemini-3.6-flash`, `gemini-3.5-flash`, `gemini-3.5-flash-lite`,
+   `gemini-3.1-flash-lite` alongside the 2.5 series; `gemini-3-flash-preview` and
+   `gemini-3.1-pro-preview` are preview (the latter is **not free**). Third-party summaries
+   that call the 3.x Flash-Lite models "preview" are wrong.
+8. **SDK candidates for Phases 2–3 (not yet pinned):** `google-genai==2.14.0` (the current
+   official Google SDK — *not* the deprecated `google-generativeai`) and `groq==1.6.0`. Both
+   require Python >= 3.10, matching `config.toml python_minimum`. `groq==1.6.0` released
+   2026-07-24, so re-check it at Phase 3 rather than pinning a same-day release blind.
 
 ## The honest safety contract (replaces "architecturally incapable of billing")
 The previous draft promised the app was "architecturally incapable of opting the user into paid
@@ -147,6 +202,7 @@ It is a separate cloud inference service running open-weight models on custom LP
 has no connection to the local Ollama install and does not make it faster. Its value here: it
 can run a model larger than the 12 GB local GPU can hold, at high speed, free. Note that its
 available model IDs change — do not assume any specific Qwen tag is still offered.
+**Settled by Phase 0 research (correction #6): Groq offers no Qwen model in production.**
 
 ### Approved-model records — replaces newest-model auto-selection
 The previous draft's "detect models at runtime, sort by version, default to the newest
@@ -197,6 +253,13 @@ which is the wrong place for a credential. Precedence, in order:
 
 A repo-root `.env` may still be *read* as a documented **developer override**, but it is no
 longer the end-user store and no code path writes one.
+
+> **2a already built this directory (Phase 0 contract map).** `ai/settings.py` provides
+> `runtime_dir()` — resolving to exactly `%LOCALAPPDATA%/WebNovelEditor` and
+> `~/Library/Application Support/WebNovelEditor` — plus `write_settings_atomic()` (tempfile +
+> `fsync` + `os.replace`). Phase 1 **reuses** both for `secrets.json`; it does not reimplement
+> the path logic or the atomic write. Note `runtime_dir()` raises `OSError` on any platform
+> other than win32/darwin, which is the existing intended behaviour.
 
 **One redaction boundary.** Route all logging through a single redactor. Tests inject
 recognisable fake keys and assert they never appear in: the GUI log, the JSONL, setup logs,

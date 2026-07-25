@@ -1,6 +1,11 @@
 # Web Novel Editor — Handoff
 
 ## Current Focus
+**Plan 2b (Cloud AI Providers — Gemini, Groq — target v0.13.0) is UNDERWAY. Phase 0 is complete;
+Phase 1 is the next authorized work.** Working branch **`feature/plan-2b-cloud-providers`**, cut from
+the approved merged release commit **`72d68ca`** (`main`, tag `v0.12.0`). No provider code exists yet.
+Baseline `verify.py`: **688 passed / 8 skipped** at branch creation. See the Phase 0 work log below.
+
 **Plan 2a is COMPLETE and v0.12.0 is RELEASED.** `feature/plan-2a-provider-foundation` was merged
 into `main` with a `--no-ff` merge commit and `main` was tagged **`v0.12.0`** — the project's first
 release tag (DECISIONS #061). `main` is now the v0.12.0 shipped baseline, superseding v0.11.0
@@ -32,6 +37,93 @@ per-file exception isolation; `pause_gate` is checked only between files;
 dry-run, and build steps; and `build_pdf(...)` remains the sole PDF writer.
 Baseline on Python 3.14.2: `pip check` clean; `scripts/verify.py` PASS with
 **505 passed, 9 skipped** (environmental skips only).
+
+## Work Log — 2026-07-24 — Claude Code — Plan 2b Phase 0 (Reconcile + Baseline + Re-research)
+
+Ran on HOME-PC. **Phase 0 is complete and STOPPED per instruction; Phase 1 was not started.**
+No provider adapter code was written — this phase is reconciliation and research only.
+
+**Reconcile — no divergence.** `main` was clean (only the two pre-existing untracked paths,
+`.claude/` and the superseded `md-instructions/plan-2-ai-editor-integration.md`, both deliberately
+left untracked as in every prior phase). Nothing staged; no secret, `.env`, corpus, or generated
+output anywhere near the index. `git fetch --all --tags --prune` confirmed local `main` ==
+`origin/main` == **`72d68ca`**, carrying tag **`v0.12.0`** — the approved Plan 2a release merge. The
+prune deleted four stale remote-tracking refs for branches already removed on `origin`
+(`feature/gui-batch-overhaul`, `feature/junk-strip-hardening`, `feature/novel-dropdown`,
+`release-main`); no local branch and no reachable commit was affected. Branch
+**`feature/plan-2b-cloud-providers`** created at **`72d68ca`**.
+
+**Baseline.** `scripts/verify.py` **PASS — 688 passed, 8 skipped** (696 collected, 0 failed);
+dependency pins PASS; CHANGELOG at v0.12.0 matching BRIEFING. After the `config.toml` change the
+re-run was **687 passed / 9 skipped** — the *same 696 collected with zero failures*; the one-test
+delta is the long-documented Tk "no display available" skip that flips pass↔skip on this machine.
+
+**2a's real contract was mapped from code, and it is already cloud-shaped — no base-contract
+change is needed.** Recorded because the drop describes the contract loosely and the code wins:
+`ProviderStatus` already has all nine values including `AUTH_MISSING` and `QUOTA_EXHAUSTED`;
+`errors.py` already defines `AuthenticationError`, `RateLimited`, `DailyQuotaExhausted`,
+`ContextTooLong`, `RequestCancelled`; `ProviderCapabilities` already carries `exposes_rate_limits`
+and `privacy_disclosure_id`; `CompletionResult` already carries `provider_request_id`,
+`input_tokens`, `output_tokens`, `truncated`, `finish_reason`; and `factory.py` **already maps
+`gemini` and `groq` to `ai.providers.{gemini,groq}` behind its lazy import**, so Phases 2–3 only add
+the two modules. Two things the drop does not say: the `AIProvider` protocol is exactly four methods
+and `OllamaProvider.request_budget()` is **not** part of it (cloud adapters must report limits via
+`ProviderCapabilities`); and `ai/settings.py` **already implements** `runtime_dir()` for
+`%LOCALAPPDATA%/WebNovelEditor` + `~/Library/Application Support/WebNovelEditor` and
+`write_settings_atomic()`, which Phase 1 must reuse for `secrets.json` rather than reimplement.
+
+**Research (2026-07-24, providers' own docs only — third-party aggregators were checked and
+discarded as contradictory).** Nine dated approved-model records written to `config.toml` under
+`[[ai.approved_models]]` using the drop's exact nine-field schema, exact IDs only, no `latest`
+alias, stable-only: five Gemini (`gemini-3.6-flash`, `gemini-3.5-flash`, `gemini-3.5-flash-lite`,
+`gemini-3.1-flash-lite`, `gemini-2.5-flash`; all 1,048,576 / 65,536) and four Groq
+(`llama-3.3-70b-versatile` 131,072/32,768, `llama-3.1-8b-instant` 131,072/131,072,
+`openai/gpt-oss-120b` and `openai/gpt-oss-20b` both 131,072/65,536). Verified inert: the live config
+still resolves `enabled=False, model='qwen3:14b', strategy=mask`, and per DECISIONS #060 there is no
+`**kwargs` splat anywhere in `scripts/`, so the new key cannot be observed by existing consumers.
+
+**Eight drop claims were corrected** and are recorded in a dated *Phase 0 research corrections*
+section inside the drop itself (that section wins over the older prose). The load-bearing ones:
+Gemini limits are **per project**, not per billing account; **Google no longer publishes a
+free-tier limits table at all**, deferring to AI Studio, so Gemini quota is unknowable from docs
+while free-*of-charge* status is separately confirmable from the pricing page; **Groq is the mirror
+image** — it publishes exact per-model free RPM/RPD/TPM/TPD and returns `retry-after` plus
+`x-ratelimit-*` headers, so Phase 4 is Groq-header-driven and Gemini-floored by design; **Groq has
+no Qwen model in production**, so there is no continuity with the 2a `qwen3:14b` baseline; and the
+**workload assumption is wrong** — on Groq free, TPD binds long before RPD (100K TPD ≈ ten chapters
+a day) and `llama-3.1-8b-instant`'s 6K TPM is smaller than a single chapter round-trip, so a
+~3,000-chapter cloud run is not viable and cloud is realistically for subsets and comparison runs.
+
+**One safety gap found and closed outside the drop's letter.** `.gitignore` had **no** `.env`,
+`*.key`, `*.pem`, or `secrets.json` rules, and did not ignore `.claude/`, `.codex/`, or `.vscode/`
+despite AI-WORKSPACE.md requiring all of them. Nothing was ever committed as a result, but starting a
+plan whose entire subject is API keys with no credential ignore rules was not acceptable, so the
+rules were added now rather than deferred to Phase 1.
+
+**Toolkit availability on this machine.** Superpowers, Context7 and `sequential_thinking` are
+present. The three skills the drop names by filename — `tdd-guide`, `spec-driven-workflow`,
+`dependency-auditor` — are **not** in `.claude/skills/` on HOME-PC (which holds an unrelated set).
+They were skipped rather than auto-installed; their intent was applied by hand (the dependency-audit
+mindset produced the un-pinned SDK candidates below). Phases 2–4 should not assume they exist.
+
+**SDK candidates recorded, deliberately NOT pinned in this phase:** `google-genai==2.14.0` (the
+current official Google SDK — *not* the deprecated `google-generativeai`) and `groq==1.6.0`. Both
+require Python >= 3.10, matching `config.toml python_minimum`. `groq==1.6.0` was released
+**2026-07-24**, i.e. the same day as this review, so Phase 3 should re-check it rather than pin a
+same-day release blind. `scripts/requirements.txt` was not touched.
+
+**Not done, by instruction:** no provider adapter code, no `[ai.gemini]`/`[ai.groq]` subtables, no
+key storage, no consent dialog, no rate limiter, no GUI change, no dependency added, no
+CHANGELOG/BRIEFING/DECISIONS entry (v0.13.0 docs belong to Phase 8), no merge, no tag, no PR.
+
+### Session Sync Log
+- 2026-07-24 — HOME-PC — Plan 2b Phase 0 from `72d68ca` on new branch
+  `feature/plan-2b-cloud-providers`. Changed: `config.toml` (+9 `[[ai.approved_models]]` records and
+  dated research comments), `.gitignore` (credential + agent-config ignore rules added),
+  `md-instructions/plan-2b-cloud-providers.md` (dated Phase 0 corrections section, contract map,
+  secrets-path reuse note, Qwen line settled), `md-instructions/HANDOFF.md` (this entry + Current
+  Focus). No code, test, GUI, pipeline, or requirements change. Committed and pushed to the working
+  branch. Next: Phase 1 — keys, settings, consent, safety rails.
 
 ## Work Log — 2026-07-24 — Claude Code — v0.12.0 RELEASE: merge to main + first release tag (Work Item B)
 

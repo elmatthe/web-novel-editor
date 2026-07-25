@@ -30,3 +30,144 @@ seed = 0
 protection_strategy = "mask"
 prompt_version = "1"
 gate_version = "1"
+
+# ---------------------------------------------------------------------------
+# Approved cloud models (Plan 2b Phase 0 — reviewed 2026-07-24)
+# ---------------------------------------------------------------------------
+# Reviewed records replace runtime "pick the newest model" selection. Each entry is an
+# EXACT model ID — never a `latest`-style alias, which can hot-swap onto a preview model.
+#
+# WHAT THIS LIST IS: a conservative guard against *accidentally* calling something
+# expensive or retired. It is user-editable TOML, so it is NOT a security or billing
+# boundary and must never be described as one.
+#
+# `free_tier_confidence` records only whether the provider's own documentation states the
+# model is free of charge. It says NOTHING about quota size — see the per-provider notes
+# below. Code must not read any number out of the comments in this file.
+#
+# fields: id, provider, status, context_limit, output_limit, reviewed_on, source_url,
+#         free_tier_confidence (confirmed | unknown | not-free), pilot_status
+#
+# --- Gemini, reviewed 2026-07-24 ------------------------------------------------------
+# QUOTA IS UNKNOWN AND UNPUBLISHED. Google's own rate-limits page no longer prints a
+# free-tier RPM/TPM/RPD table; it states rate limits "can be viewed in Google AI Studio"
+# and are applied PER PROJECT, not per API key. RPD quotas reset at midnight Pacific.
+# Treat every free-tier Gemini number found on a third-party site as unverified.
+# Free-of-charge status below comes from Google's own pricing page ("Free of charge",
+# Standard tier). Preview models are deliberately excluded even when priced free.
+# Gemini does not document response rate-limit headers, so capabilities for this provider
+# should report exposes_rate_limits = false and rely on a conservative configured floor.
+
+[[ai.approved_models]]
+id = "gemini-3.6-flash"
+provider = "gemini"
+status = "stable"
+context_limit = 1048576
+output_limit = 65536
+reviewed_on = "2026-07-24"
+source_url = "https://ai.google.dev/gemini-api/docs/models/gemini-3.6-flash"
+free_tier_confidence = "confirmed"
+pilot_status = "not-piloted"
+
+[[ai.approved_models]]
+id = "gemini-3.5-flash"
+provider = "gemini"
+status = "stable"
+context_limit = 1048576
+output_limit = 65536
+reviewed_on = "2026-07-24"
+source_url = "https://ai.google.dev/gemini-api/docs/models/gemini-3.5-flash"
+free_tier_confidence = "confirmed"
+pilot_status = "not-piloted"
+
+[[ai.approved_models]]
+id = "gemini-3.5-flash-lite"
+provider = "gemini"
+status = "stable"
+context_limit = 1048576
+output_limit = 65536
+reviewed_on = "2026-07-24"
+source_url = "https://ai.google.dev/gemini-api/docs/models/gemini-3.5-flash-lite"
+free_tier_confidence = "confirmed"
+pilot_status = "not-piloted"
+
+[[ai.approved_models]]
+id = "gemini-3.1-flash-lite"
+provider = "gemini"
+status = "stable"
+context_limit = 1048576
+output_limit = 65536
+reviewed_on = "2026-07-24"
+source_url = "https://ai.google.dev/gemini-api/docs/models/gemini-3.1-flash-lite"
+free_tier_confidence = "confirmed"
+pilot_status = "not-piloted"
+
+[[ai.approved_models]]
+id = "gemini-2.5-flash"
+provider = "gemini"
+status = "stable"
+context_limit = 1048576
+output_limit = 65536
+reviewed_on = "2026-07-24"
+source_url = "https://ai.google.dev/gemini-api/docs/models/gemini-2.5-flash"
+free_tier_confidence = "confirmed"
+pilot_status = "not-piloted"
+
+# --- Groq, reviewed 2026-07-24 --------------------------------------------------------
+# Groq DOES publish free-plan limits per model, and they apply at the ORGANIZATION level,
+# not per API key. Observed 2026-07-24 (recorded for Phase 4 sizing only — not config):
+#   llama-3.3-70b-versatile   30 RPM / 1K RPD / 12K TPM / 100K TPD
+#   llama-3.1-8b-instant      30 RPM / 14.4K RPD / 6K TPM / 500K TPD
+#   openai/gpt-oss-120b       30 RPM / 1K RPD / 8K TPM / 200K TPD
+#   openai/gpt-oss-20b        30 RPM / 1K RPD / 8K TPM / 200K TPD
+# TOKENS-PER-DAY BINDS LONG BEFORE REQUESTS-PER-DAY for this workload, and on some models
+# TPM is smaller than a single chapter round-trip. Phase 4/6 must treat TPM/TPD as the
+# binding constraint and the ETA must say so. Groq returns retry-after plus
+# x-ratelimit-{limit,remaining,reset}-{requests,tokens}, so its capabilities should report
+# exposes_rate_limits = true.
+# Groq offers NO Qwen model in its production lineup as of this review.
+# Whisper (audio) and groq/compound (agentic system) are excluded as out-of-contract.
+
+[[ai.approved_models]]
+id = "llama-3.3-70b-versatile"
+provider = "groq"
+status = "stable"
+context_limit = 131072
+output_limit = 32768
+reviewed_on = "2026-07-24"
+source_url = "https://console.groq.com/docs/models"
+free_tier_confidence = "confirmed"
+pilot_status = "not-piloted"
+
+[[ai.approved_models]]
+id = "llama-3.1-8b-instant"
+provider = "groq"
+status = "stable"
+context_limit = 131072
+output_limit = 131072
+reviewed_on = "2026-07-24"
+source_url = "https://console.groq.com/docs/models"
+free_tier_confidence = "confirmed"
+pilot_status = "not-piloted"
+
+[[ai.approved_models]]
+id = "openai/gpt-oss-120b"
+provider = "groq"
+status = "stable"
+context_limit = 131072
+output_limit = 65536
+reviewed_on = "2026-07-24"
+source_url = "https://console.groq.com/docs/models"
+free_tier_confidence = "confirmed"
+pilot_status = "not-piloted"
+
+[[ai.approved_models]]
+id = "openai/gpt-oss-20b"
+provider = "groq"
+status = "stable"
+context_limit = 131072
+output_limit = 65536
+reviewed_on = "2026-07-24"
+source_url = "https://console.groq.com/docs/models"
+free_tier_confidence = "confirmed"
+pilot_status = "not-piloted"
