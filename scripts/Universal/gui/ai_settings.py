@@ -37,6 +37,7 @@ from typing import Any, Callable, Mapping
 from ai.cloud import STATUS_CONSENT_REQUIRED, STATUS_PROVIDER_DISABLED
 from ai.models import ProviderStatus, RunPolicy
 from ai.settings import settings_path, write_settings_atomic
+from gui.cloud_ui import local_provider, selected_ai_table
 
 # Only the *values* of the AI enums are captured at module load. The enum classes
 # themselves are re-imported inside the functions that build objects with them, so
@@ -54,9 +55,12 @@ STATUS_PROVIDER_ERROR = ProviderStatus.PROVIDER_ERROR.value
 REPO_ROOT = Path(__file__).resolve().parents[3]
 DEFAULT_CONFIG_PATH = REPO_ROOT / "config.toml"
 
-# Only these two GUI choices are remembered between sessions. `enabled` is
-# deliberately absent — see the module docstring.
-PERSISTED_KEYS = ("model", "policy")
+# Only these GUI choices are remembered between sessions. `enabled` is deliberately
+# absent — see the module docstring. `provider` joined them in Plan 2b Phase 6, when the
+# panel gained a provider dropdown; remembering it is safe because a remembered cloud
+# provider still has to pass every rail (key, approved model, consent) before it can
+# send anything, and the AI pass itself still comes up off.
+PERSISTED_KEYS = ("provider", "model", "policy")
 DEFAULT_POLICY = POLICY_PREFER_AI
 
 # GUI-level states, additive to ProviderStatus (never substitutes for one).
@@ -148,7 +152,12 @@ def load_ai_preferences(
     ``enabled`` is always forced back to False: the AI pass is opt-in per
     session, so a persisted choice can never switch it on at launch.
     """
-    from ai.config import load_config, load_settings, resolve_ai_config
+    from ai.config import (
+        IN_CODE_DEFAULTS,
+        load_config,
+        load_settings,
+        resolve_ai_config,
+    )
 
     config_path = DEFAULT_CONFIG_PATH if config_path is None else config_path
     if settings_file is None:
@@ -169,6 +178,10 @@ def load_ai_preferences(
     resolved["enabled"] = False
     resolved.setdefault("policy", DEFAULT_POLICY)
     resolved["model"] = str(resolved.get("model") or "").strip()
+    resolved["provider"] = (
+        str(resolved.get("provider") or "").strip().lower()
+        or IN_CODE_DEFAULTS["provider"]
+    )
     return resolved
 
 
@@ -308,10 +321,86 @@ def _enum_or_default(enum_cls, raw: Any, default):
         return default
 
 
+def build_provider_factory(
+    prefs: Mapping[str, Any],
+    *,
+    create: Callable[[Mapping[str, Any], str], Any] | None = None,
+    checkpoint: Any | None = None,
+    stop_event: Any | None = None,
+    pause_gate: Any | None = None,
+    environ: Mapping[str, str] | None = None,
+    secrets_file: Path | None = None,
+    dotenv_path: Path | None = None,
+    settings_file: Path | None = None,
+) -> Callable[[], Any]:
+    """The lazy provider factory one batch will use. Nothing runs until it is called.
+
+    This is where Plan 2b's two dormant seams finally become live (Phase 6):
+
+    * **The cloud gate.** For a cloud provider, ``ensure_cloud_request_allowed`` runs
+      *before the adapter is even constructed*, so a missing key, an unapproved model,
+      or an unacknowledged disclosure refuses the run before any object exists that
+      could send a chapter. It raises an ``AIProviderError``, which ``AIEditor`` already
+      routes to chapter-atomic script-only fallback under prefer-AI and to an honest
+      raise under AI-required — no new machinery, and no change to the editor.
+    * **The rate limiter.** ``limiter_for`` picks the limiter from the adapter's own
+      ``exposes_rate_limits`` capability (never from its name) and
+      ``RateLimitedProvider`` wraps it. The wrapper satisfies 2a's four-method protocol,
+      so the editor asks for an ``AIProvider`` and gets one. ``checkpoint.on_quota_stop``
+      is handed straight to the limiter, which is what makes a daily quota write the
+      manifest and stop the batch cleanly instead of sleeping.
+
+    The local path is deliberately untouched: no gate, no wrapper, no behaviour change.
+
+    ``ai.*`` is imported *inside* this function, matching the rule the module docstring
+    already states for the enum classes: everything the editor path constructs or
+    catches must come from one generation of the package. Hoisting these to module level
+    was tried and reverted — it left the cloud gate raising an exception class that a
+    later-imported ``AIEditor`` no longer recognised as its own base error.
+    """
+    from ai.cloud import ensure_cloud_request_allowed, is_cloud_provider, provider_settings
+    from ai.rate_limits import RateLimitedProvider, limiter_for
+
+    create = create or _create_provider
+    model = str(prefs.get("model") or "").strip()
+    provider_name = str(prefs.get("provider") or local_provider()).strip().lower()
+
+    if not is_cloud_provider(provider_name):
+        return lambda: create(prefs, model)
+
+    ai_table = selected_ai_table(prefs, provider_name, model)
+    on_quota_stop = getattr(checkpoint, "on_quota_stop", None) if checkpoint else None
+
+    def factory():
+        approved = ensure_cloud_request_allowed(
+            provider_name,
+            ai_table=ai_table,
+            model_id=model,
+            environ=environ,
+            secrets_file=secrets_file,
+            dotenv_path=dotenv_path,
+            settings_file=settings_file,
+        )
+        adapter = create(prefs, approved.id)
+        limiter = limiter_for(
+            adapter,
+            provider_settings(ai_table, provider_name),
+            provider=provider_name,
+            model_id=approved.id,
+            stop_event=stop_event,
+            pause_gate=pause_gate,
+            on_quota_stop=on_quota_stop,
+        )
+        return RateLimitedProvider(adapter, limiter)
+
+    return factory
+
+
 def build_ai_editor(
     prefs: Mapping[str, Any],
     *,
     create: Callable[[Mapping[str, Any], str], Any] | None = None,
+    **factory_kwargs: Any,
 ):
     """Build the run-scoped editor for one batch.
 
@@ -321,7 +410,6 @@ def build_ai_editor(
     from ai.editor import AIEditor, EditorOptions
     from ai.models import ProtectionStrategy, RunPolicy as Policy
 
-    create = create or _create_provider
     model = str(prefs.get("model") or "").strip()
     options = EditorOptions(
         model_id=model,
@@ -334,7 +422,9 @@ def build_ai_editor(
         request_overhead_tokens=int(prefs.get("request_overhead_tokens", 128)),
         safety_margin_tokens=int(prefs.get("context_safety_margin_tokens", 256)),
     )
-    return AIEditor(lambda: create(prefs, model), options)
+    return AIEditor(
+        build_provider_factory(prefs, create=create, **factory_kwargs), options
+    )
 
 
 # ---------------------------------------------------------------------------

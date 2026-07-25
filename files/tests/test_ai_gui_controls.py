@@ -124,7 +124,11 @@ def test_save_persists_only_the_user_choices_and_merges_other_keys(tmp_path):
     # Never persisted: the opt-in switch, and no endpoint/secret-shaped copy.
     assert "enabled" not in written["ai"]
     assert "endpoint" not in written["ai"]
-    assert set(ai_settings.PERSISTED_KEYS) == {"model", "policy"}
+    # Plan 2b Phase 6 widened this by exactly one: the panel gained a provider
+    # dropdown, so which provider was chosen is remembered too. The guarantees that
+    # matter are unchanged — the opt-in switch and anything credential-shaped are
+    # still never written.
+    assert set(ai_settings.PERSISTED_KEYS) == {"provider", "model", "policy"}
 
 
 def test_save_reports_failure_instead_of_raising_when_unwritable(tmp_path):
@@ -632,7 +636,11 @@ def test_model_and_policy_choices_persist_but_the_switch_does_not(
         app._persist_ai_choices()
 
         written = json.loads((tmp_path / "settings.json").read_text(encoding="utf-8"))
-        assert written["ai"] == {"model": "chosen:1", "policy": "ai_required"}
+        assert written["ai"] == {
+            "provider": appmod.cloud_ui.local_provider(),
+            "model": "chosen:1",
+            "policy": "ai_required",
+        }
     finally:
         app.destroy()
 

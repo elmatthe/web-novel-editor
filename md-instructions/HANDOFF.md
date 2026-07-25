@@ -1,22 +1,216 @@
 # Web Novel Editor — Handoff
 
 ## Current Focus
-**Plan 2b (Cloud AI Providers — Gemini, Groq — target v0.13.0) is UNDERWAY. Phases 0, 1, 2, 3, 4 and 5
-are complete; Phase 6 (GUI — provider selection, consent dialog, status, ETA, the resume offer) is the
-next authorized work.** Working branch **`feature/plan-2b-cloud-providers`**, cut from the approved
+**Plan 2b (Cloud AI Providers — Gemini, Groq — target v0.13.0) is UNDERWAY. Phases 0, 1, 2, 3, 4, 5
+and 6 are complete; Phase 7 (the frozen comparison run) is the next work and it PAUSES for the
+provider decision.** Working branch **`feature/plan-2b-cloud-providers`**, cut from the approved
 merged release commit **`72d68ca`** (`main`, tag `v0.12.0`). Baseline `verify.py` at branch creation:
 **688 passed / 8 skipped**; after Phase 1: **739 / 8**; after Phase 2: **801 / 9**; after Phase 3:
-**892 / 9**; after Phase 4: **977 / 9**; after Phase 5: **1042 passed / 10 skipped** (1052 collected —
-the long-documented Tk display skip flips pass↔skip on this machine). **Both cloud adapters exist** —
-`GeminiProvider` (`google-genai==2.14.0`) and `GroqProvider` (`groq==1.6.0`), both pinned, neither SDK
-imported at package load — both are paceable through one shared limiter, and a run can now be stopped
-and resumed across days. No live cloud call has ever been made from this repo.
+**892 / 9**; after Phase 4: **977 / 9**; after Phase 5: **1042 / 10**; after Phase 6: **1119 passed /
+9 skipped** (1128 collected — the long-documented Tk display skip flips pass↔skip on this machine).
+**Both cloud adapters exist** — `GeminiProvider` (`google-genai==2.14.0`) and `GroqProvider`
+(`groq==1.6.0`), both pinned, neither SDK imported at package load — both are paceable through one
+shared limiter, a run can be stopped and resumed across days, and **as of Phase 6 all of that is
+actually constructed at runtime by the GUI**. No live cloud call has ever been made from this repo.
 
-**What Phase 6 wires up (nothing below is constructed at runtime yet):**
-`ai.rate_limits.RateLimitedProvider` + `limiter_for(...)` into `gui/ai_settings.build_ai_editor`, with
-`checkpoint.on_quota_stop` handed to `limiter_for` as its `on_quota_stop`; and
-`core.run_manifest.find_resumable_run(downloads_dir())` → a Yes/No dialog →
-`plan_resume(offer)` into `run_batch`.
+**Phase 7 is the next authorized work, and it stops for a decision.** The same stratified chapters as
+the 2a pilot, same prompt and gate versions, through each configured provider; then
+`files/pilot/PROVIDER-COMPARISON.md` (aggregate metrics and short redacted snippets only). Quality and
+over-edit rate dominate the recommendation — a default is never wired from speed alone. It is the
+first phase that makes a real cloud call, so it needs a key and the billing/plan state confirmed
+manually in the provider's own console.
+
+## Work Log — 2026-07-25 — Claude Code — Plan 2b Phase 6 (GUI: provider selection, consent, status, ETA)
+
+Ran on HOME-PC. **Phase 6 is complete and STOPPED per instruction; Phase 7 was not started.**
+**No live cloud call was made** — every test injects an in-process fake adapter, and the one place
+that could contact a cloud provider ("Check service") is refused until every rail already passes.
+
+**Three files touched and two added; nothing out of scope.** `git diff` proves `editor.py`,
+`validation.py`, `prompt.py`, `chunking.py`, **`rate_limits.py`**, **`run_manifest.py`**,
+`provider.py`, `models.py`, `errors.py`, `factory.py`, `cloud.py`, `disclosure.py`,
+`approved_models.py`, `secrets.py`, `redaction.py`, both provider adapters, `core/batch_runner.py`,
+`config.toml` and `scripts/requirements.txt` are **byte-for-byte unchanged**. Phases 4 and 5 are
+*consumed*, not reshaped — no public API of either grew a field, a parameter or a callback to
+accommodate the GUI, and where that was inconvenient the GUI absorbed the inconvenience (see the
+relay, and the short-wait line that was deliberately not built).
+
+| file | change |
+|---|---|
+| `scripts/Universal/gui/cloud_ui.py` | **new, 942 lines** — every cloud GUI decision, tkinter-free |
+| `scripts/Universal/gui/app.py` | +361 / −25 — the widgets, the three dialogs, the wiring |
+| `scripts/Universal/gui/ai_settings.py` | +96 / −6 — `build_provider_factory`, and `provider` persisted |
+| `files/tests/test_cloud_gui.py` | **new, 1,346 lines, 76 tests** |
+| `files/tests/test_ai_gui_controls.py` | +10 / −2 — two persistence tests, widened not weakened |
+
+**THE TWO DORMANT SEAMS ARE NOW LIVE, and both are proven live rather than merely present.**
+`gui/ai_settings.build_provider_factory` is the single lazy factory `AIEditor` is handed. For a cloud
+provider it (1) runs `cloud.ensure_cloud_request_allowed` **before the adapter object exists**, (2)
+builds the adapter, (3) builds the limiter with `limiter_for(...)`, handing it `stop_event`,
+`pause_gate` and **`checkpoint.on_quota_stop`**, and (4) returns `RateLimitedProvider(adapter,
+limiter)`. The local path returns the bare adapter exactly as before — no gate, no wrapper, no
+behaviour change. The proof that this is not decorative code is an end-to-end test that drives the
+**real `AIEditor.edit()`** with an adapter that raises `DailyQuotaExhausted` and asserts the
+checkpoint's callback fired — which can only happen if the limiter really is in the call path.
+Mutation-tested four ways: returning the adapter unwrapped, skipping the gate, passing
+`on_quota_stop = None`, or choosing the limiter by name instead of capability each makes a named test
+fail.
+
+**Two decisions `sequential_thinking` forced, and one thing it stopped me shipping.**
+
+1. **The ETA has three states, not two, because unknown inputs are not symmetric.** I was going to
+   ship a known/unknown flag and a ±20% band. Walking the inputs through showed that an unknown
+   *per-minute* limit still has a real floor — this app's own configured pacing, which is a known
+   number *about this app* — while an unknown *daily* quota is unbounded in the bad direction: the run
+   might finish today or stop every day for a fortnight. So there is no honest upper end to state.
+   Hence `range` (everything known), **`lower_bound`** (per-minute pacing known, a daily quota not —
+   "at least X hours of processing; the total cannot be estimated"), and `none` (the per-chapter cost
+   itself is unmeasured, which is the honest answer before the first cloud run). The floor is always
+   worded as *this app's own pacing*, never as a claim about the provider's limit.
+2. **A resumed run continues the ORIGINAL queue, not the remainder.** The obvious construction —
+   `RunCheckpoint(offer.output_dir, queue=offer.remaining, start_index=0)` — works, and quietly
+   discards the run's recorded shape, so a *second* resume would be continuing a run whose manifest no
+   longer described it. That is the same failure Phase 5 rejected when it chose to store the whole
+   queue rather than recompute it. The checkpoint is rebuilt from `load_manifest(offer.manifest_path)`
+   with the full queue and the original `next_index`; verified against `_record` (`_next_index += 1`)
+   and `finish` (`complete = next_index >= len(queue)`), so the resumed run lands exactly on complete.
+   Mutation-tested.
+
+**The range's width is derived, and where it cannot be derived there is no width.** Two real sources:
+the accepted/fallback split (2a retries a rejected chunk at most once before chapter-atomic fallback,
+so a chapter costs between 1× and 2× — an **unknown** fallback rate therefore widens the range to
+exactly that true worst case rather than collapsing to "no estimate"), and reset-time uncertainty (a
+run spanning *d* quota-days crosses *d−1* resets, each costing between nothing and one whole reset
+period, because how far into the current window the run starts is unknowable). No cosmetic fudge
+factor was added on top: when both ends coincide the headline prints one approximate figure rather
+than a fake band, and the code says so, so nobody later "fixes" it.
+
+**No limit figure is hardcoded anywhere in this phase.** Groq's published per-model RPD/TPM/TPD are
+in the research record and stay there. Daily limits reach the ETA only from live response headers,
+which means **Groq's tokens-per-day — the limit Phase 0 correction #5 says binds first on the free
+plan — is permanently unknown to the app, because Groq never reports it.** The Groq ETA says that
+plainly. Gemini's says that Google publishes no free-tier table and returns no rate-limit headers, so
+the limit that will actually stop the run is unknown and the live figures are in AI Studio. Both are
+statements about what a provider does and does not report, not numbers used in a computation.
+A run of more than 200 remaining chapters also says plainly that free tiers are for subsets.
+
+**Gemini's `tpm_floor = 0` is the normal path, not an edge case, and mutation testing found the guard
+was not load-bearing.** Zero means "no token pacing" — Phase 4 refused to invent a Gemini token
+figure — and it was being filtered out in *two* places, so removing either changed nothing and no test
+could tell. The configured floors are now read without a positivity filter (a floor of zero is a
+meaningful configured value, not a parse failure) and one `is_rate` test decides. Mutating it now
+divides by zero and fails a named test.
+
+**Disclosure versioning is a real version-compare, plus a guard against the way it actually breaks.**
+Phase 1's equality check already re-asks on any bump, so the remaining risk is not the compare — it is
+someone editing `disclosure_text` materially and forgetting to bump the constant, which leaves every
+old acknowledgement silently standing. The guard is an **append-only `{version: sha256(text)}` pin in
+the test file**: editing the text fails the hash assertion, and "fixing" that by editing the existing
+hash in place fails a second assertion that the mapping is append-only and that
+`DISCLOSURE_VERSION == max(keys)`. The cheap way out is therefore the correct one — add a version.
+Mutation-tested by changing the shipped wording. Separately, "acknowledged an older version" is now
+distinguished from "never acknowledged" (`DISCLOSURE_CHANGED` vs `DISCLOSURE_NEW`) so the re-ask reads
+*this notice has changed*, not *you never consented* — a pure read of Phase 1's existing record, and
+also mutation-tested. **`disclosure.py` itself is byte-for-byte unchanged.**
+
+**Selectable is deliberately NOT the same question as ready.** `check_readiness` already distinguishes
+six states with a plain sentence each and those are passed straight through — no status vocabulary was
+invented, and no reason was re-worded, because the panel's own docstring rule is that the status shown
+is the provider's own. A provider with no key is **not ready but still selectable**: selecting it is
+how the user gets told to add one. Exactly one condition greys a provider out — `selectable_models`
+is empty, i.e. every reviewed record for it is preview, not-free, or of unknown free-tier confidence,
+so nothing the user does inside the app leads anywhere. That is the drop's rule, stated once, and
+mutation-tested in both directions. **Retirement is only ever reported from a real `list_models()`
+answer**, never guessed before one is asked for; an empty list stays "unverifiable" via
+`ensure_model_available`, whose Phase 1 test owns that rule — a second copy of the condition in the
+GUI was written, found by mutation testing to be dead weight no test could distinguish, and removed.
+
+**Choosing a cloud provider in the dropdown is what enables it, and that is written down.**
+`config.toml` ships `enabled = false` for both so nothing is pre-selected before Phase 7. The dropdown
+evaluates each provider *as if selected* (`selected_ai_table`), otherwise every cloud row would read
+"turned off" instead of showing the real reason. This moves one rail — an explicit user act — from a
+config flag onto the dropdown plus the disclosure dialog; **every other rail is untouched and still
+enforced by `ensure_cloud_request_allowed`** before a chapter leaves the machine. The reasoning is in
+the function's docstring so it is not mistaken for a loosened check.
+
+**Condensed log: the per-file line was not touched at all.** Provider and model are run-scoped facts
+that cannot change mid-run, so they extend the existing run header (one line, once) rather than
+repeating on every `[i/total] name — outcome` line; a test asserts the header appears exactly once and
+another asserts the local path emits no cloud line. Quota stops use the existing indented
+`        ⚠ ` continuation shape, the same as the "AI rejected" and "heading-only page" warnings —
+"daily quota reached, you can close the app and resume tomorrow", or, when `reset_known` is False, an
+honest "the reset time is unknown" with the provider's limits link and **no invented midnight or
+timezone** (asserted). **A per-wait line for short RPM/TPM holds was deliberately NOT built**: the
+limiter exposes no `on_wait` callback and adding one would reshape Phase 4's public API, which this
+phase was told not to do. Not building it is the flagged trade-off, not an oversight.
+
+**`_QuotaStopRelay`, and why the order is load-bearing.** The limiter takes one `on_quota_stop` and
+the checkpoint provides one, so the GUI needed a third participant without either layer growing a
+second callback. The relay is duck-typed exactly like a `RunCheckpoint` (`build_provider_factory` only
+ever reads `.on_quota_stop`). It calls the checkpoint **first** — writing the manifest and setting the
+stop event — and logs after, so a logging fault can never cost the user the checkpoint. Pinned by a
+test that asserts the order, and mutation-tested. It logs through `_thread_log`, which marshals back
+onto the UI thread via `self.after`, because the callback fires on the worker thread inside
+`provider.complete()` and Tk is not thread-safe.
+
+**A checkpoint is written for cloud runs only.** Plan 2b reverses Plan 1's session-only decision *for
+cloud runs specifically*, so a local run still passes `checkpoint=None` and writes no manifest —
+asserted by its own test — and a purely local user never sees the resume dialog. One honest
+limitation, recorded rather than papered over: `entries` restarts empty on resume because
+`RunCheckpoint`'s public constructor takes no prior entries and reshaping it was out of scope, so a
+later offer's `completed_count` counts only the latest session. The dialog is therefore worded from
+`remaining` vs `len(queue)`, which stay correct.
+
+**One layout constraint had to be paid for.** The provider dropdown needs a row, and
+`test_every_fixed_row_fits_inside_the_minimum_window_height` measured 1036px against `MIN_HEIGHT`
+1020. Raising the minimum was rejected — the window already exceeds a 1080p screen and a tall-window
+Minor is already flagged — so the dry-run checkbox moved onto the policy row (and its label
+shortened), keeping the card at four rows. `MIN_HEIGHT` is unchanged.
+
+**Two existing tests were widened, not weakened.** `PERSISTED_KEYS` gained `provider` because the
+panel now has a provider dropdown; both tests still assert that the opt-in switch and anything
+credential-shaped are never written, and the second now pins the exact three-key document.
+
+**Tests: 76 new, in `files/tests/test_cloud_gui.py` (1,346 lines)**, offline and hermetic — every test
+passes explicit `settings_file` / `secrets_file` / `dotenv_path` / `environ` locations, including the
+panel tests, which also neutralise `ai.secrets.default_secrets_file` and `DEFAULT_DOTENV_PATH`, so a
+developer with a real key on this machine cannot change an outcome. Coverage: every provider status
+state and its displayed reason; selectable vs ready as separate questions; the picker showing only
+reviewed records (and a source scan proving this module never names the listing call); retirement only
+from a real list; disclosure new / changed / acknowledged / per-provider / version-bump / the
+append-only hash pin; the consent gate blocking the first cloud call end to end and declining falling
+back to script-only with **zero adapter calls**; ETA with all inputs known, with each unknown in turn,
+the zero-floor case, the reset fold, the degenerate range, and both providers' honesty lines; resume
+offered / accepted / declined / no manifest / manifest vanished between offer and answer; the resumed
+checkpoint completing the original queue; and the panel itself — the dropdown, a refused selection,
+the picker's values, both dialogs answered both ways, the checkpoint reaching `run_batch`, the local
+run still getting `None`, and the provider logged exactly once.
+
+**Sixteen guards were mutation-tested against a green baseline**, so none is incidentally green, and
+each makes a specific named test fail. The first harness run reported two guards "not caught"; both
+were **real findings, not harness faults** — one guard was duplicated so removing either half changed
+nothing, the other was redundant with `ensure_model_available`. The product was fixed in both cases,
+not the tests. A second harness fault was also found and fixed: restoring a mutated file left stale
+`.pyc` bytecode that silently reverted the mutation, and the rewrite purges `__pycache__` after every
+restore and preserves bytes so line endings are not rewritten.
+
+**Gates.** `scripts/verify.py` **PASS — 1119 passed, 9 skipped** (1128 collected, 0 failed); pins
+PASS; CHANGELOG at v0.12.0 matching BRIEFING. That is **+76 collected exactly** against the 1042/10
+Phase 5 baseline (1052 → 1128), with zero regressions; the 10↔9 skip difference is the documented Tk
+display skip. `git diff --check` clean. **Clean-room re-run: 1120 passed, 8 skipped** — the same 1128
+collected — with `ollama`, `groq`, `google.genai` and `google.generativeai` import-blocked and
+`GEMINI_API_KEY`/`GROQ_API_KEY`/`GOOGLE_API_KEY` unset. **No new dependency** — pure stdlib plus
+existing internal modules, so `scripts/requirements.txt` was not touched.
+
+**Not done, by instruction:** no comparison run (Phase 7); no CHANGELOG/BRIEFING/DECISIONS entry
+(v0.13.0 docs belong to Phase 8). `config.toml` was not touched — both cloud providers still ship
+`enabled = false` and `model = ""`, so nothing pre-selects a cloud model or a cloud provider.
+
+**Needs hands-on click-through before Phase 7** (dialog interaction cannot be tested from here): the
+three modal dialogs render as expected at 820px — the disclosure body is long and is passed to
+`messagebox.askokcancel`, which does not scroll, so confirm it is fully readable on the real display;
+the provider dropdown's "— unavailable" rows behave as intended when clicked; and the estimate dialog
+before a cloud run reads correctly.
 
 ## Work Log — 2026-07-25 — Claude Code — Plan 2b Phase 5 (Checkpointed runs)
 
