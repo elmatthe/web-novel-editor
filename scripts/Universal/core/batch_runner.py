@@ -41,6 +41,7 @@ from core.edit_details import load_edit_details
 from core.novel_registry import NOVEL_INDEX_DIR, resolve_dispatch
 from core.protected_lexicon import load_protected_lexicon
 from core.replacement_log import ReplacementLog
+from core.run_manifest import RunCheckpoint
 from pdf.builder import build_pdf, detect_heading_only_pages
 from pdf.extractor import extract_text_from_pdf, is_low_confidence
 from utils.file_utils import debug_text_path, unique_output_path
@@ -63,6 +64,7 @@ def run_batch(
     stop_event: Optional[threading.Event] = None,
     ai_editor: AIEditor | None = None,
     use_ai_in_dry_run: bool = False,
+    checkpoint: RunCheckpoint | None = None,
     gui_log: Callable[..., None] | None = None,
     progress: Callable[[int], None] | None = None,
 ) -> dict:
@@ -95,6 +97,15 @@ def run_batch(
     the historical script-only path exact. Dry runs call it only when
     `use_ai_in_dry_run` is explicitly true.
 
+    `checkpoint` is one optional `RunCheckpoint` (Plan 2b Phase 5). None keeps the
+    historical path exact — nothing is written and no manifest appears. When present,
+    the run's state is written atomically into the output folder after EACH finished
+    file, so the app can be closed at any point and the run resumed later. The
+    recording call sits on the far side of `build_pdf` and its sidecars, so a
+    `completed` entry always means the output exists; failed and skipped files are
+    recorded with their own status and still advance the queue, because a resumed run
+    must not retry a corrupt PDF forever. Dry runs write no manifest at all.
+
     Returns: {total, succeeded, failed, skipped, output_dir, outputs:[paths],
     novel, profile_applied} — the last two are the run's dispatch provenance (the
     resolved display name and whether a real per-novel profile ran vs. universal-only).
@@ -112,6 +123,8 @@ def run_batch(
     stopped = False
     outage_warned = False
     invoke_ai = ai_editor is not None and (not dry_run or use_ai_in_dry_run)
+    # A dry run writes no PDF and no output folder, so it writes no manifest either.
+    track = checkpoint if (checkpoint is not None and not dry_run) else None
 
     log(f"Starting batch: {total} file(s).", "accent")
     log(f"Output folder: {output_dir}", "muted")
@@ -216,6 +229,8 @@ def run_batch(
                 skipped += 1
                 skipped_files.append((name, "not found"))
                 log(f"[{i}/{total}] {name} — skipped (not found)", "warn")
+                if track is not None:
+                    track.record_skipped(src, "not found")
                 continue
 
             text = extract_text_from_pdf(src)
@@ -224,6 +239,8 @@ def run_batch(
                 skipped += 1
                 skipped_files.append((name, "image-only/empty"))
                 log(f"[{i}/{total}] {name} — skipped (image-only/empty)", "warn")
+                if track is not None:
+                    track.record_skipped(src, "image-only/empty")
                 continue
 
             # Run the selected novel's editorial pipeline. The ReplacementLog is now
@@ -355,6 +372,16 @@ def run_batch(
                 with open(dbg, "w", encoding="utf-8") as fh:
                     fh.write(text)
 
+            # Checkpoint LAST, on the far side of the PDF and its sidecars: a
+            # `completed` entry must always mean the output really exists, so a
+            # resumed run never skips a chapter it never wrote.
+            if track is not None:
+                track.record_completed(
+                    src,
+                    out_path,
+                    ai_status=(ai_outcome.status if ai_outcome is not None else "none"),
+                )
+
             succeeded += 1
 
         except Exception as exc:  # continue-on-failure: never abort the batch
@@ -362,8 +389,21 @@ def run_batch(
             reason = f"{type(exc).__name__}: {exc}"
             failed_files.append((name, reason))
             log(f"[{i}/{total}] {name} — FAILED ({reason})", "error")
+            # Recorded as failed, and the queue still advances — otherwise a resumed
+            # run would retry the same corrupt PDF forever.
+            if track is not None:
+                try:
+                    track.record_failed(src, reason)
+                except Exception:  # a checkpoint fault must not hide the real failure
+                    log(f"        ⚠ could not update the run manifest for {name}.",
+                        "warn")
         finally:
             tick(i)
+
+    if track is not None:
+        # A run that consumed its queue is marked complete and is never offered for
+        # resume; a stopped one stays resumable from exactly here.
+        track.finish(stopped=stopped)
 
     summary = {
         "total": total,

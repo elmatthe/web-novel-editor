@@ -1,17 +1,175 @@
 # Web Novel Editor — Handoff
 
 ## Current Focus
-**Plan 2b (Cloud AI Providers — Gemini, Groq — target v0.13.0) is UNDERWAY. Phases 0, 1, 2, 3 and 4
-are complete; Phase 5 (checkpointed runs — the run manifest and "Resume incomplete run") is the next
-authorized work.** Working branch **`feature/plan-2b-cloud-providers`**, cut from the approved merged
-release commit **`72d68ca`** (`main`, tag `v0.12.0`). Baseline `verify.py` at branch creation: **688
-passed / 8 skipped**; after Phase 1: **739 / 8**; after Phase 2: **801 / 9**; after Phase 3: **892 /
-9**; after Phase 4: **977 passed / 9 skipped**. **Both cloud adapters now exist** — `GeminiProvider`
-(`google-genai==2.14.0`) and `GroqProvider` (`groq==1.6.0`), both pinned, neither SDK imported at
-package load — and both are now paceable through one shared limiter. No live cloud call has ever been
-made from this repo. See the phase work logs below.
+**Plan 2b (Cloud AI Providers — Gemini, Groq — target v0.13.0) is UNDERWAY. Phases 0, 1, 2, 3, 4 and 5
+are complete; Phase 6 (GUI — provider selection, consent dialog, status, ETA, the resume offer) is the
+next authorized work.** Working branch **`feature/plan-2b-cloud-providers`**, cut from the approved
+merged release commit **`72d68ca`** (`main`, tag `v0.12.0`). Baseline `verify.py` at branch creation:
+**688 passed / 8 skipped**; after Phase 1: **739 / 8**; after Phase 2: **801 / 9**; after Phase 3:
+**892 / 9**; after Phase 4: **977 / 9**; after Phase 5: **1042 passed / 10 skipped** (1052 collected —
+the long-documented Tk display skip flips pass↔skip on this machine). **Both cloud adapters exist** —
+`GeminiProvider` (`google-genai==2.14.0`) and `GroqProvider` (`groq==1.6.0`), both pinned, neither SDK
+imported at package load — both are paceable through one shared limiter, and a run can now be stopped
+and resumed across days. No live cloud call has ever been made from this repo.
 
-**The seam Phase 5 plugs into:** `ai.rate_limits.QuotaStop` — see the Phase 4 log immediately below.
+**What Phase 6 wires up (nothing below is constructed at runtime yet):**
+`ai.rate_limits.RateLimitedProvider` + `limiter_for(...)` into `gui/ai_settings.build_ai_editor`, with
+`checkpoint.on_quota_stop` handed to `limiter_for` as its `on_quota_stop`; and
+`core.run_manifest.find_resumable_run(downloads_dir())` → a Yes/No dialog →
+`plan_resume(offer)` into `run_batch`.
+
+## Work Log — 2026-07-25 — Claude Code — Plan 2b Phase 5 (Checkpointed runs)
+
+Ran on HOME-PC. **Phase 5 is complete and STOPPED per instruction; Phase 6 was not started.**
+**No live cloud call was made** and nothing waits — the checkpoint takes an injected clock and the
+quota-stop path is driven by a real `QuotaStop` built without a limiter.
+
+**One existing file touched, and nothing that was out of scope.** `git diff` proves `provider.py`,
+`models.py`, `errors.py`, `factory.py`, `editor.py`, `validation.py`, `prompt.py`, `chunking.py`,
+**`rate_limits.py`**, both provider adapters, the whole GUI and `config.toml` are byte-for-byte
+unchanged. The only edit is `core/batch_runner.py` (+40 lines, additive), which is where the seam has
+to be because it is the only code that knows a file just finished — the same place and the same shape
+2a used to add its `ai_editor` seam.
+
+**The manifest: `<output folder>/run-manifest.json`, rewritten atomically after every finished file.**
+Written by 2a's `write_settings_atomic` — tempfile + `fsync` + `os.replace` — the exact call Phase 1
+used for `secrets.json`; no atomic-write logic was reimplemented. Payload:
+`{schema_version, run{novel, mirror_root, provider, model_id, prompt_version, gate_version,
+ai_policy, started_at}, output_dir, queue[], next_index, entries[], quota_stop, stopped_reason,
+complete}`, with each entry `{source, status, output, ai_status, size, mtime_ns, recorded_at}`. That
+covers every field the drop lists.
+
+**Two decisions `sequential_thinking` forced, and one it reversed.**
+1. **The whole queue is stored, not recomputed.** Folder mode's order is reproducible from
+   `scan_folder`, but **upload mode's is not** — it is whatever the user dragged in. Recomputing would
+   mean a "resume" that silently processed files in a different order than the run it claims to
+   continue. A few hundred KB for 3,000 chapters, rewritten once per file, is noise against a
+   multi-second-per-chapter AI pass. The cost is real and is recorded rather than glossed over.
+2. **Whole-file atomic rewrite, not an append-only journal.** A journal is cheaper to write and is
+   exactly the shape a kill can leave half-written; a whole-file replace means the file on disk is
+   *always* a complete, valid manifest.
+3. **Reversed mid-reasoning:** I had written "if any remaining input is missing, refuse the resume".
+   That is not conservatism — refusing a 2,000-chapter resume because one file was moved is a worse
+   outcome, and it is not guessing either, because `run_batch` already skips a missing file honestly
+   with a logged line. The rule now is: offer the resume, **report** `missing_inputs` so Phase 6 can
+   show the count, and only refuse when **every** remaining input is gone (there is genuinely nothing
+   to resume). Two tests pin both halves.
+
+**Checkpoints are file-boundary only, and the invariant has a sharp form.** `record_completed` sits on
+the **far side of `build_pdf` and its sidecars**, so a `completed` entry always means the output
+exists. A partial chapter cannot be checkpointed even in principle: chunk state lives inside
+`AIEditor.edit`, which is chapter-atomic and returns either accepted text or the deterministic
+baseline, so this layer never sees anything partial. The test is therefore not a vacuous "assert no
+partial field exists" but "make `build_pdf` raise mid-run and assert that file is recorded `failed`
+with no output path, while its neighbours are `completed`". Mutation-tested: moving the checkpoint
+one line earlier, before `build_pdf`, makes a test fail.
+
+**Failed and skipped files advance the queue** — with their own status, and never naming an output.
+Otherwise a resumed run retries the same corrupt PDF forever. The user-visible consequence is real and
+deliberate: **a resumed run does not re-attempt yesterday's failures, and does not re-run chapters that
+fell back to script-only** — the per-file `ai_status` (`accepted` / `fallback` / `script_only`) is
+recorded precisely so that is visible. Dry runs write no manifest at all.
+
+**Nothing sensitive is written, and the manifest owns that guarantee itself.** There is no field that
+could carry chapter text — asserted by a whitelist test over entry keys, because the natural way to
+leak prose later is a well-meaning "summary" or "preview" field. **A failure reason is accepted and
+deliberately discarded**: a provider error message can quote the candidate text, and the JSONL sidecar
+and GUI log already carry the detail. A test proves an `InvalidResponse: rejected 'the candidate text'`
+reaches the file as neither. Two positive tests run a **real committed Shadow Slave fixture** end to
+end through `run_batch` with a `gsk_`-shaped fake key registered, then assert the key is absent and
+that no 5-word phrase of the real extracted prose appears anywhere in the manifest.
+
+**One genuine defect the tests caught before it shipped.** The `quota_stop` record was persisted
+exactly as Phase 4 handed it over, on the assumption that Phase 4 had already redacted it. It had —
+but the manifest is the layer that *persists*, and it should not depend on an upstream caller's
+hygiene for its own guarantee. The record is now re-redacted and bounded on write. Mutation-tested:
+removing that second redaction makes the key test fail.
+
+**THE PHASE 4 SEAM, CONSUMED — and no import of `rate_limits` anywhere in the manifest module.**
+`RunCheckpoint.on_quota_stop(stop)` reads the `QuotaStop` **duck-typed through `as_dict()`**, the same
+trick `rate_limits.py` itself uses to read snapshots, so Phase 4's public shape is untouched and a test
+asserts the module imports nothing from it. The callback: records the stop, sets `stopped_reason` to
+`daily_quota` or `long_wait` from `stop.is_daily`, writes the manifest **immediately**, and then **sets
+the run's `stop_event`**.
+
+That last step is the whole mechanism, and it needed no new halting machinery: the callback fires on
+the worker thread inside `provider.complete()`, the `DailyQuotaExhausted` propagates into `AIEditor`,
+which is chapter-atomic and falls back to the deterministic text, that chapter is written and
+checkpointed normally, and `run_batch`'s existing between-files check ends the batch with
+`stopped: True`. **No busy loop, no background wait, no multi-day window** — it reuses the exact Stop
+path 2a built and Phase 4 already routes through. An end-to-end test drives the real batch loop with a
+provider that signals the seam and raises on chapter 2, and asserts: the in-flight chapter still
+completes (2 succeeded, 2 PDFs built), `next_index == 2`, `complete` is `False`,
+`stopped_reason == "daily_quota"`, and chapter 2's `ai_status` is `fallback`.
+
+**An ordering trap worth recording.** The manifest is written **twice** around a quota stop — once by
+the callback, then again moments later by the in-flight chapter's own checkpoint. Since every write is
+a whole-file replace, the second would have **erased** the quota stop. It is therefore held in memory
+on the checkpoint object, not read back from the file. Mutation-tested: clearing it after the callback
+write makes a test fail. I would have shipped that bug without walking the ordering through.
+
+**Safe-to-close, and the kill-mid-write case tested rather than asserted.** Three moments a kill can
+land relative to one write: *before the temp file* (previous manifest intact, at most the last file is
+redone), *between the temp write and `os.replace`* (previous manifest untouched, temp orphaned), and
+*after the replace* (new manifest durable). The middle one is tested by patching `os.replace` to raise
+and then asserting the previous manifest is **byte-identical** and still loads, that no `.tmp` residue
+remains (`write_settings_atomic` unlinks on any exception), and that an orphaned
+`.run-manifest.json.*.tmp` beside a valid manifest changes nothing — the discovery scan looks for the
+exact filename, so a dotfile temp can never be mistaken for a manifest. Mutation-tested: swapping the
+atomic write for a naive `write_text` makes the rename test fail. A separate test simulates an abrupt
+close by never calling `finish()` and confirms the manifest still loads and resumes from the right
+place.
+
+**Resume: two functions, deliberately shaped differently** (the same split `cloud.py` uses for
+readiness vs enforcement). `find_resumable_run(search_dir)` **never raises** — it scans one level down
+for manifests, takes the newest incomplete one, and returns a `ResumeOffer(available, reason,
+output_dir, novel, mirror_root, remaining, missing_inputs, completed_count, stopped_reason,
+quota_stop)`. `plan_resume(offer)` returns the exact `run_batch` arguments, continuing into the
+**original** output folder — that is what makes it a continuation rather than a second run.
+**Declining is not a function call at all**: the caller simply takes the normal fresh-run path, which
+allocates the next `<novel>-N` folder as usual, and a test proves merely *offering* mutates nothing.
+
+**`load_manifest` rejects rather than repairs, and never raises** (the caller is a GUI). Refused:
+missing, unreadable, truncated JSON, a non-object payload, a missing/non-integer schema version, a
+**forward** schema version (a future build's manifest must not be half-read by today's code), a queue
+that is missing/empty/not a list of strings, an index that is missing/negative/past the queue end, and
+non-list entries. Nine parametrized cases plus four named ones. Every rejection produces
+`available=False` with a plain sentence — never a partial resume, never an exception reaching the GUI.
+A *finished* run is also not offered, with its own distinct reason so Phase 6 can word it differently
+from "corrupt".
+
+**Tests: 66 new, in `files/tests/test_run_manifest.py` (974 lines)**, offline and hermetic. Coverage:
+the manifest after each completed file with every drop-listed field; accepted vs fallback recorded
+separately; failed/skipped advancing with their own status and no output path; no key and no chapter
+text (twice, including a real fixture run); every `load_manifest` rejection; resume offered / declined
+leaves it untouched / missing / corrupt / forward-schema / finished / all-inputs-gone /
+some-inputs-gone; the newest incomplete run chosen; temp-and-rename observed; kill between write and
+rename; orphaned temp ignored; the `run_batch` seam inert when absent; dry runs writing nothing; the
+build-failure boundary; the quota stop end to end through the real batch loop; the quota stop surviving
+the next write; an unknown reset time carried through as unknown; and a foreign object on the seam not
+crashing the run.
+
+**Ten guards were mutation-tested against a green baseline**, so none is incidentally green: the atomic
+write, the quota-stop redaction, the corrupt-manifest refusal, the forward-schema refusal, the
+in-memory quota-stop retention, the `stop_event` set, the failed-file index advance, the checkpoint's
+position after `build_pdf`, the dry-run guard, and `finish()` marking a run complete. Each makes a
+specific named test fail.
+
+**Gates.** `scripts/verify.py` **PASS — 1042 passed, 10 skipped** (1052 collected, 0 failed); pins
+PASS; CHANGELOG at v0.12.0 matching BRIEFING. That is **+66 exactly** against the 977/9 Phase 4
+baseline (986 collected → 1052), with zero regressions; the 9↔10 skip difference is the documented Tk
+display skip. `pip check` clean; `git diff --check` clean. **Clean-room re-run: 1044 passed, 8
+skipped** — the same 1052 collected — with `ollama`, `groq`, `google.genai` and `google.generativeai`
+all import-blocked and `GEMINI_API_KEY`/`GROQ_API_KEY`/`GOOGLE_API_KEY` unset. **No new dependency** —
+pure stdlib plus two existing internal modules, so `scripts/requirements.txt` was not touched.
+
+**Not done, by instruction:** no GUI of any kind (the resume dialog, the "daily free quota reached"
+message, a Retry button and the ETA are Phase 6); no comparison run (Phase 7); no
+CHANGELOG/BRIEFING/DECISIONS entry (v0.13.0 docs belong to Phase 8). **Nothing constructs a
+`RunCheckpoint` or a `RateLimitedProvider` at runtime yet** — `run_batch` accepts a checkpoint and the
+GUI does not yet pass one, exactly as `RateLimitedProvider` is built but not yet composed. Both are
+Phase 6's wiring, and doing either here would have been the GUI work this phase was told to stay out
+of. `config.toml` was not touched; both cloud providers still ship `enabled = false` and `model = ""`.
 
 ## Work Log — 2026-07-25 — Claude Code — Plan 2b Phase 4 (Rate limiting + quota classification)
 
@@ -711,6 +869,17 @@ key storage, no consent dialog, no rate limiter, no GUI change, no dependency ad
 CHANGELOG/BRIEFING/DECISIONS entry (v0.13.0 docs belong to Phase 8), no merge, no tag, no PR.
 
 ### Session Sync Log
+- 2026-07-25 — HOME-PC — Plan 2b Phase 5 (checkpointed runs), verify 1042/10 (1052 collected) on
+  `feature/plan-2b-cloud-providers`. Changed: `scripts/Universal/core/run_manifest.py` (new, 436
+  lines — `RunCheckpoint`, `load_manifest`, `ResumeOffer`, `find_resumable_run`, `plan_resume`),
+  `files/tests/test_run_manifest.py` (new, 974 lines, 66 tests), `scripts/Universal/core/
+  batch_runner.py` (+40 lines — one optional `checkpoint` parameter and four guarded call sites,
+  inert when absent), `md-instructions/HANDOFF.md` (this entry + Current Focus). **2a base contract
+  unchanged** — no edit to `provider.py`, `models.py`, `errors.py`, `factory.py`, `editor.py`,
+  `validation.py`, `prompt.py` or `chunking.py`. **`rate_limits.py`, both provider adapters, the whole
+  GUI and `config.toml` unchanged** — `QuotaStop` is consumed duck-typed. No new dependency
+  (`requirements.txt` untouched). No live cloud call. Committed and pushed to the working branch.
+  Next: Phase 6 — GUI provider selection, consent dialog, status, ETA, and the resume offer.
 - 2026-07-25 — HOME-PC — Plan 2b Phase 4 (rate limiting + quota classification), verify 977/9 on
   `feature/plan-2b-cloud-providers`. Changed: `scripts/Universal/ai/rate_limits.py` (new, 790 lines —
   the shared limiter, both implementations, the `RateLimitedProvider` wrapper and the `QuotaStop`
