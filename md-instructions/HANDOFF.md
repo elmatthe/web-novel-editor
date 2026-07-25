@@ -1,14 +1,203 @@
 # Web Novel Editor — Handoff
 
 ## Current Focus
-**Plan 2b (Cloud AI Providers — Gemini, Groq — target v0.13.0) is UNDERWAY. Phases 0, 1, 2 and 3 are
-complete; Phase 4 (rate limiting + quota classification) is the next authorized work.** Working
-branch **`feature/plan-2b-cloud-providers`**, cut from the approved merged release commit
-**`72d68ca`** (`main`, tag `v0.12.0`). Baseline `verify.py` at branch creation: **688 passed /
-8 skipped**; after Phase 1: **739 / 8**; after Phase 2: **801 / 9**; after Phase 3: **892 passed /
-9 skipped**. **Both cloud adapters now exist** — `GeminiProvider` (`google-genai==2.14.0`) and
-`GroqProvider` (`groq==1.6.0`), both pinned, neither SDK imported at package load. No live cloud
-call has ever been made from this repo. See the phase work logs below.
+**Plan 2b (Cloud AI Providers — Gemini, Groq — target v0.13.0) is UNDERWAY. Phases 0, 1, 2, 3 and 4
+are complete; Phase 5 (checkpointed runs — the run manifest and "Resume incomplete run") is the next
+authorized work.** Working branch **`feature/plan-2b-cloud-providers`**, cut from the approved merged
+release commit **`72d68ca`** (`main`, tag `v0.12.0`). Baseline `verify.py` at branch creation: **688
+passed / 8 skipped**; after Phase 1: **739 / 8**; after Phase 2: **801 / 9**; after Phase 3: **892 /
+9**; after Phase 4: **977 passed / 9 skipped**. **Both cloud adapters now exist** — `GeminiProvider`
+(`google-genai==2.14.0`) and `GroqProvider` (`groq==1.6.0`), both pinned, neither SDK imported at
+package load — and both are now paceable through one shared limiter. No live cloud call has ever been
+made from this repo. See the phase work logs below.
+
+**The seam Phase 5 plugs into:** `ai.rate_limits.QuotaStop` — see the Phase 4 log immediately below.
+
+## Work Log — 2026-07-25 — Claude Code — Plan 2b Phase 4 (Rate limiting + quota classification)
+
+Ran on HOME-PC. **Phase 4 is complete and STOPPED per instruction; Phase 5 was not started.**
+**No live cloud call was made** — every test injects an in-process fake provider, an injected
+monotonic clock and an injected sleeper. **Nothing in the suite ever sleeps**, enforced rather than
+asserted: an autouse fixture replaces `time.sleep` with a raiser for the whole module.
+
+**Two files touched besides the new ones, and NOTHING that was out of scope.** `git diff` proves
+`provider.py`, `models.py`, `errors.py`, `factory.py`, `editor.py`, `validation.py`, `prompt.py`,
+`chunking.py`, **both provider adapters**, `core/batch_runner.py` and the whole GUI are byte-for-byte
+unchanged. The 2a base contract again required **no change**, and this time that is a design result
+rather than a happy accident — see the wrapper decision below.
+
+**The structural decision the state machine forced: the limiter is a PROVIDER, not a change to the
+editor.** `AIEditor.edit()` calls `provider.complete(request)` directly and knows nothing about
+limits, and `AIEditor` was explicitly out of scope. Three placements were considered and
+`sequential_thinking` killed the first two: (a) a limiter *inside* each adapter would have edited two
+reviewed, pushed, live-verified modules, mixed transport with policy, and been untestable without a
+fake SDK; (b) a limiter *above* the editor cannot see a 429 at all, because the editor swallows
+provider errors into its fallback. What is built is (c) **`RateLimitedProvider`, a decorator that
+itself satisfies 2a's four-method protocol** and wraps a real adapter. The editor asks for an
+`AIProvider` and gets one; the limiter sits exactly where it can see both the errors and the headers;
+and a test asserts `isinstance(wrapper, AIProvider)`. Phase 6 composes it at construction time —
+Phase 4 deliberately wires nothing into the GUI.
+
+**The asymmetry is honoured by the capability flag, never by provider name.** `limiter_for(adapter,
+settings, provider=…)` reads `capabilities().exposes_rate_limits` and returns
+`HeaderDrivenRateLimiter` (Groq — reads the Phase 3 `RateLimitSnapshot` off `provider.last_rate_limits`
+and off `exc.rate_limits`) or `FlooredRateLimiter` (Gemini — `snapshot_from()` returns `None`
+*unconditionally and deliberately*: Google publishes no limits and returns no headers, so there is no
+number to read, and inventing one is what the drop forbids). A provider added later gets the right
+limiter without this function learning its name. Mutation-tested: hardcoding the header-driven class
+makes a test fail. **The limiter imports no provider module at all** — snapshots are read duck-typed
+via `getattr`, asserted by a test that scans the import lines.
+
+**THE DIRECTION IS ASSERTED IN BOTH DIRECTIONS.** Groq's `x-ratelimit-*-requests` are **per day** and
+`x-ratelimit-*-tokens` are **per minute**. So `remaining_requests == 0` classifies as
+`REQUESTS_PER_DAY` → a clean stop, and `remaining_tokens == 0` classifies as `TOKENS_PER_MINUTE` → a
+seconds-long wait. Three tests pin this, including one that swaps the two pairs and requires the
+classification to swap with them. The subtler half of the same trap is in the *wait* computation and
+is pinned separately: a per-minute wait may use `reset_tokens_seconds` but **must never** use
+`reset_requests_seconds`, which is the day counter's reset — mutating that one line makes a test fail.
+A snapshot carrying `remaining_requests = 0, reset_requests_seconds = 86400` produces a daily stop
+with **zero seconds slept**, and the 86,400 is recorded for Phase 5 rather than waited on.
+
+**The wait decision table**, in authority order, and what is deliberately *not* consulted:
+
+| Situation | Wait | Source |
+|---|---|---|
+| `Retry-After` on the error or the snapshot | **honoured exactly, never jittered** | `retry_after` |
+| TPM limit, no Retry-After | `x-ratelimit-reset-tokens` | `header_reset_tokens` |
+| RPM limit, no Retry-After | the configured floor — **never** `reset-requests` | `floor` |
+| malformed / absent / unparsable headers | the configured floor | `floor` |
+| transient network fault or provider capacity | jittered bounded backoff | `backoff` |
+| **any daily quota (RPD / TPD / unspecified)** | **none, ever** | `daily` |
+| auth, context, refused response, cancellation | none — re-raised untouched | `none` |
+
+**Retry-After is honoured exactly and jitter is never applied to it.** Jitter on a number the
+provider handed us either undershoots into overage or adds noise to an authoritative instruction; a
+test samples the same 429 twenty-five times with a 0.9 jitter ratio and requires exactly one distinct
+value. Backoff is `base * 2**attempt`, capped, then jittered into `[ceiling*(1-ratio), ceiling]`, from
+an **injected** `random.Random` so the bounds are checkable — and it is reachable **only** from
+`TRANSIENT` and `PROVIDER_CAPACITY`. A capacity error is explicitly *not* quota: it backs off, and it
+never writes a quota stop.
+
+**The one collision the two rules created, and how it was resolved.** "Honour Retry-After exactly" and
+"a daily quota must never become a long sleep" collide when a provider returns `Retry-After: 4000` on a
+*per-minute* error. Truncating it would disobey the provider; sleeping it would be the multi-day-sleep
+behaviour this plan exists to delete. The resolution is a third state: any wait longer than the
+configured `max_wait_seconds` (900 s) is **reported honestly at its full value and not slept** —
+`retry = False`, `too_long = True` — and the run stops cleanly through the same seam as a daily quota,
+flagged `is_daily = False`. That is exactly the drop's "short waits in session, long waits become a
+clean stop" split, and it fell out of the state machine rather than being designed in advance.
+
+**Never retry into overage, in its strongest form.** Once a daily stop is recorded, `complete()`
+short-circuits **before the provider is touched at all** — a run that hit the wall does not spend one
+more request on the next chapter. Separately, if a *successful* response's headers report
+`remaining_requests == 0`, the **next** request is refused before it is sent. Both are
+mutation-tested; removing either makes a test fail.
+
+**Conservative floors, and no magic number anywhere in the limiter.** Floors live in the Phase 1
+`[ai.gemini]` / `[ai.groq]` subtables (mirrored into `cloud.CLOUD_DEFAULTS` only so a missing or
+corrupt section still yields a *conservative* limiter rather than an unlimited one). A test scans
+`rate_limits.py` for hardcoded limit figures. Junk or negative values fall back to the shipped default
+rather than to "no limit". They are documented in `config.toml` as **client-side self-restraint, not a
+claim about the provider's real limit**: Groq gets 15 RPM / 5,000 TPM (below the smallest documented
+free-plan figure across the four approved models, and overridden by any live header), Gemini gets 10
+RPM and **`tpm_floor = 0`** — zero because no Gemini token figure exists to base one on, and guessing
+one is precisely the invention the prompt forbids. The floor governs pacing from the second request
+onward; a single request larger than the whole token floor **proceeds** rather than hanging, because
+no amount of waiting makes room for it and the floor is our own restraint, not the provider's limit.
+
+**Monotonic throughout; wall clock only for display.** Every deadline is a monotonic instant, so a
+wall-clock jump cannot change a countdown *by construction* — a test moves the wall clock back two
+hours and forward an hour mid-countdown and requires the served wait to be unchanged, and mutating the
+deadline to the wall clock makes a test fail. A monotonic jump forward (resume from suspend) simply
+ends the wait rather than leaving a negative or extended one. The only wall-clock value kept is
+`QuotaStop.observed_wall`, for display.
+
+**Stop during a wait — verified against the real code, and it matches the intended semantics.** Long
+waits are served as bounded 5-second slices, and the default sleeper is `stop_event.wait(...)`, so a
+Stop breaks the countdown *immediately* rather than up to one slice late. The wait then raises
+`RequestCancelled`. Traced through 2a's actual `editor.py`: `RequestCancelled` is an `AIProviderError`
+with `retryable = False` and is **not** in the `provider_outage` tuple, so the chunk loop records the
+attempt, breaks, and calls `_fallback_or_raise(..., cause=None)` →
+- **prefer-AI (the normal case): the chapter completes deterministically, script-only, byte-for-byte
+  the pipeline's own text**, the PDF is written, and the run halts at the normal between-files seam.
+  Both invariants hold — no half-written output, and Stop is never blocked behind a countdown. A test
+  drives the **real `AIEditor`** through the real wrapper and asserts the returned text is the
+  baseline byte-for-byte.
+- **AI-required: it raises instead of degrading**, that file is marked FAILED by the existing per-file
+  `try/except`, and the run still halts at the same between-files seam. That is AI-required's existing
+  2a contract ("raises instead of degrading"), not a third behaviour invented here. Reported, not
+  papered over; a test pins it.
+
+**A mid-file wait deliberately does NOT hold for Pause.** BRIEFING states a mid-file hold needs a
+superseding DECISIONS entry (#033: the in-flight file always finishes), and holding a countdown for a
+pause would only lengthen the very window Pause exists to bound. A `pause_gate` may be passed and is
+accepted for symmetry, but the wait observes **Stop** only; a test pins that a paused gate does not
+extend the wait. **Window close** is covered by the same mechanism — waits are sliced and stop-checked,
+and no wait can exceed `max_wait_seconds`, so nothing can hold the process open for hours.
+
+**THE PHASE 5 SEAM — `ai.rate_limits.QuotaStop`.** This is what Phase 5 plugs into, and Phase 4
+deliberately builds no manifest, no checkpoint file and no resume UI. A frozen dataclass, recorded
+once per run, readable as `limiter.quota_stop`, with an optional `on_quota_stop(stop)` callback fired
+exactly once (tested):
+
+| field | meaning |
+|---|---|
+| `provider`, `model_id` | which provider/model hit the wall |
+| `kind` | `requests_per_day` / `tokens_per_day` / `daily_unspecified` / a per-minute kind when `too_long` |
+| `reason` | the provider's own words, **redacted** through the Phase 1 boundary and bounded to 240 chars |
+| `reset_seconds`, `reset_known` | seconds until reset, or `None` + `False` — **never a guessed midnight or provider timezone** |
+| `is_daily` | `True` = resume tomorrow; `False` = a wait too long for this session |
+| `observed_wall` | wall clock, for display only |
+
+`as_dict()` is the manifest-safe projection: it carries **no API key, no chapter text, no file path**
+(asserted with a `gsk_`-shaped fake key in the provider's error text), and it deliberately omits
+`observed_monotonic`, which is meaningless once written to disk and read back in another process.
+Phase 5 writes the manifest from this and stops the batch at the between-files seam; Phase 6 renders
+`reset_known = False` as an honest "reset time unknown — see the provider's limits page".
+
+**Tests: 85 new, in `files/tests/test_rate_limiting.py` (1,165 lines)**, all offline and hermetic.
+Coverage: the configured floors and their junk-value fallbacks; every classification row; the header
+direction in both directions; Retry-After honoured exactly and never jittered; RPM wait then resume;
+TPM from the token reset header; RPD/TPD classified daily and **not** backed off; malformed, absent and
+unparsable headers falling back to the floor rather than a guess; the Gemini floored path with
+`exposes_rate_limits = False`; a provider claiming headers but returning none degrading to the floor;
+jittered backoff inside its bounds at three attempt depths and bounded at attempt 19; the wrapper's
+full loop including bounded attempts, pass-through of errors it does not own, the daily short-circuit
+and the header preflight; Stop during a wait at three levels (the limiter, the wrapper, and end-to-end
+through the real `AIEditor` under both policies); wall-clock and monotonic jumps; and the suite passing
+with no keys set.
+
+**Ten guards were mutation-tested against a green baseline**, so none is incidentally green: the
+header direction, the never-sleep-on-daily rule, the no-jitter-on-Retry-After rule, the
+per-minute-wait-never-reads-the-day-reset rule, the daily short-circuit, the zero-remaining-requests
+preflight, the capability-flag branch, the monotonic deadline, the over-long-wait stop, and the Stop
+check inside the wait loop. Each mutation makes a specific named test fail — and the Stop-check
+mutation makes the suite **hang**, which is the strongest possible evidence that the wait is genuinely
+interruptible. (The first harness run was **discarded**: it passed pytest a `--timeout` flag this
+environment does not have, so every run failed for the wrong reason and every mutation looked caught.
+The rebuilt harness asserts a green baseline before mutating and treats a hang as a distinct outcome.)
+
+**One real hazard, already documented by Phases 2 and 3, bit again.** The module passed 85/85 alone but
+failed 12 tests in the full suite: `test_ai_foundation` pops every `ai.*` module and re-imports the
+package, so a test module holding some names from before that pop and importing others after it ends up
+with two generations of the same classes — and the limiter's `except (RateLimited, ...)` stopped
+catching an exception the test had built. **The test was adapted, not the product**: all 31 in-function
+`ai.*` imports were hoisted to module level so one generation is used throughout, and the module
+docstring records why. Not a product defect; in production nothing reloads the package.
+
+**Gates.** `scripts/verify.py` **PASS — 977 passed, 9 skipped** (986 collected, 0 failed); pins PASS;
+CHANGELOG at v0.12.0 matching BRIEFING. That is **+85 exactly** against the 892/9 Phase 3 baseline, with
+zero regressions. `pip check` clean; `git diff --check` clean. **Clean-room re-run: identical 977 passed
+/ 9 skipped** with `ollama`, `groq`, `google.genai` and `google.generativeai` all blocked by an injected
+import blocker and `GEMINI_API_KEY`/`GROQ_API_KEY`/`GOOGLE_API_KEY` unset. **No new dependency** — the
+limiter is pure stdlib, so `scripts/requirements.txt` was not touched.
+
+**Not done, by instruction:** no run manifest, checkpoint file or resume UI (Phase 5); no GUI widget,
+countdown display, provider dropdown or ETA (Phase 6); no comparison run (Phase 7); no
+CHANGELOG/BRIEFING/DECISIONS entry (v0.13.0 docs belong to Phase 8). Nothing constructs a
+`RateLimitedProvider` at runtime yet — composing it into `gui/ai_settings.build_ai_editor` is Phase 6's
+wiring, and doing it here would have been GUI work this phase was told to stay out of. `config.toml`
+still ships `enabled = false` and `model = ""` for both providers, so both remain inert.
 
 ## Work Log — 2026-07-25 — Claude Code — Plan 2b Phase 3 (GroqProvider)
 
@@ -522,6 +711,17 @@ key storage, no consent dialog, no rate limiter, no GUI change, no dependency ad
 CHANGELOG/BRIEFING/DECISIONS entry (v0.13.0 docs belong to Phase 8), no merge, no tag, no PR.
 
 ### Session Sync Log
+- 2026-07-25 — HOME-PC — Plan 2b Phase 4 (rate limiting + quota classification), verify 977/9 on
+  `feature/plan-2b-cloud-providers`. Changed: `scripts/Universal/ai/rate_limits.py` (new, 790 lines —
+  the shared limiter, both implementations, the `RateLimitedProvider` wrapper and the `QuotaStop`
+  seam), `files/tests/test_rate_limiting.py` (new, 1,165 lines, 85 tests), `config.toml` (+47 lines —
+  eight limiter-floor keys per cloud provider with a dated rationale block), `scripts/Universal/ai/
+  cloud.py` (+25 lines — the same keys as safety defaults in `CLOUD_DEFAULTS`),
+  `md-instructions/HANDOFF.md` (this entry + Current Focus). **2a base contract unchanged** — no edit
+  to `provider.py`, `models.py`, `errors.py`, `factory.py`, `editor.py`, `validation.py`, `prompt.py`
+  or `chunking.py`. **Both provider adapters, `core/batch_runner.py` and the whole GUI unchanged.** No
+  new dependency (`requirements.txt` untouched). No live cloud call. Committed and pushed to the
+  working branch. Next: Phase 5 — checkpointed runs, hooking `ai.rate_limits.QuotaStop`.
 - 2026-07-25 — HOME-PC — Plan 2b Phase 3 (GroqProvider), verify 892/9 on
   `feature/plan-2b-cloud-providers`. Changed: `scripts/Universal/ai/providers/groq.py` (new, 862
   lines), `files/tests/test_groq_provider.py` (new, 936 lines, 91 tests),

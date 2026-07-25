@@ -51,6 +51,27 @@ gate_version = "1"
 # the two differ (Phase 0 correction #4): Groq returns retry-after plus
 # x-ratelimit-{limit,remaining,reset}-{requests,tokens}; Google documents no equivalent,
 # so Gemini must run off a conservative configured floor. Phase 4 owns those floors.
+#
+# --- Phase 4 limiter floors (added 2026-07-25) ----------------------------------------
+# READ THIS BEFORE CHANGING A NUMBER BELOW. These are **client-side self-restraint**,
+# NOT a claim about what the provider's real limit is. They exist so the FIRST request
+# of a run cannot exceed a limit before any rate-limit header has been seen. Where a
+# provider returns real headers (Groq), a live header always wins over the floor here;
+# where it does not (Gemini), these are the only pacing evidence that exists, so they
+# are set well below anything published rather than at it. Nothing in the limiter code
+# contains a limit — every figure it uses comes from this file.
+#
+#   rpm_floor                requests/minute the client will not exceed unaided
+#                            (0 = no minimum interval)
+#   tpm_floor                tokens/minute the client will not exceed unaided
+#                            (0 = not modelled — the honest value when no figure exists)
+#   rate_limit_floor_seconds wait applied to a 429 that carries no usable number
+#   backoff_base_seconds     first transient-error backoff, doubled per attempt
+#   backoff_max_seconds      hard cap on any single backoff — no unbounded growth
+#   backoff_jitter_ratio     fraction of a backoff that is randomised (transients only)
+#   max_attempts             total attempts per request, including the first
+#   max_wait_seconds         any wait longer than this is NOT slept: the run stops
+#                            cleanly through the quota seam instead (Phase 5 resumes it)
 
 [ai.gemini]
 enabled = false
@@ -61,6 +82,19 @@ strict_free_tier_only = true
 exposes_rate_limits = false
 billing_url = "https://aistudio.google.com/app/plan_information"
 limits_url = "https://ai.google.dev/gemini-api/docs/rate-limits"
+# Gemini's free quota is unknowable from documentation (Phase 0 correction #2, re-confirmed
+# Phase 2 finding #10) and Google returns no rate-limit headers at all, so there is no
+# number to read and none may be invented. 10 RPM is a deliberately cautious chosen pace,
+# not a published limit. tpm_floor is 0 because no token figure exists to base one on —
+# guessing one would be exactly the invention this plan forbids.
+rpm_floor = 10
+tpm_floor = 0
+rate_limit_floor_seconds = 30
+backoff_base_seconds = 2
+backoff_max_seconds = 60
+backoff_jitter_ratio = 0.3
+max_attempts = 3
+max_wait_seconds = 900
 
 [ai.groq]
 enabled = false
@@ -71,6 +105,19 @@ strict_free_tier_only = true
 exposes_rate_limits = true
 billing_url = "https://console.groq.com/settings/billing"
 limits_url = "https://console.groq.com/settings/limits"
+# Groq publishes per-model free-plan limits and returns live headers, so these floors only
+# govern the opening request of a run and any response whose headers were missing or
+# unreadable. Both are set below the smallest documented free-plan figure across the four
+# approved models (reviewed 2026-07-25) so no model can be paced past its own limit before
+# a header arrives; the header always wins afterwards.
+rpm_floor = 15
+tpm_floor = 5000
+rate_limit_floor_seconds = 30
+backoff_base_seconds = 2
+backoff_max_seconds = 60
+backoff_jitter_ratio = 0.3
+max_attempts = 3
+max_wait_seconds = 900
 
 # ---------------------------------------------------------------------------
 # Approved cloud models (Plan 2b Phase 0 — reviewed 2026-07-24)

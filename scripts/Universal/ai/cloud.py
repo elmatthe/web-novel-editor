@@ -66,6 +66,20 @@ CLOUD_DEFAULTS: dict[str, dict[str, Any]] = {
         "exposes_rate_limits": False,
         "billing_url": "https://aistudio.google.com/app/plan_information",
         "limits_url": "https://ai.google.dev/gemini-api/docs/rate-limits",
+        # Phase 4 limiter floors. These mirror `config.toml`, which is the file a user
+        # edits; they live here only so a missing or corrupt `[ai.gemini]` section
+        # yields a *conservative* limiter rather than an unlimited one. See the long
+        # note in `config.toml` — they are client-side self-restraint, never a claim
+        # about the provider's real limit. `tpm_floor = 0` is deliberate: Gemini
+        # publishes no token figure, and inventing one is exactly what is forbidden.
+        "rpm_floor": 10,
+        "tpm_floor": 0,
+        "rate_limit_floor_seconds": 30,
+        "backoff_base_seconds": 2,
+        "backoff_max_seconds": 60,
+        "backoff_jitter_ratio": 0.3,
+        "max_attempts": 3,
+        "max_wait_seconds": 900,
     },
     "groq": {
         "enabled": False,
@@ -78,6 +92,17 @@ CLOUD_DEFAULTS: dict[str, dict[str, Any]] = {
         "exposes_rate_limits": True,
         "billing_url": "https://console.groq.com/settings/billing",
         "limits_url": "https://console.groq.com/settings/limits",
+        # Phase 4 limiter floors — see the `config.toml` note. Live headers override
+        # every one of these as soon as a response arrives; they govern only the
+        # opening request of a run and any response whose headers were unreadable.
+        "rpm_floor": 15,
+        "tpm_floor": 5000,
+        "rate_limit_floor_seconds": 30,
+        "backoff_base_seconds": 2,
+        "backoff_max_seconds": 60,
+        "backoff_jitter_ratio": 0.3,
+        "max_attempts": 3,
+        "max_wait_seconds": 900,
     },
 }
 
