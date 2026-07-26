@@ -1,12 +1,16 @@
 """Tkinter main window and all GUI logic.
 
-This is the single-window UI: a two-mode Input card (Upload PDFs / Select Folder),
-three option checkboxes, an optional AI editorial pass card, a log widget, a progress
-bar, and Run + Pause/Continue/Stop buttons (pause and stop are honored between files —
-the current file always finishes). The output
-location is not user-chosen (v0.11.0): every batch writes into a fresh auto-numbered
-`Downloads\\<novel>-x` folder — flat in upload mode, mirroring the selected folder's
-structure in folder mode — with original filenames kept.
+This is the single-window UI, laid out in **two columns since v0.13.0**: the controls
+on the left (a two-mode Input card, three option checkboxes, an optional AI editorial
+pass card, a progress bar and Run + Pause/Continue/Stop buttons) and the log on the
+right, spanning their rows. It used to be one column with the log at the bottom, which
+meant the window had to be tall enough for every control *plus* the log — more than a
+1080p desktop offers — so the log and the status strip were clipped off the bottom.
+The log's content and its condensed one-line-per-file format are unchanged; only where
+it sits moved. Pause and stop are honored between files — the current file always
+finishes. The output location is not user-chosen (v0.11.0): every batch writes into a
+fresh auto-numbered `Downloads\\<novel>-x` folder — flat in upload mode, mirroring the
+selected folder's structure in folder mode — with original filenames kept.
 
 The AI card (Plan 2a Phase 7) is strictly opt-in and always comes up OFF, so an ordinary
 launch is deterministic script-only editing that constructs no provider and contacts no
@@ -32,6 +36,7 @@ import threading
 import time
 import tkinter as tk
 from pathlib import Path
+from types import SimpleNamespace
 from tkinter import filedialog, messagebox, ttk
 
 from ai.redaction import redact
@@ -80,15 +85,25 @@ PAD_S = 8
 PAD_M = 16
 PAD_L = 24
 
-MIN_WIDTH = 820
-# The fixed rows (header, novel, input, options, AI card, run controls, status strip)
-# measure a little over 1000px together; the log is the only row that flexes. The old
-# 700px minimum pre-dated the AI card and already pushed the Start button and status
-# strip off the bottom, so the minimum now clears them with room to spare, and every
-# pixel above it goes to the log. Pinned by a test, so a taller card fails the gate.
-MIN_HEIGHT = 1020
-# Opening height when the display allows it — the minimum plus a usable log.
-PREFERRED_HEIGHT = 1120
+# Two columns since v0.13.0: controls on the left, the log on the right.
+#
+# The log used to be a bottom row, which meant the window had to be tall enough for
+# every control *plus* the log — over 1200px — while a 1080p desktop offers roughly
+# 990px. `minsize` then overrode the screen-aware opening geometry and the log and the
+# status strip were simply clipped off the bottom. Moving the log sideways takes its
+# height out of the vertical budget entirely; it now grows horizontally instead, which
+# is where the spare room actually was.
+#
+# Both constants are pinned by tests: the controls' per-row heights must fit inside
+# MIN_HEIGHT, MIN_HEIGHT must fit a 1080p desktop, and both columns must fit inside
+# MIN_WIDTH.
+CONTROL_COLUMN_WIDTH = 780      # the left column's floor, so cards never get crushed
+LOG_COLUMN_WIDTH = 400          # the log's floor; everything above it goes to the log
+MIN_WIDTH = CONTROL_COLUMN_WIDTH + LOG_COLUMN_WIDTH + PAD_M + 2 * PAD_M
+MIN_HEIGHT = 960
+# Opening height when the display allows it. The log stretches to fill whatever the
+# window has, so there is no longer any reason to open taller than the controls need.
+PREFERRED_HEIGHT = 980
 
 
 def _novel_combo_width(roster: list[str]) -> int:
@@ -261,11 +276,13 @@ class WebnovelEditorApp(tk.Tk):
     def _build_ui(self) -> None:
         root = ttk.Frame(self, style="TFrame", padding=PAD_M)
         root.pack(fill="both", expand=True)
-        root.columnconfigure(0, weight=1)
-        # The log row expands; everything else is fixed height. The log sits at the
-        # bottom (above only the thin status strip), with the run controls above it —
-        # mirroring the sibling web-novel-scraper's layout (Phase 7). No output-folder
-        # card since v0.11.0: output goes to an auto-numbered Downloads folder.
+        # Column 0 holds the controls at their natural size and never flexes, so no
+        # card can be squeezed however the window is resized. Column 1 is the log, and
+        # it takes every pixel of horizontal slack. Row 6 is an empty spacer that takes
+        # the vertical slack on the left, which lets the log stretch through its
+        # rowspan without stretching any control.
+        root.columnconfigure(0, weight=0, minsize=CONTROL_COLUMN_WIDTH)
+        root.columnconfigure(1, weight=1, minsize=LOG_COLUMN_WIDTH)
         root.rowconfigure(6, weight=1)
 
         self._build_header(root, row=0)
@@ -274,7 +291,7 @@ class WebnovelEditorApp(tk.Tk):
         self._build_options_panel(root, row=3)
         self._build_ai_panel(root, row=4)
         self._build_run_row(root, row=5)
-        self._build_log_panel(root, row=6)
+        self._build_log_panel(root, row=1, column=1, rowspan=6)
         self._build_status_bar(root, row=7)
 
         self._refresh_status()
@@ -283,7 +300,7 @@ class WebnovelEditorApp(tk.Tk):
 
     def _build_header(self, parent: ttk.Frame, row: int) -> None:
         header = ttk.Frame(parent, style="Header.TFrame")
-        header.grid(row=row, column=0, sticky="ew", pady=(0, PAD_M))
+        header.grid(row=row, column=0, columnspan=2, sticky="ew", pady=(0, PAD_M))
         ttk.Label(header, text="Web Novel Editor", style="Title.TLabel").pack(anchor="w")
         ttk.Label(
             header,
@@ -358,7 +375,7 @@ class WebnovelEditorApp(tk.Tk):
         list_wrap.columnconfigure(0, weight=1)
 
         self.file_listbox = tk.Listbox(
-            list_wrap, selectmode=tk.EXTENDED, height=6, activestyle="none",
+            list_wrap, selectmode=tk.EXTENDED, height=4, activestyle="none",
             bg=PANEL_BG, fg=TEXT_BODY, font=self.font_body, relief="solid",
             borderwidth=1, highlightthickness=1, highlightbackground=BORDER,
             highlightcolor=ACCENT, selectbackground=ACCENT, selectforeground="#ffffff",
@@ -399,18 +416,23 @@ class WebnovelEditorApp(tk.Tk):
         self.opt_debug_text = tk.BooleanVar(value=False)
         self.opt_dry_run = tk.BooleanVar(value=False)
 
+        # Two columns rather than three stacked rows: the same three options, one row
+        # of height cheaper. Every pixel here is one the Start button was being pushed
+        # down by.
+        frame.columnconfigure(0, weight=1)
+        frame.columnconfigure(1, weight=1)
         ttk.Checkbutton(
-            frame, text="Write replacement log (JSONL alongside each output PDF)",
+            frame, text="Write replacement log (JSONL beside each PDF)",
             variable=self.opt_replacement_log,
-        ).pack(anchor="w")
+        ).grid(row=0, column=0, sticky="w")
         ttk.Checkbutton(
-            frame, text="Save intermediate cleaned text (DEBUG_<name>.txt for inspection)",
-            variable=self.opt_debug_text,
-        ).pack(anchor="w", pady=(PAD_S, 0))
-        ttk.Checkbutton(
-            frame, text="Dry run (run full text pipeline, skip PDF output)",
+            frame, text="Dry run (full text pipeline, no PDF output)",
             variable=self.opt_dry_run,
-        ).pack(anchor="w", pady=(PAD_S, 0))
+        ).grid(row=0, column=1, sticky="w", padx=(PAD_M, 0))
+        ttk.Checkbutton(
+            frame, text="Save intermediate cleaned text (DEBUG_<name>.txt)",
+            variable=self.opt_debug_text,
+        ).grid(row=1, column=0, columnspan=2, sticky="w", pady=(PAD_S, 0))
 
     # -- AI editorial pass ------------------------------------------------------
     def _build_ai_panel(self, parent: ttk.Frame, row: int) -> None:
@@ -423,7 +445,7 @@ class WebnovelEditorApp(tk.Tk):
         frame = ttk.Labelframe(parent, text="AI Editorial Pass (optional)",
                                style="Card.TLabelframe", padding=(PAD_M, PAD_S))
         frame.grid(row=row, column=0, sticky="ew", pady=(0, PAD_M))
-        frame.columnconfigure(3, weight=1)
+        frame.columnconfigure(4, weight=1)
 
         self.opt_ai_enabled = tk.BooleanVar(value=False)
         self.opt_ai_dry_run = tk.BooleanVar(value=False)
@@ -437,6 +459,10 @@ class WebnovelEditorApp(tk.Tk):
         self._provider_options: tuple = ()
         self._provider_labels: dict[str, str] = {}
         self._provider_by_label: dict[str, str] = {}
+        # Which provider the model dropdown's current values belong to. See
+        # `_refresh_model_choices` — this is what stops one provider's models being
+        # left on screen after a switch to another.
+        self._model_choices_provider: str | None = None
         self._ai_provider = str(
             self.ai_prefs.get("provider") or cloud_ui.local_provider())
         self.ai_provider_var = tk.StringVar(value="")
@@ -446,10 +472,10 @@ class WebnovelEditorApp(tk.Tk):
             text="Run an AI proofreading pass after the scripted editing",
             variable=self.opt_ai_enabled, command=self._on_ai_toggled,
         )
-        self.ai_enable_check.grid(row=0, column=0, columnspan=3, sticky="w")
+        self.ai_enable_check.grid(row=0, column=0, columnspan=4, sticky="w")
         self.ai_check_button = ttk.Button(frame, text="Check service",
                                           command=self._check_ai_service)
-        self.ai_check_button.grid(row=0, column=3, sticky="e")
+        self.ai_check_button.grid(row=0, column=4, sticky="e")
 
         ttk.Label(frame, text="Provider:", style="Panel.TLabel").grid(
             row=1, column=0, sticky="w", padx=(PAD_M, PAD_S), pady=(PAD_S, 0))
@@ -460,8 +486,17 @@ class WebnovelEditorApp(tk.Tk):
         self.ai_provider_combo.grid(row=1, column=1, sticky="w", pady=(PAD_S, 0))
         self.ai_provider_combo.bind("<<ComboboxSelected>>", self._on_ai_provider_changed)
 
+        # Cloud keys are entered here (Phase 6 gap-fill). One button acting on the
+        # selected provider, not two permanent ones: the keys stay entirely
+        # independent — separate storage entries, separate save and separate forget —
+        # and a second always-visible button would cost a card row for nothing.
+        self.ai_key_button = ttk.Button(frame, text="Key…",
+                                        command=self._open_key_dialog, width=6)
+        self.ai_key_button.grid(row=1, column=2, sticky="w",
+                                padx=(PAD_S, 0), pady=(PAD_S, 0))
+
         ttk.Label(frame, text="Model:", style="Panel.TLabel").grid(
-            row=1, column=2, sticky="e", padx=(PAD_L, PAD_S), pady=(PAD_S, 0))
+            row=1, column=3, sticky="e", padx=(PAD_M, PAD_S), pady=(PAD_S, 0))
         # Local: the values are filled only from a live list of installed tags, and no
         # model tag is hardcoded in this UI. Cloud: the values come from the reviewed
         # [[ai.approved_models]] records and never from a live "list models" call — a
@@ -470,11 +505,11 @@ class WebnovelEditorApp(tk.Tk):
             frame, textvariable=self.ai_model_var, values=[], state=tk.DISABLED,
             font=self.font_body, width=28,
         )
-        self.ai_model_combo.grid(row=1, column=3, sticky="w", pady=(PAD_S, 0))
+        self.ai_model_combo.grid(row=1, column=4, sticky="w", pady=(PAD_S, 0))
         self.ai_model_combo.bind("<<ComboboxSelected>>", self._on_ai_model_changed)
 
         policy_wrap = ttk.Frame(frame, style="Panel.TFrame")
-        policy_wrap.grid(row=2, column=0, columnspan=3, sticky="w",
+        policy_wrap.grid(row=2, column=0, columnspan=4, sticky="w",
                          padx=(PAD_M, 0), pady=(PAD_S, 0))
         ttk.Label(policy_wrap, text="If the AI is unavailable:",
                   style="Panel.TLabel").pack(side="left", padx=(0, PAD_S))
@@ -498,13 +533,13 @@ class WebnovelEditorApp(tk.Tk):
             frame, text="Also use the AI in dry runs",
             variable=self.opt_ai_dry_run, state=tk.DISABLED,
         )
-        self.ai_dry_run_check.grid(row=2, column=3, sticky="e", pady=(PAD_S, 0))
+        self.ai_dry_run_check.grid(row=2, column=4, sticky="e", pady=(PAD_S, 0))
 
         self.ai_status_label = ttk.Label(
             frame, textvariable=self.ai_status_var, style="Panel.TLabel",
             wraplength=760, justify="left",
         )
-        self.ai_status_label.grid(row=3, column=0, columnspan=4, sticky="w",
+        self.ai_status_label.grid(row=3, column=0, columnspan=5, sticky="w",
                                   pady=(PAD_S, 0))
 
         self._refresh_provider_options()
@@ -523,6 +558,7 @@ class WebnovelEditorApp(tk.Tk):
                 selected=self._ai_provider,
                 model_id=self.ai_model_var.get().strip(),
                 settings_file=self._settings_file(),
+                **self._key_locations(),
             )
         except Exception:
             # A broken config must never stop the panel rendering; the local path is
@@ -554,8 +590,25 @@ class WebnovelEditorApp(tk.Tk):
         return None
 
     def _refresh_model_choices(self) -> None:
-        """Cloud model values come from the reviewed records; local ones from a probe."""
+        """Keep the model list owned by the provider it was built for.
+
+        The invariant: **a model list never outlives the provider it belongs to.** It
+        is enforced by remembering whose models are currently in the box, rather than
+        by clearing on every refresh — several callers refresh options for unrelated
+        reasons (a saved key, an accepted disclosure) and must not wipe a list the
+        local probe has just filled in.
+
+        Cloud values come from the reviewed records and are known immediately. Local
+        tags are only knowable by asking the service, so the honest interim list is
+        **empty** — never the previous provider's, which would leave a cloud model ID
+        selectable while the local provider is active.
+        """
+        if self._model_choices_provider == self._ai_provider:
+            return
+        self._model_choices_provider = self._ai_provider
+
         if not cloud_ui.is_cloud_provider(self._ai_provider):
+            self.ai_model_combo.configure(values=[])
             return
         option = self._provider_option(self._ai_provider)
         choices = list(option.models) if option is not None else []
@@ -578,7 +631,129 @@ class WebnovelEditorApp(tk.Tk):
         self.ai_model_var.set("")
         self._refresh_provider_options()
         self._persist_ai_choices()
+        if cloud_ui.is_cloud_provider(chosen):
+            self._publish_provider_status()
+            return
+        # Local: the installed tags have to be asked for. This is the same probe the
+        # opt-in checkbox already triggers — reused, not duplicated. Without it the
+        # model list only ever repopulated when the checkbox was toggled, which is
+        # what made switching back to the local provider look broken.
+        self._set_ai_status(ai_settings.STATUS_UNCHECKED)
+        self._check_ai_service()
+
+    # -- cloud API keys ---------------------------------------------------------
+    def _secrets_file(self):
+        """The per-user secrets location, from Phase 1. Never a path built here."""
+        from ai.secrets import default_secrets_file
+
+        return default_secrets_file()
+
+    def _key_locations(self) -> dict:
+        """Where keys are looked for, resolved here and passed on explicitly.
+
+        Phase 1's readers default these internally, which is right for production but
+        leaves the panel silently depending on module-level defaults it never named.
+        Resolving them once and handing them over — the same seam `_settings_file`
+        already provides — keeps every key lookup the panel makes pointed at one
+        agreed location.
+        """
+        from ai.secrets import DEFAULT_DOTENV_PATH
+
+        return {"secrets_file": self._secrets_file(), "dotenv_path": DEFAULT_DOTENV_PATH}
+
+    def _apply_key_entry(self, provider: str, key: str) -> None:
+        """Save one key and re-publish the provider's status.
+
+        The value is handed straight to Phase 1's storage and is never held, echoed,
+        or logged here — only the outcome sentence, which by construction contains no
+        key. The status afterwards comes from Phase 6's existing provider logic, so a
+        key saved in-app reads exactly like one found in an environment variable.
+        """
+        outcome = cloud_ui.save_key(provider, key, secrets_file=self._secrets_file())
+        self._log(outcome.message, outcome.level)
+        self._refresh_provider_options()
         self._publish_provider_status()
+
+    def _forget_key(self, provider: str) -> None:
+        """Remove the saved copy of one key, so both storage paths can be tested."""
+        outcome = cloud_ui.forget_key(provider, secrets_file=self._secrets_file())
+        self._log(outcome.message, outcome.level)
+        self._refresh_provider_options()
+        self._publish_provider_status()
+
+    def _build_key_dialog(self, provider: str):
+        """Construct the masked key dialog. Returns a handle so tests can inspect it.
+
+        Deliberately thin: every decision (what to say, whether a saved key exists to
+        forget, which source currently wins) is `cloud_ui.key_prompt`'s.
+        """
+        prompt = cloud_ui.key_prompt(provider, **self._key_locations())
+        if prompt is None:
+            return None
+
+        window = tk.Toplevel(self)
+        window.title(prompt.title)
+        window.configure(bg=WINDOW_BG)
+        window.transient(self)
+        window.resizable(False, False)
+
+        body = ttk.Frame(window, style="TFrame", padding=PAD_M)
+        body.pack(fill="both", expand=True)
+        body.columnconfigure(0, weight=1)
+
+        ttk.Label(body, text=prompt.body, style="Panel.TLabel", wraplength=460,
+                  justify="left").grid(row=0, column=0, sticky="w")
+        ttk.Label(body, text=prompt.current, style="PathValue.TLabel", wraplength=460,
+                  justify="left").grid(row=1, column=0, sticky="w", pady=(PAD_S, 0))
+
+        # Masked while typing. The variable is local to this dialog and is cleared
+        # below as soon as the value has been handed to storage.
+        entry_var = tk.StringVar(value="")
+        entry = ttk.Entry(body, textvariable=entry_var, show="•", width=52,
+                          font=self.font_body)
+        entry.grid(row=2, column=0, sticky="ew", pady=(PAD_M, 0))
+        entry.focus_set()
+
+        buttons = ttk.Frame(body, style="TFrame")
+        buttons.grid(row=3, column=0, sticky="ew", pady=(PAD_M, 0))
+        buttons.columnconfigure(1, weight=1)
+
+        def _close() -> None:
+            entry_var.set("")
+            window.destroy()
+
+        def _save() -> None:
+            value = entry_var.get()
+            entry_var.set("")          # out of the widget before anything else runs
+            self._apply_key_entry(provider, value)
+            window.destroy()
+
+        def _forget() -> None:
+            self._forget_key(provider)
+            _close()
+
+        forget_button = ttk.Button(buttons, text="Forget saved key", command=_forget)
+        forget_button.grid(row=0, column=0, sticky="w")
+        if not prompt.can_forget:
+            forget_button.configure(state=tk.DISABLED)
+        ttk.Button(buttons, text="Cancel", command=_close).grid(
+            row=0, column=1, sticky="e", padx=(0, PAD_S))
+        ttk.Button(buttons, text="Save", style="Accent.TButton",
+                   command=_save).grid(row=0, column=2, sticky="e")
+
+        window.bind("<Return>", lambda _event: _save())
+        window.bind("<Escape>", lambda _event: _close())
+        window.protocol("WM_DELETE_WINDOW", _close)
+
+        return SimpleNamespace(window=window, entry=entry, prompt=prompt,
+                               save=_save, forget=_forget, cancel=_close)
+
+    def _open_key_dialog(self) -> None:
+        dialog = self._build_key_dialog(self._ai_provider)
+        if dialog is None:
+            return
+        dialog.window.grab_set()
+        dialog.window.wait_window()
 
     def _publish_provider_status(self) -> None:
         """Show the selected provider's own sentence, or fall back to the local flow."""
@@ -609,6 +784,11 @@ class WebnovelEditorApp(tk.Tk):
         for widget in (self.ai_check_button, self.ai_dry_run_check,
                        *self.ai_policy_radios):
             widget.configure(state=tk.NORMAL if live else tk.DISABLED)
+        # Only a cloud provider has a key to enter.
+        self.ai_key_button.configure(
+            state=tk.NORMAL
+            if live and cloud_ui.is_cloud_provider(self._ai_provider)
+            else tk.DISABLED)
 
     def _set_ai_controls_running(self, running: bool) -> None:
         self.ai_enable_check.configure(state=tk.DISABLED if running else tk.NORMAL)
@@ -707,6 +887,7 @@ class WebnovelEditorApp(tk.Tk):
                 model_id=self.ai_model_var.get().strip(),
                 settings_file=self._settings_file(),
                 discovered_ids=tuple(probe.models),
+                **self._key_locations(),
             )
             self._set_ai_status_text(
                 option.reason or ai_settings.describe_status(
@@ -718,15 +899,25 @@ class WebnovelEditorApp(tk.Tk):
             self._set_ai_status(probe.status)
         self._refresh_ai_children(locked=self._running)
 
-    def _build_log_panel(self, parent: ttk.Frame, row: int) -> None:
+    def _build_log_panel(self, parent: ttk.Frame, row: int, *, column: int = 0,
+                         rowspan: int = 1) -> None:
+        """The log, as the right-hand column (v0.13.0).
+
+        It keeps the condensed one-line-per-file format exactly as Plan 1 Phase 4 set
+        it — this is a layout change only, and nothing about what gets written here or
+        how verbose it is has moved. What changed is that the log no longer competes
+        with the controls for vertical space: it spans their rows and takes the
+        horizontal slack, so it can show more lines than it ever could at the bottom.
+        """
         frame = ttk.Labelframe(parent, text="Log", style="Card.TLabelframe",
                                padding=PAD_M)
-        frame.grid(row=row, column=0, sticky="nsew", pady=(0, PAD_M))
+        frame.grid(row=row, column=column, rowspan=rowspan, sticky="nsew",
+                   padx=(PAD_M, 0), pady=(0, PAD_M))
         frame.columnconfigure(0, weight=1)
         frame.rowconfigure(0, weight=1)
 
         self.log_text = tk.Text(
-            frame, wrap="word", state=tk.DISABLED, height=10, bg=PANEL_BG,
+            frame, wrap="word", state=tk.DISABLED, height=10, width=44, bg=PANEL_BG,
             fg=COL_INFO, font=self.font_log, relief="solid", borderwidth=1,
             highlightthickness=1, highlightbackground=BORDER, padx=PAD_S, pady=PAD_S,
         )
@@ -777,7 +968,7 @@ class WebnovelEditorApp(tk.Tk):
     def _build_status_bar(self, parent: ttk.Frame, row: int) -> None:
         self.status_var = tk.StringVar(value="")
         ttk.Label(parent, textvariable=self.status_var, style="Status.TLabel",
-                  anchor="w").grid(row=row, column=0, sticky="ew")
+                  anchor="w").grid(row=row, column=0, columnspan=2, sticky="ew")
 
     # -- input mode -------------------------------------------------------------
     def _on_input_mode_changed(self, log: bool = True) -> None:

@@ -399,6 +399,144 @@ def disclosure_requirement(
     )
 
 
+# ===========================================================================
+# In-app key entry — a GUI door onto Phase 1's storage, and nothing more
+# ===========================================================================
+# Phase 1 built key precedence, the atomic per-user `secrets.json` write, the
+# permission tightening and presence-only reporting, and deferred only the entry
+# dialog. Everything below **calls** those functions; none of it reimplements any part
+# of them, and no key value is ever held, returned, logged or formatted into a message
+# here. `ai.secrets` is imported inside each function so it resolves in the same
+# generation as its caller (`test_ai_foundation` reloads the package mid-suite).
+@dataclass(frozen=True)
+class KeyOutcome:
+    """What happened to a stored key. Carries no key value, by construction."""
+
+    provider: str
+    saved: bool
+    removed: bool
+    message: str
+    level: str
+
+
+@dataclass(frozen=True)
+class KeyPrompt:
+    """What the key dialog should say. Carries no key value, by construction."""
+
+    provider: str
+    title: str
+    body: str
+    current: str
+    can_forget: bool
+    env_var: str
+
+
+def save_key(
+    provider: str, key: str, *, secrets_file: Path | None = None
+) -> KeyOutcome:
+    """Save one provider's key through Phase 1's ``store_api_key``.
+
+    That function owns the atomic write, the permission tightening and registering the
+    value with the redactor. This adds only the wording.
+    """
+    from ai import secrets
+
+    name = str(provider or "").strip().lower()
+    label = DISCLOSURE_LABELS.get(name, name or "this provider")
+    if not is_cloud_provider(name):
+        return KeyOutcome(name, False, False,
+                          f"{label} does not use an API key.", "muted")
+
+    if secrets.store_api_key(name, key, path=secrets_file):
+        return KeyOutcome(
+            name, True, False,
+            f"{label} key saved on this computer. It is stored outside the project "
+            f"folder, readable only by your account, and never written to a log.",
+            "success",
+        )
+    return KeyOutcome(
+        name, False, False,
+        f"That does not look like a usable {label} key, so nothing was saved. Paste "
+        f"the whole key from the provider's console.",
+        "warn",
+    )
+
+
+def forget_key(provider: str, *, secrets_file: Path | None = None) -> KeyOutcome:
+    """Delete one provider's saved key through Phase 1's ``delete_api_key``.
+
+    Only the saved copy is removed. An environment variable or a developer ``.env``
+    is not this app's to delete, and the wording says so rather than implying the
+    provider is now certainly keyless.
+    """
+    from ai import secrets
+
+    name = str(provider or "").strip().lower()
+    label = DISCLOSURE_LABELS.get(name, name or "this provider")
+    if not is_cloud_provider(name):
+        return KeyOutcome(name, False, False,
+                          f"{label} does not use an API key.", "muted")
+
+    if secrets.delete_api_key(name, path=secrets_file):
+        return KeyOutcome(
+            name, False, True,
+            f"The saved {label} key was removed from this computer. If a key is still "
+            f"found, it is coming from an environment variable or the developer .env.",
+            "success",
+        )
+    return KeyOutcome(
+        name, False, False,
+        f"There was no saved {label} key on this computer to remove.", "muted",
+    )
+
+
+def key_prompt(
+    provider: str,
+    *,
+    environ: Mapping[str, str] | None = None,
+    secrets_file: Path | None = None,
+    dotenv_path: Path | None = None,
+) -> KeyPrompt | None:
+    """What the key dialog should show, or None for a provider that takes no key.
+
+    ``current`` is Phase 1's **presence-only** sentence — which source a key was found
+    in, never the key. That matters here beyond privacy: the environment variable
+    outranks the saved file, so a correctly saved key can still not be the one in use,
+    and saying which source is winning stops that looking like a failed save.
+    """
+    from ai import secrets
+
+    name = str(provider or "").strip().lower()
+    if not is_cloud_provider(name):
+        return None
+    label = DISCLOSURE_LABELS.get(name, name)
+    presence = secrets.describe_key(
+        name, environ=environ, secrets_file=secrets_file, dotenv_path=dotenv_path
+    )
+    saved = secrets.describe_key(
+        name, environ={}, secrets_file=secrets_file, dotenv_path=Path(_NOWHERE)
+    )
+    return KeyPrompt(
+        provider=name,
+        title=f"{label} API key",
+        body=(
+            f"Paste your {label} API key below. It is saved on this computer only, "
+            f"outside the project folder, and is never written to a log, a manifest or "
+            f"the project's configuration.\n\n"
+            f"An API key is a credential — treat it like a password. Use a key from a "
+            f"project or organization with billing disabled."
+        ),
+        current=presence.message,
+        can_forget=saved.source == "secrets_file",
+        env_var=secrets.ENV_VARS.get(name, ""),
+    )
+
+
+# A path that cannot exist, used to ask "is there a key in the *saved file*" without
+# letting a developer .env answer for it.
+_NOWHERE = "\0no-such-dotenv"
+
+
 def accept_disclosure(
     provider: str,
     *,
@@ -919,6 +1057,8 @@ __all__ = [
     "STATUS_NO_MODEL",
     "STATUS_PROVIDER_DISABLED",
     "DisclosureNeed",
+    "KeyOutcome",
+    "KeyPrompt",
     "ProviderOption",
     "ResumePlan",
     "RunEstimate",
@@ -927,8 +1067,10 @@ __all__ = [
     "cloud_run_header",
     "disclosure_requirement",
     "estimate_run",
+    "forget_key",
     "format_span",
     "is_cloud_provider",
+    "key_prompt",
     "local_provider",
     "measured_fallback_rate",
     "provider_label",
@@ -938,5 +1080,6 @@ __all__ = [
     "quota_stop_message",
     "resume_decision",
     "resume_prompt",
+    "save_key",
     "selected_ai_table",
 ]

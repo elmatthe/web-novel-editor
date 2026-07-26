@@ -6,8 +6,9 @@ and 6 are complete; Phase 7 (the frozen comparison run) is the next work and it 
 provider decision.** Working branch **`feature/plan-2b-cloud-providers`**, cut from the approved
 merged release commit **`72d68ca`** (`main`, tag `v0.12.0`). Baseline `verify.py` at branch creation:
 **688 passed / 8 skipped**; after Phase 1: **739 / 8**; after Phase 2: **801 / 9**; after Phase 3:
-**892 / 9**; after Phase 4: **977 / 9**; after Phase 5: **1042 / 10**; after Phase 6: **1119 passed /
-9 skipped** (1128 collected — the long-documented Tk display skip flips pass↔skip on this machine).
+**892 / 9**; after Phase 4: **977 / 9**; after Phase 5: **1042 / 10**; after Phase 6: **1119 / 9**;
+after the Phase 6 gap-fill (layout, in-app key entry, stale model dropdown): **1139 passed / 9
+skipped** (1148 collected — the long-documented Tk display skip flips pass↔skip on this machine).
 **Both cloud adapters exist** — `GeminiProvider` (`google-genai==2.14.0`) and `GroqProvider`
 (`groq==1.6.0`), both pinned, neither SDK imported at package load — both are paceable through one
 shared limiter, a run can be stopped and resumed across days, and **as of Phase 6 all of that is
@@ -19,6 +20,121 @@ the 2a pilot, same prompt and gate versions, through each configured provider; t
 over-edit rate dominate the recommendation — a default is never wired from speed alone. It is the
 first phase that makes a real cloud call, so it needs a key and the billing/plan state confirmed
 manually in the provider's own console.
+
+## Work Log — 2026-07-25 — Claude Code — Plan 2b Phase 6 GAP-FILL (layout, key entry, stale dropdown)
+
+**Not a new numbered phase** — a bug-fix / gap-fill pass on Phase 6's work, from a manual
+click-through. Phase 7 is still the next authorized work. Ran on HOME-PC. **No live cloud call was
+made.** `git diff` proves `editor.py`, `validation.py`, `prompt.py`, `chunking.py`,
+**`rate_limits.py`**, **`run_manifest.py`**, `provider.py`, `models.py`, `errors.py`, `factory.py`,
+`cloud.py`, `disclosure.py`, `approved_models.py`, **`secrets.py`**, `redaction.py`, both provider
+adapters, `core/batch_runner.py`, `config.toml` and `scripts/requirements.txt` are byte-for-byte
+unchanged. `gui/ai_settings.py` needed no change either.
+
+| file | change |
+|---|---|
+| `scripts/Universal/gui/app.py` | +263 / −38 — the two-column layout, the key dialog, the dropdown fix |
+| `scripts/Universal/gui/cloud_ui.py` | +143 — `save_key`, `forget_key`, `key_prompt` |
+| `files/tests/test_cloud_gui.py` | +276 — 16 new tests |
+| `files/tests/test_ai_gui_controls.py` | +120 / −15 — 4 new layout tests; the height test rewritten |
+| `files/tests/test_app.py` | +14 / −3 — the layout-order test follows the new intent |
+
+**1. The log was clipped, and moving it sideways alone would NOT have fixed it.** The old
+single-column stack needed ~1012px of controls **plus** the log's own ~215px, while a 1080p desktop
+offers ~990px; `minsize` then overrode the screen-aware opening geometry and the bottom of the window
+fell off the desktop. The log is now the **right-hand column**, spanning the control rows — but the
+measured left column was still ~1012px, so the rework also had to reclaim height or the user would
+have seen the same clipping. Reclaimed: the Input listbox 6 rows → 4 (**this is the 2a-flagged Minor**
+— "the Input card's six-row listbox dominating the height budget" — closed here), and Advanced
+Options' three stacked checkboxes → two columns. **Measured result: 938px needed against
+`MIN_HEIGHT` 960, down from 1227px** — the window can now be made shorter than a 1080p desktop with
+22px to spare. `MIN_WIDTH` is derived from the two columns' floors (780 + 400 + padding = 1228)
+rather than being a magic number, and the columns measure 1165px. Column 0 has `weight=0` so no
+control can ever be squeezed; all horizontal slack goes to the log, and a spacer row takes the
+vertical slack, so the log now shows *more* lines than it ever could at the bottom. **The condensed
+one-line-per-file format is untouched** — this changed where the log sits, not what goes in it.
+
+**The height test had to be rewritten, and it would otherwise have failed for the wrong reason.** It
+summed *every* child's height, which is the column height in a one-column grid and a double-count in
+a two-column one — the log and five cards now share rows. It now computes per-**row** max height
+(and a new per-**column** max width), which is what "will the window be tall/wide enough" actually
+means. Three tests were added around it: the log must be in column 1 and the controls in column 0;
+both columns must fit `MIN_WIDTH`; and — encoding the reported bug as a number — **`MIN_HEIGHT` must
+fit a 1080p desktop**. A fourth pins the Start/Pause/Stop buttons' bottom edge inside `MIN_HEIGHT`
+(`winfo_ismapped` is useless here because every test window is `withdraw()`n, so it walks `winfo_y()`
+up the parent chain instead).
+
+**2. In-app key entry — a GUI door onto Phase 1, and nothing more.** Phase 1 built key precedence,
+the atomic per-user `secrets.json` write, the permission tightening and presence-only reporting, and
+deferred only the dialog; Phase 6's prompt did not ask for it. Added: a **"Key…" button on the
+provider row**, a small modal with a **masked** entry (`show="•"`), **Save**, **Forget saved key** and
+**Cancel**. `cloud_ui.save_key` / `forget_key` call `secrets.store_api_key` / `delete_api_key` — **no
+storage logic was written here**, and that is asserted by patching Phase 1's function and requiring it
+to be what ran, which is stronger than checking the file afterwards (the file could be right because
+the GUI wrote it itself). After a save the panel re-runs Phase 6's existing
+`_refresh_provider_options()` + `_publish_provider_status()`, so an in-app key reads exactly like an
+env-var one — `auth_missing` → `consent_required` — with no second status vocabulary.
+
+**One button, not two, and the reasoning is recorded.** The requirement behind "each provider needs
+its own entry point" is that the two keys stay independent — separate entries, separate save, separate
+forget — which they are; a button acting on the selected provider delivers that, and the dialog names
+the provider. Two permanent buttons would have cost a card row, which is the exact currency item 1 was
+spending.
+
+**The precedence subtlety is surfaced rather than hidden.** The env var outranks the saved file, so a
+correctly saved key can still not be the one in use. The dialog shows Phase 1's presence-only sentence
+naming **which source is winning**, so that cannot look like a failed save — and "Forget saved key"
+says plainly that it removes only the saved copy, since an env var is not this app's to delete.
+**No key value is held, returned, formatted into a message or logged**; `store_api_key` already
+registers it with the redactor. A test pushes a `gsk_`-shaped fake key through the panel path and
+asserts it appears in neither the log nor the outcome, and mutation testing confirms that echoing it
+into the message breaks that test.
+
+**One real defect this work exposed in Phase 6's panel.** `_refresh_provider_options` never passed
+`secrets_file`/`dotenv_path`, silently relying on `ai.secrets`' module-level defaults. It worked, but
+it meant the panel's key lookups and its saves could point at different files. The panel now resolves
+them once in `_key_locations()` and hands them over explicitly — the same seam `_settings_file()`
+already provided.
+
+**3. Stale model dropdown — root cause found, fixed at the cause, and it was two defects.**
+`_refresh_model_choices` began `if not is_cloud_provider(...): return`, so switching **back** to local
+left the cloud `values` in the widget untouched; and the only code that ever writes local tags is
+`_apply_probe`, reachable from `_check_ai_service`, which `_on_ai_provider_changed` never called —
+exactly the "tied to the checkbox toggle handler instead of the provider-change handler" the report
+suspected. Fixing only the second leaves a real window: the probe is asynchronous and can take the
+full timeout or never answer if the service is down, and until then a **cloud model ID is selectable
+while the local provider is active**. So both are fixed: the method is now authoritative for every
+provider (local clears to empty — the honest interim answer, since installed tags are only knowable by
+asking), and the provider-change handler triggers the same probe the checkbox already used, reused
+rather than duplicated.
+
+**The clearing is keyed, not unconditional, and that matters.** `_refresh_provider_options` is called
+for unrelated reasons — a saved key, an accepted disclosure — and clearing on every call would wipe a
+list the probe had just filled in. A recorded `_model_choices_provider` makes the invariant explicit —
+**a model list never outlives the provider it was built for** — instead of depending on call-site
+ordering. Two tests: one reproducing the exact reported click path with no checkbox toggle anywhere in
+it, one pinning the narrower safety invariant with a probe that never answers.
+
+**Twelve guards were mutation-tested against a green baseline**, each making a specific named test
+fail, including reverting `_refresh_model_choices` and removing the probe call — so the two dropdown
+tests provably fail against the old behaviour rather than merely passing against the new one.
+
+**Gates.** `scripts/verify.py` **PASS — 1139 passed, 9 skipped** (1148 collected, 0 failed); pins
+PASS; CHANGELOG at v0.12.0 matching BRIEFING. That is **+20 collected** against the 1119/9 Phase 6
+baseline (1128 → 1148), with zero regressions. `git diff --check` clean. **Clean-room re-run: 1138
+passed, 10 skipped** — the same 1148 collected — with `ollama`, `groq`, `google.genai` and
+`google.generativeai` import-blocked and `GEMINI_API_KEY`/`GROQ_API_KEY`/`GOOGLE_API_KEY` unset. **No
+new dependency.**
+
+**Out of scope and not built, by instruction:** multiple keys per provider with rotation/fallback
+(works against Phase 4/5's checkpoint-and-stop design and risks the providers' terms around
+circumventing per-account limits). `config.toml` was not touched — keys do not live there.
+
+**Needs hands-on click-through:** the two-column window at its default size (nothing clipped or
+overlapping, Start/Pause/Stop reachable, the log readable and scrolling); the Key dialog for both
+Gemini and Groq (masked entry, Save, Forget, and the "which source is winning" line while
+`GROQ_API_KEY` is set); and the provider round-trip local → cloud → local with the Model list
+repopulating without touching the checkbox.
 
 ## Work Log — 2026-07-25 — Claude Code — Plan 2b Phase 6 (GUI: provider selection, consent, status, ETA)
 

@@ -1326,6 +1326,130 @@ def test_no_manifest_means_the_resume_dialog_is_never_shown(monkeypatch, tmp_pat
         app.destroy()
 
 
+# ===========================================================================
+# 9. In-app key entry (Phase 6 gap-fill) — a GUI door onto Phase 1's storage
+# ===========================================================================
+def test_saving_a_key_goes_through_phase_1s_storage_function(tmp_path, monkeypatch):
+    """The GUI must not grow its own storage. Patching Phase 1's function and
+    requiring it to be what ran is stronger than checking the file afterwards — the
+    file could be correct because the GUI wrote it itself."""
+    from ai import secrets as secrets_mod
+
+    seen = []
+    monkeypatch.setattr(
+        secrets_mod, "store_api_key",
+        lambda provider, key, **kw: seen.append((provider, key, kw)) or True)
+
+    outcome = cloud_ui.save_key(
+        "groq", FAKE_GROQ_KEY, secrets_file=tmp_path / "secrets.json")
+
+    assert outcome.saved is True
+    assert len(seen) == 1
+    assert seen[0][0] == "groq"
+    assert seen[0][2]["path"] == tmp_path / "secrets.json"
+
+
+def test_a_saved_key_really_lands_in_the_per_user_secrets_file(tmp_path):
+    secrets_file = tmp_path / "secrets.json"
+    assert cloud_ui.save_key("groq", FAKE_GROQ_KEY, secrets_file=secrets_file).saved
+    stored = json.loads(secrets_file.read_text(encoding="utf-8"))
+    assert stored["keys"]["groq"] == FAKE_GROQ_KEY
+
+
+def test_saving_a_key_never_puts_it_in_the_message_or_the_log(tmp_path):
+    outcome = cloud_ui.save_key(
+        "groq", FAKE_GROQ_KEY, secrets_file=tmp_path / "secrets.json")
+    assert FAKE_GROQ_KEY not in outcome.message
+    assert FAKE_GROQ_KEY not in repr(outcome)
+    # ...and the redactor now knows it, so it cannot surface downstream either.
+    from ai.redaction import redact
+
+    assert FAKE_GROQ_KEY not in redact(f"boom: {FAKE_GROQ_KEY}")
+
+
+def test_an_unusable_key_is_refused_with_a_reason(tmp_path):
+    outcome = cloud_ui.save_key("groq", "   ", secrets_file=tmp_path / "secrets.json")
+    assert outcome.saved is False
+    assert outcome.message
+    assert not (tmp_path / "secrets.json").exists()
+
+
+def test_a_saved_key_makes_the_provider_ready_for_the_disclosure(tmp_path):
+    secrets_file = tmp_path / "secrets.json"
+    settings = tmp_path / "settings.json"
+    table = _ai_table(groq={"model": "llama-3.3-70b-versatile"})
+    locations = dict(environ={}, secrets_file=secrets_file,
+                     dotenv_path=tmp_path / "no.env", settings_file=settings)
+
+    before = cloud_ui.provider_option("groq", ai_table=table, **locations)
+    assert before.status == "auth_missing"
+
+    cloud_ui.save_key("groq", FAKE_GROQ_KEY, secrets_file=secrets_file)
+
+    after = cloud_ui.provider_option("groq", ai_table=table, **locations)
+    assert after.status == cloud_ui.STATUS_CONSENT_REQUIRED
+
+
+def test_forgetting_a_key_returns_the_provider_to_unavailable(tmp_path):
+    secrets_file = tmp_path / "secrets.json"
+    table = _ai_table(groq={"model": "llama-3.3-70b-versatile"})
+    locations = dict(environ={}, secrets_file=secrets_file,
+                     dotenv_path=tmp_path / "no.env",
+                     settings_file=tmp_path / "settings.json")
+    cloud_ui.save_key("groq", FAKE_GROQ_KEY, secrets_file=secrets_file)
+
+    outcome = cloud_ui.forget_key("groq", secrets_file=secrets_file)
+
+    assert outcome.saved is False          # nothing is stored any more
+    assert outcome.removed is True
+    assert cloud_ui.provider_option(
+        "groq", ai_table=table, **locations).status == "auth_missing"
+
+
+def test_forgetting_a_key_that_was_never_saved_says_so_without_failing(tmp_path):
+    outcome = cloud_ui.forget_key("groq", secrets_file=tmp_path / "none.json")
+    assert outcome.removed is False
+    assert outcome.message
+
+
+def test_forgetting_the_saved_key_leaves_the_other_provider_alone(tmp_path):
+    secrets_file = tmp_path / "secrets.json"
+    cloud_ui.save_key("groq", FAKE_GROQ_KEY, secrets_file=secrets_file)
+    cloud_ui.save_key("gemini", FAKE_GEMINI_KEY, secrets_file=secrets_file)
+
+    cloud_ui.forget_key("groq", secrets_file=secrets_file)
+
+    stored = json.loads(secrets_file.read_text(encoding="utf-8"))["keys"]
+    assert "groq" not in stored
+    assert stored["gemini"] == FAKE_GEMINI_KEY
+
+
+def test_the_key_prompt_names_the_provider_and_the_winning_source(tmp_path):
+    """Phase 1's precedence puts the environment variable above the saved file, so a
+    saved key can be correct and still not be the one in use. The prompt says which
+    source is winning rather than letting that look like a failed save."""
+    prompt = cloud_ui.key_prompt(
+        "groq",
+        environ={"GROQ_API_KEY": FAKE_GROQ_KEY},
+        secrets_file=tmp_path / "none.json",
+        dotenv_path=tmp_path / "no.env",
+    )
+    assert "Groq" in prompt.title
+    assert "environment variable" in prompt.current
+    assert FAKE_GROQ_KEY not in prompt.current
+    assert prompt.can_forget is False       # nothing saved here to forget
+
+    saved = tmp_path / "secrets.json"
+    cloud_ui.save_key("groq", FAKE_GROQ_KEY, secrets_file=saved)
+    with_saved = cloud_ui.key_prompt(
+        "groq", environ={}, secrets_file=saved, dotenv_path=tmp_path / "no.env")
+    assert with_saved.can_forget is True
+
+
+def test_the_local_provider_has_no_key_prompt():
+    assert cloud_ui.key_prompt(cloud_ui.local_provider()) is None
+
+
 def test_a_quota_stop_checkpoints_first_then_logs():
     """Order is load-bearing: the run must be durably stopped before anything is drawn,
     so a logging fault can never cost the user the checkpoint."""
@@ -1344,3 +1468,155 @@ def test_a_quota_stop_checkpoints_first_then_logs():
     relay = _QuotaStopRelay(_Checkpoint(), lambda m, level="info": order.append("log"))
     relay.on_quota_stop(_Stop())
     assert order == ["checkpoint", "log"]
+
+
+# ===========================================================================
+# 10. The panel's key dialog and the stale-model-list bug
+# ===========================================================================
+def test_the_key_button_is_live_only_for_a_cloud_provider(monkeypatch, tmp_path):
+    _appmod, app = _new_app(monkeypatch, tmp_path)
+    try:
+        app.opt_ai_enabled.set(True)
+        app._refresh_ai_children()
+        assert "disabled" in app.ai_key_button.state()   # local has no key
+
+        app._ai_provider = "groq"
+        app._refresh_provider_options()
+        app._refresh_ai_children()
+        assert "disabled" not in app.ai_key_button.state()
+    finally:
+        app.destroy()
+
+
+def test_the_key_entry_is_masked(monkeypatch, tmp_path):
+    _appmod, app = _new_app(monkeypatch, tmp_path)
+    try:
+        app._ai_provider = "groq"
+        app._refresh_provider_options()
+        dialog = app._build_key_dialog("groq")
+        try:
+            assert dialog.entry.cget("show") not in ("", None)
+        finally:
+            dialog.window.destroy()
+    finally:
+        app.destroy()
+
+
+def test_saving_from_the_panel_updates_the_status_line(monkeypatch, tmp_path):
+    from ai import secrets as secrets_mod
+
+    appmod, app = _new_app(monkeypatch, tmp_path)
+    try:
+        monkeypatch.setattr(
+            secrets_mod, "default_secrets_file", lambda: tmp_path / "secrets.json")
+        app.opt_ai_enabled.set(True)
+        app._ai_provider = "groq"
+        app.ai_model_var.set("llama-3.3-70b-versatile")
+        app._refresh_provider_options()
+        app._publish_provider_status()
+        assert "no api key" in app.ai_status_var.get().lower()
+
+        app._apply_key_entry("groq", FAKE_GROQ_KEY)
+        app.update()
+
+        # Reuses Phase 6's status logic: the next rail, not a bespoke message.
+        assert "no api key" not in app.ai_status_var.get().lower()
+        assert app._provider_option("groq").status == appmod.cloud_ui.STATUS_CONSENT_REQUIRED
+        # The key itself never reaches the log.
+        assert FAKE_GROQ_KEY not in app.log_text.get("1.0", "end")
+    finally:
+        app.destroy()
+
+
+def test_forgetting_from_the_panel_returns_the_provider_to_unavailable(
+        monkeypatch, tmp_path):
+    from ai import secrets as secrets_mod
+
+    _appmod, app = _new_app(monkeypatch, tmp_path)
+    try:
+        monkeypatch.setattr(
+            secrets_mod, "default_secrets_file", lambda: tmp_path / "secrets.json")
+        app.opt_ai_enabled.set(True)
+        app._ai_provider = "groq"
+        app.ai_model_var.set("llama-3.3-70b-versatile")
+        app._apply_key_entry("groq", FAKE_GROQ_KEY)
+        assert app._provider_option("groq").status != "auth_missing"
+
+        app._forget_key("groq")
+
+        assert app._provider_option("groq").status == "auth_missing"
+    finally:
+        app.destroy()
+
+
+def test_switching_back_to_the_local_provider_repopulates_the_model_list(
+        monkeypatch, tmp_path):
+    """The reported bug: local -> cloud -> local left the cloud models in the box.
+
+    Reproduces the exact click path through the real handlers, with no checkbox
+    toggle (the workaround) anywhere in it.
+    """
+    appmod, app = _new_app(monkeypatch, tmp_path)
+    try:
+        monkeypatch.setattr(appmod.threading, "Thread", _ImmediateThread)
+        monkeypatch.setattr(
+            appmod.ai_settings, "probe_provider",
+            lambda prefs, **kw: appmod.ai_settings.ProviderProbe("ok", ("qwen3:14b",)))
+
+        app.opt_ai_enabled.set(True)
+        app._on_ai_toggled()
+        app.update()
+        assert list(app.ai_model_combo["values"]) == ["qwen3:14b"]
+
+        # -> cloud
+        app.ai_provider_var.set(app._provider_labels["groq"])
+        app._on_ai_provider_changed()
+        app.update()
+        cloud_models = list(app.ai_model_combo["values"])
+        assert "qwen3:14b" not in cloud_models and cloud_models
+
+        # -> back to local, with no checkbox toggle
+        app.ai_provider_var.set(app._provider_labels[appmod.cloud_ui.local_provider()])
+        app._on_ai_provider_changed()
+        app.update()
+
+        assert list(app.ai_model_combo["values"]) == ["qwen3:14b"]
+    finally:
+        app.destroy()
+
+
+def test_a_provider_switch_never_leaves_the_previous_provider_s_models_on_screen(
+        monkeypatch, tmp_path):
+    """The narrower invariant behind the bug, and the one that matters for safety:
+    a model list must never outlive the provider it was built for, not even for the
+    moment before a background probe answers — otherwise a cloud model ID is
+    selectable while the local provider is active."""
+    appmod, app = _new_app(monkeypatch, tmp_path)
+    try:
+        probes = []
+
+        class _NeverAnswers:
+            """A probe that is started but never delivers, like a slow/absent service."""
+
+            def __init__(self, target=None, daemon=None):
+                probes.append(target)
+
+            def start(self):
+                pass
+
+        app.opt_ai_enabled.set(True)
+        app._ai_provider = "groq"
+        app.ai_model_var.set("llama-3.3-70b-versatile")
+        app._refresh_provider_options()
+        assert list(app.ai_model_combo["values"])          # cloud models are showing
+
+        monkeypatch.setattr(appmod.threading, "Thread", _NeverAnswers)
+        app.ai_provider_var.set(app._provider_labels[appmod.cloud_ui.local_provider()])
+        app._on_ai_provider_changed()
+        app.update()
+
+        assert list(app.ai_model_combo["values"]) == []
+        assert app.ai_model_var.get() == ""
+        assert probes, "the local probe was never started"
+    finally:
+        app.destroy()

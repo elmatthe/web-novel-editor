@@ -81,8 +81,12 @@ def test_app_paired_product_naming_and_min_size():
 
 
 def test_app_layout_order_matches_scraper():
-    """Phase 7 structural alignment with web-novel-scraper: novel selection first, and
-    the log widget at the bottom with the run controls (progress + Start) above it."""
+    """Structural alignment with web-novel-scraper: novel selection first, the run
+    controls last in the control column, and the log alongside them.
+
+    v0.13.0 moved the log from a bottom row to the right-hand column — as a bottom row
+    the window had to be tall enough for the controls *plus* the log, which clipped
+    both the log and the status strip off a 1080p screen."""
     tk = pytest.importorskip("tkinter")
     from tkinter import ttk
     from gui import app as appmod
@@ -103,8 +107,13 @@ def test_app_layout_order_matches_scraper():
 
         # Novel/source selection comes first (before the file list).
         assert novel_row < files_row
-        # The log sits below the run controls (log at the bottom of the workflow).
-        assert run_row < log_row
+        # The log is its own column beside the controls, never below them (v0.13.0).
+        # As a bottom row the window had to be tall enough for the controls *plus* the
+        # log, which clipped both the log and the status strip off a 1080p screen.
+        assert int(app.log_text.master.grid_info()["column"]) == 1
+        assert int(app.run_button.master.grid_info()["column"]) == 0
+        # It spans the control rows rather than occupying one of its own.
+        assert log_row <= run_row
 
         # Advanced/debug/dry-run controls are grouped under their own labelled card so
         # they don't dominate the primary workflow.
