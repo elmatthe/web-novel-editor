@@ -245,17 +245,84 @@ class ProviderProbe:
     models: tuple[str, ...] = ()
 
 
-def _create_provider(prefs: Mapping[str, Any], model_id: str):
+def cloud_guard_context(
+    prefs: Mapping[str, Any],
+    model_id: str,
+    *,
+    environ: Mapping[str, str] | None = None,
+    secrets_file: Path | None = None,
+    dotenv_path: Path | None = None,
+    settings_file: Path | None = None,
+) -> dict[str, Any]:
+    """Where the Phase 7a spend guard reads this run's inputs from.
+
+    Plain data only — no key, no chapter text. ``selected_ai_table`` applies Phase 6's
+    rule that choosing the provider in the dropdown is the act that enables it; every
+    other rail is left exactly as configured for the guard to judge.
+    """
+    provider = str(prefs.get("provider") or "").strip().lower()
+    return {
+        "ai_table": selected_ai_table(prefs, provider, model_id),
+        "model_id": model_id,
+        "environ": environ,
+        "secrets_file": secrets_file,
+        "dotenv_path": dotenv_path,
+        "settings_file": settings_file,
+    }
+
+
+def _create_provider(
+    prefs: Mapping[str, Any],
+    model_id: str,
+    *,
+    guard_context: Mapping[str, Any] | None = None,
+):
     """Construct whatever provider the configuration names.
 
-    The GUI never names a provider itself — that boundary belongs to the factory
-    and the configuration layer, so 2b's cloud adapters need no change here.
+    The GUI never names a provider itself — that boundary belongs to the factory and the
+    configuration layer. Cloud and local take different constructor arguments (a cloud
+    adapter has no endpoint and no keep-alive; a local one has no reviewed records and
+    no key locations), so the two kwarg sets are built separately here and handed to the
+    same factory.
+
+    ``strict_free_only=True`` is passed as a literal, not read from configuration: the
+    spend guard inside ``create_provider`` has already refused the run unless the
+    configured flag is exactly ``True``, so a non-strict cloud adapter is unreachable —
+    and writing the literal means it stays unreachable even if this call is reused.
     """
+    from ai.approved_models import load_approved_models
+    from ai.cloud import is_cloud_provider, provider_settings
     from ai.config import IN_CODE_DEFAULTS
     from ai.factory import create_provider
 
+    name = str(prefs.get("provider") or IN_CODE_DEFAULTS["provider"]).strip().lower()
+
+    if is_cloud_provider(name):
+        context = dict(
+            guard_context
+            if guard_context is not None
+            else cloud_guard_context(prefs, model_id)
+        )
+        table = context.get("ai_table")
+        settings = provider_settings(table if isinstance(table, Mapping) else None, name)
+        return create_provider(
+            name,
+            guard_context=context,
+            model_id=model_id,
+            approved_models=load_approved_models(table),
+            strict_free_only=True,
+            timeout_seconds=float(settings.get("timeout_seconds", 120)),
+            max_output_tokens=int(settings.get("max_output_tokens", 4096)),
+            request_overhead_tokens=int(prefs.get("request_overhead_tokens", 128)),
+            context_safety_margin_tokens=int(
+                prefs.get("context_safety_margin_tokens", 256)),
+            environ=context.get("environ"),
+            secrets_file=context.get("secrets_file"),
+            dotenv_path=context.get("dotenv_path"),
+        )
+
     return create_provider(
-        str(prefs.get("provider") or IN_CODE_DEFAULTS["provider"]),
+        name,
         model_id=model_id,
         endpoint=prefs.get("endpoint", ""),
         timeout_seconds=float(prefs.get("timeout_seconds", 120)),
@@ -333,24 +400,36 @@ def build_provider_factory(
     dotenv_path: Path | None = None,
     settings_file: Path | None = None,
 ) -> Callable[[], Any]:
-    """The lazy provider factory one batch will use. Nothing runs until it is called.
+    """The provider factory one batch will use.
 
-    This is where Plan 2b's two dormant seams finally become live (Phase 6):
+    **Local runs stay lazy**: nothing is constructed, health checked or contacted until
+    ``run_batch`` actually needs the provider. That is 2a's behaviour and it is unchanged.
 
-    * **The cloud gate.** For a cloud provider, ``ensure_cloud_request_allowed`` runs
-      *before the adapter is even constructed*, so a missing key, an unapproved model,
-      or an unacknowledged disclosure refuses the run before any object exists that
-      could send a chapter. It raises an ``AIProviderError``, which ``AIEditor`` already
-      routes to chapter-atomic script-only fallback under prefer-AI and to an honest
-      raise under AI-required — no new machinery, and no change to the editor.
+    **Cloud runs are built eagerly, here, on the caller's thread** (Plan 2b Phase 7a).
+    The reason is the spend guard: a refusal has to reach the user *before the run
+    starts*, in a dialog naming what failed, not as a log line on a worker thread halfway
+    through a batch. Building the adapter now makes ``create_provider`` — and therefore
+    ``ai.spend_guard.ensure_free_tier_run_allowed`` — run while ``_start`` is still in
+    front of the user. Construction contacts nothing: both cloud adapters build their SDK
+    client lazily on first use.
+
+    Two seams live here (Phase 6), now with the gate moved beneath them:
+
+    * **The cloud gate is no longer called from this module.** It lives at the one place
+      a cloud adapter can be built, ``ai.factory.create_provider``, so it cannot be
+      bypassed by any other route into the editor. This function simply supplies the run
+      context the guard reads. For a cloud provider the injected ``create`` is
+      deliberately **not** honoured for the same reason — a test seam that skips the
+      factory would be a way to start a cloud run without passing the guard. Inject a
+      fake cloud adapter with ``ai.factory.register_provider`` instead; the guard runs on
+      the provider name before any builder is consulted, so a registered fake is still
+      guarded.
     * **The rate limiter.** ``limiter_for`` picks the limiter from the adapter's own
-      ``exposes_rate_limits`` capability (never from its name) and
-      ``RateLimitedProvider`` wraps it. The wrapper satisfies 2a's four-method protocol,
-      so the editor asks for an ``AIProvider`` and gets one. ``checkpoint.on_quota_stop``
-      is handed straight to the limiter, which is what makes a daily quota write the
-      manifest and stop the batch cleanly instead of sleeping.
-
-    The local path is deliberately untouched: no gate, no wrapper, no behaviour change.
+      ``exposes_rate_limits`` capability (never from its name) and ``RateLimitedProvider``
+      wraps it. The wrapper satisfies 2a's four-method protocol, so the editor asks for an
+      ``AIProvider`` and gets one. ``checkpoint.on_quota_stop`` is handed straight to the
+      limiter, which is what makes a daily quota write the manifest and stop the batch
+      cleanly instead of sleeping.
 
     ``ai.*`` is imported *inside* this function, matching the rule the module docstring
     already states for the enum classes: everything the editor path constructs or
@@ -358,7 +437,7 @@ def build_provider_factory(
     was tried and reverted — it left the cloud gate raising an exception class that a
     later-imported ``AIEditor`` no longer recognised as its own base error.
     """
-    from ai.cloud import ensure_cloud_request_allowed, is_cloud_provider, provider_settings
+    from ai.cloud import is_cloud_provider, provider_settings
     from ai.rate_limits import RateLimitedProvider, limiter_for
 
     create = create or _create_provider
@@ -368,32 +447,32 @@ def build_provider_factory(
     if not is_cloud_provider(provider_name):
         return lambda: create(prefs, model)
 
-    ai_table = selected_ai_table(prefs, provider_name, model)
+    context = cloud_guard_context(
+        prefs,
+        model,
+        environ=environ,
+        secrets_file=secrets_file,
+        dotenv_path=dotenv_path,
+        settings_file=settings_file,
+    )
+    ai_table = context["ai_table"]
     on_quota_stop = getattr(checkpoint, "on_quota_stop", None) if checkpoint else None
 
-    def factory():
-        approved = ensure_cloud_request_allowed(
-            provider_name,
-            ai_table=ai_table,
-            model_id=model,
-            environ=environ,
-            secrets_file=secrets_file,
-            dotenv_path=dotenv_path,
-            settings_file=settings_file,
-        )
-        adapter = create(prefs, approved.id)
-        limiter = limiter_for(
-            adapter,
-            provider_settings(ai_table, provider_name),
-            provider=provider_name,
-            model_id=approved.id,
-            stop_event=stop_event,
-            pause_gate=pause_gate,
-            on_quota_stop=on_quota_stop,
-        )
-        return RateLimitedProvider(adapter, limiter)
-
-    return factory
+    # The guard runs inside this call, before the adapter exists. A refusal propagates
+    # out of `build_provider_factory` — and therefore out of `build_ai_editor` — so the
+    # run never starts.
+    adapter = _create_provider(prefs, model, guard_context=context)
+    limiter = limiter_for(
+        adapter,
+        provider_settings(ai_table, provider_name),
+        provider=provider_name,
+        model_id=str(getattr(adapter, "model_id", "") or model),
+        stop_event=stop_event,
+        pause_gate=pause_gate,
+        on_quota_stop=on_quota_stop,
+    )
+    cleared = RateLimitedProvider(adapter, limiter)
+    return lambda: cleared
 
 
 def build_ai_editor(

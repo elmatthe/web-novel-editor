@@ -1228,14 +1228,27 @@ class WebnovelEditorApp(tk.Tk):
                     **checkpoint_kwargs,
                 )
 
-            ai_editor = ai_settings.build_ai_editor(
-                prefs,
-                checkpoint=(_QuotaStopRelay(checkpoint, self._thread_log)
-                            if checkpoint else None),
-                stop_event=self.stop_event,
-                pause_gate=self.pause_gate,
-                settings_file=self._settings_file(),
-            )
+            try:
+                ai_editor = ai_settings.build_ai_editor(
+                    prefs,
+                    checkpoint=(_QuotaStopRelay(checkpoint, self._thread_log)
+                                if checkpoint else None),
+                    stop_event=self.stop_event,
+                    pause_gate=self.pause_gate,
+                    settings_file=self._settings_file(),
+                )
+            except Exception as exc:
+                # The Phase 7a spend guard runs inside this call for a cloud provider,
+                # before the adapter exists and before the batch thread starts. A
+                # refusal stops the run here and is shown in full — not logged and
+                # stepped over. There is deliberately no "run anyway" button: the guard
+                # refuses only when the app cannot confirm the run stays free.
+                reason = str(exc) or (
+                    "The cloud run was refused before anything was sent.")
+                messagebox.showerror("Cloud run refused", reason)
+                self._log(reason, "error")
+                self._set_ai_status_text(reason, "error")
+                return
             use_ai_in_dry_run = self.opt_ai_dry_run.get()
 
         # Per-batch snapshot state: the worker thread reads only these plain

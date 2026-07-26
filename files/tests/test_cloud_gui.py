@@ -43,11 +43,6 @@ def _errors():
     return errors
 
 
-def _disclosure_errors():
-    from ai import disclosure
-
-    return disclosure
-
 # A recognisable fake key shape. Never a real credential.
 FAKE_GEMINI_KEY = "AIzaSyFAKEKEYFORTESTSONLY000000000000000"
 FAKE_GROQ_KEY = "gsk_FAKEKEYFORTESTSONLY0000000000000000000000000000000"
@@ -111,6 +106,28 @@ def _acknowledge(tmp_path, provider, version=DISCLOSURE_VERSION):
     section.setdefault("cloud_disclosure", {})[provider] = str(version)
     path.write_text(json.dumps(document), encoding="utf-8")
     return path
+
+
+@pytest.fixture
+def register_adapter(monkeypatch):
+    """Inject a fake cloud adapter the way the product itself would have to.
+
+    Since Plan 2b Phase 7a, ``build_provider_factory`` no longer honours an injected
+    ``create`` for a cloud provider: the spend guard lives in
+    ``ai.factory.create_provider``, and a test seam that skipped the factory would be a
+    way to start a cloud run without passing the guard — exactly the hole 7a closes.
+    Registering a builder is the supported injection point and it is still guarded,
+    because the guard is keyed on the provider *name* and runs before any builder is
+    consulted. Every test below therefore exercises the real gate.
+    """
+
+    def register(provider, adapter):
+        from ai import factory
+
+        monkeypatch.setitem(factory._BUILDERS, provider, lambda **kwargs: adapter)
+        return adapter
+
+    return register
 
 
 class _FakeAdapter:
@@ -763,12 +780,11 @@ def _cloud_prefs(tmp_path, provider="groq", model="llama-3.3-70b-versatile"):
 
 
 def test_build_provider_factory_wraps_a_cloud_adapter_in_a_rate_limited_provider(
-        tmp_path):
+        tmp_path, register_adapter):
     settings = _acknowledge(tmp_path, "groq")
-    adapter = _FakeAdapter(model_id="llama-3.3-70b-versatile")
+    adapter = register_adapter("groq", _FakeAdapter(model_id="llama-3.3-70b-versatile"))
     factory = ai_settings.build_provider_factory(
         _cloud_prefs(tmp_path),
-        create=lambda prefs, model: adapter,
         environ={"GROQ_API_KEY": FAKE_GROQ_KEY},
         secrets_file=tmp_path / "none.json",
         dotenv_path=tmp_path / "none.env",
@@ -789,13 +805,14 @@ def test_the_local_provider_is_not_wrapped(tmp_path):
     assert factory() is adapter
 
 
-def test_the_limiter_follows_the_adapter_s_declared_capability(tmp_path):
+def test_the_limiter_follows_the_adapter_s_declared_capability(
+        tmp_path, register_adapter):
     settings = _acknowledge(tmp_path, "gemini")
-    adapter = _FakeAdapter(model_id="gemini-3.6-flash", exposes_rate_limits=False)
+    register_adapter(
+        "gemini", _FakeAdapter(model_id="gemini-3.6-flash", exposes_rate_limits=False))
     prefs = _cloud_prefs(tmp_path, provider="gemini", model="gemini-3.6-flash")
     factory = ai_settings.build_provider_factory(
         prefs,
-        create=lambda p, m: adapter,
         environ={"GEMINI_API_KEY": FAKE_GEMINI_KEY},
         secrets_file=tmp_path / "none.json",
         dotenv_path=tmp_path / "none.env",
@@ -804,7 +821,8 @@ def test_the_limiter_follows_the_adapter_s_declared_capability(tmp_path):
     assert type(factory().limiter).__name__ == "FlooredRateLimiter"
 
 
-def test_the_checkpoint_quota_callback_is_handed_to_the_limiter(tmp_path):
+def test_the_checkpoint_quota_callback_is_handed_to_the_limiter(
+        tmp_path, register_adapter):
     settings = _acknowledge(tmp_path, "groq")
     seen = []
 
@@ -812,14 +830,13 @@ def test_the_checkpoint_quota_callback_is_handed_to_the_limiter(tmp_path):
         def on_quota_stop(self, stop):
             seen.append(stop)
 
-    adapter = _FakeAdapter(
+    register_adapter("groq", _FakeAdapter(
         model_id="llama-3.3-70b-versatile",
         raises=lambda: _errors().DailyQuotaExhausted(
             "free daily quota exhausted", retryable=False),
-    )
+    ))
     factory = ai_settings.build_provider_factory(
         _cloud_prefs(tmp_path),
-        create=lambda p, m: adapter,
         checkpoint=_Spy(),
         environ={"GROQ_API_KEY": FAKE_GROQ_KEY},
         secrets_file=tmp_path / "none.json",
@@ -849,7 +866,8 @@ def _request():
     )
 
 
-def test_build_ai_editor_really_runs_through_the_rate_limited_provider(tmp_path):
+def test_build_ai_editor_really_runs_through_the_rate_limited_provider(
+        tmp_path, register_adapter):
     """End to end through the real AIEditor: a daily quota raised by the adapter
     reaches the checkpoint's callback, which can only happen if the limiter is
     genuinely in the call path."""
@@ -860,14 +878,13 @@ def test_build_ai_editor_really_runs_through_the_rate_limited_provider(tmp_path)
         def on_quota_stop(self, stop):
             seen.append(stop)
 
-    adapter = _FakeAdapter(
+    register_adapter("groq", _FakeAdapter(
         model_id="llama-3.3-70b-versatile",
         raises=lambda: _errors().DailyQuotaExhausted(
             "free daily quota exhausted", retryable=False),
-    )
+    ))
     editor = ai_settings.build_ai_editor(
         _cloud_prefs(tmp_path),
-        create=lambda p, m: adapter,
         checkpoint=_Spy(),
         environ={"GROQ_API_KEY": FAKE_GROQ_KEY},
         secrets_file=tmp_path / "none.json",
@@ -882,17 +899,16 @@ def test_build_ai_editor_really_runs_through_the_rate_limited_provider(tmp_path)
     assert len(seen) == 1
 
 
-def test_a_stop_event_reaches_the_limiter(tmp_path):
+def test_a_stop_event_reaches_the_limiter(tmp_path, register_adapter):
     settings = _acknowledge(tmp_path, "groq")
     stop = threading.Event()
     stop.set()
-    adapter = _FakeAdapter(
+    register_adapter("groq", _FakeAdapter(
         model_id="llama-3.3-70b-versatile",
         raises=lambda: _errors().RateLimited("slow down", retryable=True),
-    )
+    ))
     factory = ai_settings.build_provider_factory(
         _cloud_prefs(tmp_path),
-        create=lambda p, m: adapter,
         stop_event=stop,
         environ={"GROQ_API_KEY": FAKE_GROQ_KEY},
         secrets_file=tmp_path / "none.json",
@@ -904,69 +920,82 @@ def test_a_stop_event_reaches_the_limiter(tmp_path):
 
 
 # --- the consent gate, end to end -----------------------------------------
-def test_an_unacknowledged_disclosure_blocks_the_first_cloud_call(tmp_path):
-    adapter = _FakeAdapter(model_id="llama-3.3-70b-versatile")
-    factory = ai_settings.build_provider_factory(
-        _cloud_prefs(tmp_path),
-        create=lambda p, m: adapter,
-        environ={"GROQ_API_KEY": FAKE_GROQ_KEY},
-        secrets_file=tmp_path / "none.json",
-        dotenv_path=tmp_path / "none.env",
-        settings_file=tmp_path / "none.json",
-    )
-    with pytest.raises(_disclosure_errors().DisclosureNotAcknowledged):
-        factory()
+# Since Plan 2b Phase 7a these refusals arrive from the spend guard, and they arrive
+# *earlier*: a cloud provider is built eagerly by `build_provider_factory` so the refusal
+# reaches the user before the batch starts rather than on a worker thread mid-run. Each
+# test therefore asserts the rail still blocks the run, plus which condition named it.
+def _spend_guard():
+    from ai import spend_guard
+
+    return spend_guard
+
+
+def test_an_unacknowledged_disclosure_blocks_the_first_cloud_call(
+        tmp_path, register_adapter):
+    adapter = register_adapter("groq", _FakeAdapter(model_id="llama-3.3-70b-versatile"))
+    guard = _spend_guard()
+    with pytest.raises(guard.SpendRefused) as caught:
+        ai_settings.build_provider_factory(
+            _cloud_prefs(tmp_path),
+            environ={"GROQ_API_KEY": FAKE_GROQ_KEY},
+            secrets_file=tmp_path / "none.json",
+            dotenv_path=tmp_path / "none.env",
+            settings_file=tmp_path / "none.json",
+        )
+    assert caught.value.condition == guard.DISCLOSURE_NOT_ACKNOWLEDGED
     assert adapter.calls == []
 
 
-def test_declining_the_disclosure_falls_back_to_script_only_cleanly(tmp_path):
-    adapter = _FakeAdapter(model_id="llama-3.3-70b-versatile")
-    editor = ai_settings.build_ai_editor(
-        _cloud_prefs(tmp_path),
-        create=lambda p, m: adapter,
-        environ={"GROQ_API_KEY": FAKE_GROQ_KEY},
-        secrets_file=tmp_path / "none.json",
-        dotenv_path=tmp_path / "none.env",
-        settings_file=tmp_path / "none.json",
-    )
-    baseline = "The knight walked on.\n\nThe road was long.\n"
-    outcome = editor.edit(baseline)
-    assert outcome.text == baseline
-    assert outcome.used_ai is False
-    assert adapter.calls == []  # not one chapter left the machine
+def test_declining_the_disclosure_stops_the_run_instead_of_sending_anything(tmp_path):
+    """The run is refused outright rather than quietly downgraded.
+
+    Before 7a this fell back to script-only editing and the batch carried on. The
+    standing product rule is that the app stops and says why rather than proceeding, so
+    the refusal now propagates out of `build_ai_editor` — `gui.app` catches it, shows it,
+    and does not start the batch. Nothing is constructed and nothing is sent either way.
+    """
+    guard = _spend_guard()
+    with pytest.raises(guard.SpendRefused):
+        ai_settings.build_ai_editor(
+            _cloud_prefs(tmp_path),
+            environ={"GROQ_API_KEY": FAKE_GROQ_KEY},
+            secrets_file=tmp_path / "none.json",
+            dotenv_path=tmp_path / "none.env",
+            settings_file=tmp_path / "none.json",
+        )
 
 
-def test_a_missing_key_blocks_the_first_cloud_call(tmp_path):
+def test_a_missing_key_blocks_the_first_cloud_call(tmp_path, register_adapter):
     settings = _acknowledge(tmp_path, "groq")
-    adapter = _FakeAdapter(model_id="llama-3.3-70b-versatile")
-    factory = ai_settings.build_provider_factory(
-        _cloud_prefs(tmp_path),
-        create=lambda p, m: adapter,
-        environ={},
-        secrets_file=tmp_path / "none.json",
-        dotenv_path=tmp_path / "none.env",
-        settings_file=settings,
-    )
-    with pytest.raises(_errors().AuthenticationError):
-        factory()
+    register_adapter("groq", _FakeAdapter(model_id="llama-3.3-70b-versatile"))
+    guard = _spend_guard()
+    with pytest.raises(guard.SpendRefused) as caught:
+        ai_settings.build_provider_factory(
+            _cloud_prefs(tmp_path),
+            environ={},
+            secrets_file=tmp_path / "none.json",
+            dotenv_path=tmp_path / "none.env",
+            settings_file=settings,
+        )
+    assert caught.value.condition == guard.NO_USABLE_KEY
 
 
-def test_an_unapproved_model_blocks_the_first_cloud_call(tmp_path):
+def test_an_unapproved_model_blocks_the_first_cloud_call(tmp_path, register_adapter):
     settings = _acknowledge(tmp_path, "groq")
     prefs = _cloud_prefs(tmp_path, model="llama-3.3-70b-versatile")
     prefs["model"] = "some-other-model"
     prefs["groq"] = {"model": "some-other-model"}
-    adapter = _FakeAdapter()
-    factory = ai_settings.build_provider_factory(
-        prefs,
-        create=lambda p, m: adapter,
-        environ={"GROQ_API_KEY": FAKE_GROQ_KEY},
-        secrets_file=tmp_path / "none.json",
-        dotenv_path=tmp_path / "none.env",
-        settings_file=settings,
-    )
-    with pytest.raises(_errors().ModelUnavailable):
-        factory()
+    register_adapter("groq", _FakeAdapter())
+    guard = _spend_guard()
+    with pytest.raises(guard.SpendRefused) as caught:
+        ai_settings.build_provider_factory(
+            prefs,
+            environ={"GROQ_API_KEY": FAKE_GROQ_KEY},
+            secrets_file=tmp_path / "none.json",
+            dotenv_path=tmp_path / "none.env",
+            settings_file=settings,
+        )
+    assert caught.value.condition == guard.MODEL_NOT_APPROVED
 
 
 # ===========================================================================
@@ -1177,6 +1206,43 @@ def test_accepting_the_disclosure_records_only_the_version_and_runs(
         assert len(calls) == 1
         settings = json.loads((tmp_path / "settings.json").read_text(encoding="utf-8"))
         assert settings["ai"]["cloud_disclosure"] == {"groq": DISCLOSURE_VERSION}
+    finally:
+        app.destroy()
+
+
+def test_a_refused_cloud_run_is_shown_to_the_user_and_never_starts(
+        monkeypatch, tmp_path):
+    """Plan 2b Phase 7a: the spend guard's refusal reaches the user *before* the run.
+
+    Every dialog that could otherwise stop this run is answered "yes", so the guard is
+    the only thing left that can refuse — and it must do so in a dialog, not a log line,
+    with no way to proceed anyway.
+    """
+    appmod, app = _new_app(monkeypatch, tmp_path)
+    try:
+        calls = _wire_batch_spy(appmod, monkeypatch, tmp_path)
+        _queue_one_pdf(app, tmp_path)
+        _acknowledge(tmp_path, "groq")
+        _select_cloud(app, monkeypatch)
+        monkeypatch.setattr(appmod.messagebox, "askokcancel", lambda *a, **k: True)
+        shown = []
+        monkeypatch.setattr(
+            appmod.messagebox, "showerror",
+            lambda title, message, *a, **k: shown.append((title, message)))
+
+        # Strict free-tier-only mode switched off in the configuration: readiness still
+        # says "ready" (Phase 1 never tested the switch itself), and the guard refuses.
+        app.ai_prefs = dict(app.ai_prefs)
+        app.ai_prefs["groq"] = {
+            **dict(app.ai_prefs.get("groq") or {}), "strict_free_tier_only": False}
+
+        app._start_batch()
+
+        assert calls == [], "a refused run must not queue a single chapter"
+        assert app._running is False
+        assert shown, "the refusal was never shown to the user"
+        assert "free-tier" in shown[0][1].lower()
+        assert "free-tier" in app.ai_status_var.get().lower()
     finally:
         app.destroy()
 

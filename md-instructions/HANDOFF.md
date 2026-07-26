@@ -1,25 +1,176 @@
 # Web Novel Editor — Handoff
 
 ## Current Focus
-**Plan 2b (Cloud AI Providers — Gemini, Groq — target v0.13.0) is UNDERWAY. Phases 0, 1, 2, 3, 4, 5
-and 6 are complete; Phase 7 (the frozen comparison run) is the next work and it PAUSES for the
+**Plan 2b (Cloud AI Providers — Gemini, Groq — target v0.13.0) is UNDERWAY. Phases 0–6 and Phase
+7a are complete; Phase 7b (the frozen comparison run) is the next work and it PAUSES for the
 provider decision.** Working branch **`feature/plan-2b-cloud-providers`**, cut from the approved
 merged release commit **`72d68ca`** (`main`, tag `v0.12.0`). Baseline `verify.py` at branch creation:
 **688 passed / 8 skipped**; after Phase 1: **739 / 8**; after Phase 2: **801 / 9**; after Phase 3:
 **892 / 9**; after Phase 4: **977 / 9**; after Phase 5: **1042 / 10**; after Phase 6: **1119 / 9**;
-after the Phase 6 gap-fill (layout, in-app key entry, stale model dropdown): **1139 passed / 9
-skipped** (1148 collected — the long-documented Tk display skip flips pass↔skip on this machine).
+after the Phase 6 gap-fill (layout, in-app key entry, stale model dropdown): **1139 / 9** (1148
+collected); after Phase 7a (pre-flight spend guard): **1187 passed / 9 skipped** (1196 collected —
+the long-documented Tk display skip flips pass↔skip on this machine).
 **Both cloud adapters exist** — `GeminiProvider` (`google-genai==2.14.0`) and `GroqProvider`
 (`groq==1.6.0`), both pinned, neither SDK imported at package load — both are paceable through one
 shared limiter, a run can be stopped and resumed across days, and **as of Phase 6 all of that is
 actually constructed at runtime by the GUI**. No live cloud call has ever been made from this repo.
 
-**Phase 7 is the next authorized work, and it stops for a decision.** The same stratified chapters as
-the 2a pilot, same prompt and gate versions, through each configured provider; then
+**Phase 7b is the next authorized work, and it stops for a decision.** The same stratified chapters
+as the 2a pilot, same prompt and gate versions, through each configured provider; then
 `files/pilot/PROVIDER-COMPARISON.md` (aggregate metrics and short redacted snippets only). Quality and
 over-edit rate dominate the recommendation — a default is never wired from speed alone. It is the
 first phase that makes a real cloud call, so it needs a key and the billing/plan state confirmed
-manually in the provider's own console.
+manually in the provider's own console (done 2026-07-25 — see the Phase 7a log). **Every cloud run
+now passes `ai.spend_guard.ensure_free_tier_run_allowed` at `ai.factory.create_provider` before an
+adapter exists**, and a refusal stops the run in a dialog rather than degrading to script-only.
+
+## Work Log — 2026-07-25 — Claude Code — Plan 2b Phase 7a (Pre-flight spend guard)
+
+Ran on HOME-PC. **Phase 7a is complete and STOPPED per instruction; 7b was not started.**
+**No live cloud call was made, and none can be made by anything this phase added** — the guard
+is pure policy over configuration plus two small files, it imports no SDK and opens no socket,
+and tests assert both.
+
+**The standing product rule this phase encodes, recorded here so it is not re-litigated:** the
+tool must never cost the user money. If a run could leave the free tier, or the app cannot
+positively confirm it will not, the app **stops and says why** rather than proceeding. A stop is
+never traded for a charge.
+
+**User-confirmed console facts (2026-07-25) — recorded, never inferred, never queried by code.**
+Google AI Studio: the key in use belongs to project "Default Gemini Project"
+(`gen-lang-client-0017142727`); Billing Tier reads **"Free tier"** and the row still offers a
+"Set up billing" link, i.e. billing has never been enabled on that project. Groq console,
+Settings > Billing: the **"Free" plan is marked "Current Plan"**, no paid plan is active (Groq
+also shows Developer-tier upgrades as temporarily unavailable). These are the user's own console
+observations. **Nothing in the codebase queries, infers or asserts billing state from any
+provider API**, and a test pins that (`test_the_guard_never_asks_a_provider_about_billing`).
+
+| file | change |
+|---|---|
+| `scripts/Universal/ai/spend_guard.py` | **new, 359 lines** — the guard, its verdict type and `SpendRefused` |
+| `files/tests/test_spend_guard.py` | **new, 798 lines, 47 tests** |
+| `scripts/Universal/ai/factory.py` | +30 / −3 — the single call site |
+| `scripts/Universal/gui/ai_settings.py` | +125 / −46 — gate delegated down, cloud kwargs, eager cloud build |
+| `scripts/Universal/gui/app.py` | +21 / −8 — the refusal dialog before the run starts |
+| `files/tests/test_cloud_gui.py` | +140 / −74 — injection moved to the factory registry; 1 new GUI test |
+| `files/tests/test_gemini_provider.py` | +35 / −1 — a cleared guard context for the factory test |
+| `files/tests/test_groq_provider.py` | +35 / −1 — same |
+
+**PHASE 1 ALREADY COVERED MOST OF THIS, AND IS REUSED RATHER THAN RE-IMPLEMENTED.**
+`ai/cloud.py` is **byte-for-byte unchanged**. `ensure_cloud_request_allowed` already enforced
+five of the six required conditions — provider known and configured, key available, model
+matched **exactly** (`find_approved` compares `model.id == wanted`; `looks_like_alias` refuses
+`latest`/`*`), `status` stable, `free_tier_confidence` confirmed with `unknown` refused, and the
+disclosure acknowledged at the current version. The guard composes that call; it does not
+re-decide any of it.
+
+**The one real gap, and it is the condition the prompt lists first.** Phase 1 *reads*
+`strict_free_tier_only` out of configuration and passes it to `ensure_model_approved` as a
+parameter. Set it to `false` in `config.toml` and three rails evaporate silently — the function
+returns the record **before** checking status, before checking `not-free`, and before checking
+`unknown` — so a preview or paid model becomes callable and the app still reports "ready",
+because `check_readiness` never tested the switch either. The guard closes that: the value must
+be **exactly the boolean `True`**. Truthiness is wrong in both directions (`bool("false")` is
+True, `bool(0)` is False), so a string, an int, or `None` is a refusal that names what it found.
+
+**Where the guard lives, and why not where Phase 6 put it.** Phase 6's gate sat inside
+`build_provider_factory`'s lazy closure — a check the GUI happens to call, on the worker thread,
+at the first chapter. Two failures follow from that: an `AIEditor` built any other way skips it
+entirely, and under prefer-AI a refusal became chapter-atomic fallback plus a log line, i.e. the
+batch ran to completion having quietly not done what was asked. The guard is now the **one call
+site in `ai.factory.create_provider`**, keyed on the provider **name before any builder is
+consulted**, so (a) a cloud adapter cannot exist without it, (b) a builder registered under a
+cloud name is still guarded, and (c) it runs *before the adapter object exists*, which is
+stronger than checking inside `complete()`. `ai/cloud.py`'s `ensure_cloud_request_allowed` now
+has exactly one caller — the guard — so the rails are not evaluated from two places.
+
+**And it fires before the run starts.** `build_provider_factory` now builds a **cloud** provider
+**eagerly**, on the caller's thread, so `create_provider` runs while `_start` is still in front
+of the user; `gui/app.py` catches the refusal, shows it with `messagebox.showerror`, publishes it
+to the status line, and returns without starting the batch. There is no "run anyway". Local runs
+stay lazy and are untouched — no gate, no wrapper, no behaviour change. Eager construction
+contacts nothing: both adapters build their SDK client on first use, not in `__init__`.
+
+**One deviation, declared: I fixed a pre-existing Phase 6 defect on this exact seam.**
+`gui.ai_settings._create_provider` passed **every** provider the *local* adapter's constructor
+arguments (`endpoint`, `keep_alive`, `context_limit`), which neither cloud adapter accepts, and
+never passed `approved_models`. A real cloud run would therefore have died with a `TypeError` at
+adapter construction — and the cloud "Check service" probe swallowed that into a misleading
+"provider package is not installed". Certifying that path as "the real path" while knowing it
+could not build an adapter would have made the verification hollow, so the cloud kwarg set is
+now built separately (model, reviewed records, `strict_free_only=True` as a literal, timeout and
+max-output from `[ai.<provider>]`, key locations). A test builds the genuine `GroqProvider`
+through the genuine path and mutation-testing confirms the old arguments make it fail. **This
+would otherwise have been 7b's first crash.**
+
+**A behaviour change worth knowing about.** A refused cloud run now **stops the batch** instead
+of degrading to script-only editing. That is the standing rule ("stops and tells the user"), and
+script-only remains one click away — turn the AI pass off, or select the local provider.
+
+**Fail-closed inventory** (each has its own test): unknown/non-cloud provider; no run context;
+a context that is not a mapping; a missing or unusable `[ai]` table; provider not switched on;
+strict mode off; strict mode non-boolean; no key anywhere; no model chosen; a `latest`-style
+alias; a prefix, suffix or case variant of an approved ID; a model absent from the reviewed
+list; a model whose record belongs to the *other* provider; preview and experimental status;
+`unknown` and `not-free` confidence; disclosure never acknowledged; disclosure acknowledged at an
+older version; the other provider's acknowledgement; an unreadable settings file; missing or
+corrupt `approved_models`; and any unexpected exception while deciding. Three **post-conditions**
+on the record Phase 1 returns (ID identical to the one asked for, status stable, confidence
+confirmed) mean that if those rules are ever loosened upstream, the guard still fails closed
+rather than inheriting the loosening — they assert the result, they do not re-decide it.
+
+**The real-path proof, done to the same rigor as the key-dialog check.** The guard is patched
+with a recorder and required to be what actually ran when a cloud run starts through the normal
+entry point (`build_ai_editor`, **no injected `create`**), receiving the real provider and model
+ID, with no adapter constructed. The converse is also pinned: with the guard neutered, the same
+run — no key anywhere — builds an adapter, which is what rules out the refusal coming from
+somewhere else. Order is pinned too (`guard` then `adapter`), as is the fact that a *cleared* run
+really does reach the provider, so the guard is not merely a wall.
+
+**The `create` seam was closed for cloud, and that cost test churn.** `build_provider_factory`
+no longer honours an injected `create` for a cloud provider: a test seam that skips the factory
+is a way to start a cloud run unguarded, and by the phase's own standard that means the guard has
+failed. Nine Phase 6 tests now inject through `ai.factory.register_provider` instead, which is
+still guarded — so they became *stronger*, not weaker: each now proves its rail blocks the run
+**and** that the guard is what blocks it. Mutation-testing that mutation found something real:
+reverting to the injected `create` makes twelve tests fail *and* the run takes 39s instead of 2s,
+because the tests start resolving real key locations and building real adapters.
+
+**Five guards mutation-tested against a green baseline**, each making named tests fail: removing
+the guard call from the factory (10 tests); `strict is not True` → truthiness (1); dropping the
+explicit run context in the GUI (12); removing the refusal dialog from `gui/app.py` (1); and the
+old local-kwargs construction (1).
+
+**Gates.** `scripts/verify.py` **PASS — 1187 passed, 9 skipped** (1196 collected, 0 failed);
+pins PASS; CHANGELOG at v0.12.0 matching BRIEFING. That is **+48 collected** against the
+1148 Phase 6 gap-fill baseline, with zero regressions. `git diff --check` clean. **Clean-room
+re-run: identical 1187 / 9** with `ollama`, `groq`, `google.genai` and `google.generativeai`
+import-blocked and `GEMINI_API_KEY` / `GROQ_API_KEY` / `GOOGLE_API_KEY` unset. **No new
+dependency** — pure stdlib over existing internal modules.
+
+**Diff-verified untouched** (requirement 7): `editor.py`, `validation.py`, `prompt.py`,
+`chunking.py`, `errors.py`, `models.py`, `provider.py`, **`cloud.py`**, `approved_models.py`,
+`disclosure.py`, `secrets.py`, `redaction.py`, `rate_limits.py`, `settings.py`, `config.py`, both
+provider adapters, `core/run_manifest.py`, `core/batch_runner.py`, `gui/cloud_ui.py`,
+`config.toml` and `scripts/requirements.txt` are all byte-for-byte unchanged.
+
+**Known small wrinkle, recorded rather than papered over.** The cloud "Check service" probe now
+also passes the guard (correct — listing models still contacts a company the user may not have
+consented to), but `probe_provider` catches every exception and reports `package_unavailable`, so
+a *guard* refusal would read as "package not installed" there. It is only reachable with strict
+mode off, because `_check_ai_service` already refuses to probe a cloud provider unless
+`check_readiness` says ready; the run itself is still refused with the right words. Fixing it
+properly means either a second status vocabulary in Phase 6's panel or a new parameter on
+`probe_provider`, neither of which this phase was asked for.
+
+**Not done, by instruction:** no real cloud request, no comparison run, no
+`files/pilot/PROVIDER-COMPARISON.md` (all 7b); no CHANGELOG/BRIEFING/DECISIONS entry (v0.13.0
+docs are Phase 8's). `config.toml` untouched — both cloud providers still ship `enabled = false`
+and `model = ""`.
+
+**Needs hands-on click-through before 7b:** with `strict_free_tier_only = false` temporarily set
+for one provider in `config.toml`, start a cloud run and confirm the refusal dialog appears with
+the full sentence and the batch does not start — then set it back to `true`.
 
 ## Work Log — 2026-07-25 — Claude Code — Plan 2b Phase 6 GAP-FILL (layout, key entry, stale dropdown)
 
@@ -2863,6 +3014,46 @@ summary record.
 ---
 
 ## Session Sync Log (newest first)
+
+### 2026-07-25 — HOME-PC — PUSHED (Plan 2b Phase 7a: pre-flight spend guard — 7a COMPLETE)
+- Branch:  feature/plan-2b-cloud-providers (1 commit this session on top of 2123606)
+- Env:     existing .venv, Python 3.13.12. No dependency added, no pin edited. No cloud
+           call of any kind; no key read from anywhere outside a test's own tmp_path.
+- Added:   scripts/Universal/ai/spend_guard.py (new — the one guard function, its
+           verdict type and SpendRefused)
+           files/tests/test_spend_guard.py (new — 47 tests)
+- Changed: scripts/Universal/ai/factory.py (the single call site; guard_context)
+           scripts/Universal/gui/ai_settings.py (gate delegated to the factory, cloud
+           constructor arguments, eager cloud build so a refusal precedes the run)
+           scripts/Universal/gui/app.py (the refusal dialog before the batch starts)
+           files/tests/test_cloud_gui.py (injection moved to the factory registry; one
+           new GUI test for the refusal)
+           files/tests/test_gemini_provider.py, files/tests/test_groq_provider.py (a
+           cleared guard context for the two factory-construction tests)
+           md-instructions/HANDOFF.md (Current Focus, Phase 7a work log, this entry)
+- Deleted: nothing
+- Not touched (diff-verified byte-for-byte): ai/cloud.py, editor.py, validation.py,
+           prompt.py, chunking.py, errors.py, models.py, provider.py, approved_models.py,
+           disclosure.py, secrets.py, redaction.py, rate_limits.py, settings.py,
+           config.py, both provider adapters, core/run_manifest.py, core/batch_runner.py,
+           gui/cloud_ui.py, config.toml, scripts/requirements.txt
+- Decided: the guard composes Phase 1's `ensure_cloud_request_allowed` rather than
+           duplicating it; the only rail it adds is that strict free-only mode must be
+           exactly `True`. A refused cloud run now stops the batch instead of degrading
+           to script-only. One declared deviation: a pre-existing Phase 6 defect on the
+           same seam (cloud adapters handed the local adapter's constructor arguments)
+           was fixed, because without it the "real path" could not build an adapter.
+- Evidence: five mutations against a green baseline, each caught by named tests.
+- Note:    no corpus, chapter text, prompt/response text, machine identifier, secret or
+           generated PDF was recorded or staged. Only fake key shapes appear in tests.
+           Pre-existing untracked `.claude/` and
+           `md-instructions/plan-2-ai-editor-integration.md` were left untracked.
+- Result:  python scripts/verify.py -> PASS (1187 passed, 9 skipped, 0 failed; 1196
+           collected, was 1148 at the Phase 6 gap-fill baseline). Clean-room re-run with
+           all provider SDKs import-blocked and every cloud key unset: identical
+           1187/9. git diff --check clean.
+- Next:    Plan 2b Phase 7b — the frozen comparison run and PROVIDER-COMPARISON.md, on a
+           separate prompt. It is the first real cloud call.
 
 ### 2026-07-23 — HOME-PC — PUSHED (Plan 2a Phase 7: GUI AI controls — PHASE 7 COMPLETE)
 - Branch:  feature/plan-2a-provider-foundation (1 commit this session on top of a32de93)

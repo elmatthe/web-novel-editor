@@ -30,6 +30,7 @@ from ai.errors import (
     RateLimited,
     TransientNetworkError,
 )
+from ai.disclosure import DISCLOSURE_VERSION
 from ai.factory import create_provider
 from ai.models import CompletionRequest, ProviderStatus
 from ai.providers.gemini import GeminiProvider
@@ -182,10 +183,43 @@ def test_importing_the_adapter_does_not_import_the_google_sdk():
     assert "google.genai" not in sys.modules
 
 
-def test_factory_constructs_adapter_without_loading_sdk():
+def cleared_guard_context(tmp_path, model_id: str = MODEL) -> dict:
+    """A run context the Plan 2b Phase 7a spend guard clears.
+
+    Since 7a the factory refuses to build any cloud adapter that the guard has not
+    cleared, so an adapter test that goes through the factory has to supply one. Every
+    location is hermetic: a fake key in an injected environment, a settings file written
+    here, and secrets/dotenv paths that do not exist.
+    """
+    import json
+
+    settings = tmp_path / "settings.json"
+    settings.write_text(
+        json.dumps({"ai": {"cloud_disclosure": {"gemini": DISCLOSURE_VERSION}}}),
+        encoding="utf-8",
+    )
+    return {
+        "ai_table": {
+            "gemini": {
+                "enabled": True,
+                "model": model_id,
+                "strict_free_tier_only": True,
+            },
+            "approved_models": [m.as_dict() for m in APPROVED],
+        },
+        "model_id": model_id,
+        "environ": {"GEMINI_API_KEY": FAKE_KEY},
+        "secrets_file": tmp_path / "no-secrets.json",
+        "dotenv_path": tmp_path / "no.env",
+        "settings_file": settings,
+    }
+
+
+def test_factory_constructs_adapter_without_loading_sdk(tmp_path):
     loaded = []
     built = create_provider(
         "gemini",
+        guard_context=cleared_guard_context(tmp_path),
         model_id=MODEL,
         approved_models=APPROVED,
         api_key=FAKE_KEY,
