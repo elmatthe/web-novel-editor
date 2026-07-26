@@ -1,9 +1,14 @@
 # Web Novel Editor — Handoff
 
 ## Current Focus
-**Plan 2b (Cloud AI Providers — Gemini, Groq — target v0.13.0) is UNDERWAY. Phases 0–6 and Phase
-7a are complete; Phase 7b (the frozen comparison run) is the next work and it PAUSES for the
-provider decision.** Working branch **`feature/plan-2b-cloud-providers`**, cut from the approved
+**Plan 2b (Cloud AI Providers — Gemini, Groq — target v0.13.0) is UNDERWAY. Phases 0–7b are
+complete. Phase 7b is DONE and PAUSED for the provider decision — the first real cloud calls this
+project has ever made were issued on 2026-07-25/26 and `files/pilot/PROVIDER-COMPARISON.md` is
+committed.** Gemini measured **38/40** frozen chapters; Groq measured **14/40** before its free
+tokens-per-day ceiling latched, so the Groq column is materially thinner and the report's
+like-for-like table (the 14 chapters both served) is the only directly comparable view. **Nothing
+is wired as a default and Phase 8 has not started.** Working branch
+**`feature/plan-2b-cloud-providers`**, cut from the approved
 merged release commit **`72d68ca`** (`main`, tag `v0.12.0`). Baseline `verify.py` at branch creation:
 **688 passed / 8 skipped**; after Phase 1: **739 / 8**; after Phase 2: **801 / 9**; after Phase 3:
 **892 / 9**; after Phase 4: **977 / 9**; after Phase 5: **1042 / 10**; after Phase 6: **1119 / 9**;
@@ -23,6 +28,139 @@ first phase that makes a real cloud call, so it needs a key and the billing/plan
 manually in the provider's own console (done 2026-07-25 — see the Phase 7a log). **Every cloud run
 now passes `ai.spend_guard.ensure_free_tier_run_allowed` at `ai.factory.create_provider` before an
 adapter exists**, and a refusal stops the run in a dialog rather than degrading to script-only.
+
+## Work Log — 2026-07-26 — Claude Code — Plan 2b Phase 7b (Frozen comparison run + report)
+
+Ran on HOME-PC. **Phase 7b is complete and STOPPED for the provider decision. Phase 8 was not
+started and no default was wired** — `config.toml` still ships both cloud providers
+`enabled = false`, `model = ""`, and every `pilot_status` is still `not-piloted`.
+
+**This phase made the first real cloud requests in this project's history.** Every one of them
+went through the Phase 7a spend guard and nothing bypassed it.
+
+**No production code changed.** `git diff --stat d787c59 -- scripts/ config.toml` is **empty** —
+`AIEditor`, the gate, the prompt layer, both adapters, the limiter, the guard and `config.toml`
+are byte-for-byte unchanged. The entire harness lives in gitignored
+`files/qa-tools/scratch/pilot-2b/`, so there is no new shipped surface and therefore no new unit
+test was owed; the existing suite still passes offline.
+
+### The chapter set, models and dates (exact, for reproduction)
+- **Chapters: the SAME 40 as the 2a pilot**, read verbatim from
+  `files/qa-tools/scratch/pilot/selection.json` — 10 each from **Shadow Slave** and **The Noble
+  Queen** (profiled) and **Renegade Immortal** and **Reverend Insanity** (universal-only, 0
+  protected terms). No new sample was drawn and no chapter was re-selected.
+- **Prompt version 1.0, gate version 1.0**, protection **Strategy M (mask)**, policy
+  **prefer-AI** — the shipped defaults, frozen so only the provider varies.
+- **Models:** `gemini-3.6-flash` and `llama-3.3-70b-versatile`, chosen by the user as the
+  quality-matched pair. Both are `stable` + `free_tier_confidence = confirmed`.
+- **Dates:** 2026-07-25 (first Gemini window, first Groq window) and 2026-07-26 (Gemini's
+  post-reset window, Groq's partial window).
+- **Local bundle (gitignored, full text + full diffs + raw outputs):**
+  `files/qa-tools/scratch/pilot-2b/bundle/<provider>__<model>/<chapter>.txt`, with
+  `results.jsonl`, `unmeasured.jsonl` and `preflight.json` beside it.
+
+### The guard was the only path, and that is structural rather than a promise
+The harness never constructs `GeminiProvider` or `GroqProvider`. It calls
+`gui.ai_settings.build_ai_editor` — the same entry point the GUI's Start button uses — so every
+run passes `build_provider_factory` → `ai.factory.create_provider` →
+`spend_guard.ensure_free_tier_run_allowed`, keyed on the provider name **before any adapter
+object exists**. There is no pilot-mode branch anywhere. `run_compare.py --preflight` asks the
+guard about all nine approved models and sends nothing; its refusals were what proved the chain
+was live before any key existed (`no_usable_key` for all nine, then
+`disclosure_not_acknowledged` for Groq once keys were saved, then all nine `allowed`).
+
+### Coverage — the honest headline
+| provider / model | measured | not measured | why |
+|---|---|---|---|
+| `gemini-3.6-flash` | **38 / 40** | 2 | `RateLimited` (quota, 2nd window) |
+| `llama-3.3-70b-versatile` | **14 / 40** | 26 | `DailyQuotaExhausted` (TPD) |
+
+A refused chapter produced **no measurement** and is excluded from every quality figure rather
+than counted as a failure — a 429 says nothing about edit quality. Refused rows are quarantined
+in `unmeasured.jsonl`, and `--resume` deliberately treats them as *not done* so a later window
+picks them up.
+
+### Measured free-tier ceilings (the numbers nobody publishes)
+- **Gemini** served **24 requests / 123,392 tokens** on 2026-07-25 before 429s began, then did
+  not recover for ~35 minutes; after the daily reset it served **21 requests / 96,472 tokens**.
+  Google publishes no free-tier table and returns **no** `x-ratelimit-*` headers, so this is the
+  only figure that exists for this project.
+- **Groq** served **15 requests / 76,113 tokens** before its TPD ceiling latched. Live headers
+  confirmed `x-ratelimit-limit-requests = 1000` (per **day**) and
+  `x-ratelimit-limit-tokens = 12000` (per **minute**) — the documented asymmetry, observed.
+- A full 40-chapter pass costs **~243,000 tokens**, which is why Groq's 100K TPD cannot complete
+  one in a day. Correction #5 is confirmed by measurement, not inference.
+
+### A real product finding for Phase 8 (not a spend-guard failure; nothing overspent)
+**Gemini's quota exhaustion is misclassified.** Its 429 carries no "per day" wording, so
+`ai.rate_limits.classify_limit` reads it as a per-minute `RateLimited`. The limiter therefore
+retried and prefer-AI degraded chapter by chapter — the batch spent **~35 minutes making futile
+calls** instead of writing the checkpoint and stopping cleanly with "resume tomorrow", which is
+exactly what Phase 5 built. **Groq behaved correctly by contrast**: its message classified as
+`tokens_per_day`, the limiter latched, and every subsequent chapter was refused in **0.0 s with
+no network call**. On a 3,000-chapter run the Gemini path would be hours of pointless traffic
+producing silently script-only output. Recommend Phase 8 treat a sustained Gemini 429 as daily.
+
+### Quality — the deciding evidence, and it is NOT self-certified
+On the **14 chapters both providers served** (the only directly comparable subset):
+
+| provider | accepted | faithful echo | review flags | `proper_noun_changed` | `in_token_punctuation` | p50 |
+|---|---|---|---|---|---|---|
+| `gemini-3.6-flash` | 14/14 | 10 | 6 | 1 | 0 | 8.8 s |
+| `llama-3.3-70b-versatile` | 12/14 | 8 | 9 | 5 | 0 | 36.2 s |
+
+Across its full 38, Gemini accepted 36 (95 %), 19 faithful echoes, 2 gate fallbacks (both
+`protected_term_changed_or_moved` — the gate working). **Neither model produced a single
+`in_token_punctuation` change**, which is the specific gate-invisible corruption 2a saw the local
+8B commit. Both fell back exactly where the gate should catch a protected-term move.
+
+**Flagged for the user, deliberately undecided.** Groq produced `Noble's` → `Noble's's` **twice**
+(a doubled possessive) and renamed a character `Kraii` → `Kraai` **three times** in The Noble
+Queen — a profiled novel, so the name is evidently absent from its lexicon and nothing in the
+stack covered it. Gemini's 8 `proper_noun_changed` are mostly one repeated name-normalisation
+(`Ligo`/`Ligou` → `Liguo`, ×5, in a novel with **no** lexicon, so nothing verified which spelling
+is canonical), plus `Wang` → `Wan` which is genuinely ambiguous. Most other Gemini flags read as
+legitimate OCR repair (`first`→`fist`, `ware`→`were`, `hits`→`its`, `rare`→`rate`) and two are
+word-order repairs, which the prompt nominally prohibits. **A useful validity signal: on the one
+chapter both served with changes, the two providers made the same two corrections
+independently.**
+
+### Harness defects found and fixed during the run (all in gitignored QA code)
+1. `--resume` counted transport failures as "done", which would have permanently hidden the 17
+   unmeasured Gemini chapters. Now only real measurements count.
+2. The adapter reference for rate-limit snapshots was captured **before** `AIEditor` lazily built
+   its provider, so every snapshot was `None`. Re-read inside the loop; Groq headers now land.
+3. The over-edit classifier had two false-positive patterns that would have wasted review time:
+   sentence-initial `The` → `They` scored as a name change (capitalisation carries no signal at a
+   sentence boundary), and `thumb nail` → `thumbnail` scored as in-token punctuation (it is
+   whitespace, and no punctuation is involved). `reclassify.py` re-derives labels from the bundle
+   without re-spending quota.
+4. The report's own corpus-safety gate caught two genuine leaks before anything was written:
+   chapter keys embed the source PDF filename (**chapter titles**), and the Groq 429 text embeds
+   the **organization ID**. Both are now redacted; the report identifies chapters by
+   novel + stratification label only.
+
+### Corpus discipline (verified)
+`files/pilot/PROVIDER-COMPARISON.md` is the **only** tracked artifact. It contains aggregate
+tables and snippets capped at **48 characters** by `overedit.SNIPPET_CHARS`, enforced in code;
+`_assert_repo_safe` re-scans the finished document and refuses to write if any inline span
+exceeds the cap. Scanned before commit: longest inline span **50 chars**, zero occurrences of
+`Chapter `, no organization ID. The whole `files/qa-tools/scratch/` tree and
+`files/pdf-example-chapters/` remain gitignored.
+
+### Gates
+`python scripts/verify.py` **PASS — 1186 passed, 10 skipped** (1196 collected, 0 failed). The
+count matches Phase 7a's 1196 collected; the long-documented Tk display skip flipped pass↔skip on
+this machine, as recorded previously. Pins PASS; CHANGELOG at v0.12.0 matching BRIEFING.
+
+**Not done, by instruction:** no default wired, no `config.toml` edit, no `pilot_status` update,
+no CHANGELOG/BRIEFING/DECISIONS entry (all Phase 8's), no merge to `main`.
+
+**To finish the Groq column** (optional, the user's call):
+`python run_compare.py --provider groq --model llama-3.3-70b-versatile --resume` on a later day,
+optionally with `--novels "Renegade Immortal" "Reverend Insanity"` to spend a scarce window on
+the chapters that discriminate rather than the frozen order's next-in-line. Then
+`python reclassify.py && python analyze_compare.py --per-group 15`.
 
 ## Work Log — 2026-07-25 — Claude Code — Plan 2b Phase 7a (Pre-flight spend guard)
 
@@ -3014,6 +3152,52 @@ summary record.
 ---
 
 ## Session Sync Log (newest first)
+
+### 2026-07-26 — HOME-PC — PUSHED (Plan 2b Phase 7b: frozen comparison run + report — 7b COMPLETE, PAUSED for decision)
+- Branch:  feature/plan-2b-cloud-providers (1 commit this session on top of d787c59)
+- Env:     existing .venv, Python 3.13.12. No dependency added, no pin edited.
+           **First real cloud calls in this project's history** — Gemini and Groq, both
+           through the Phase 7a spend guard, both on free tiers confirmed by the user in
+           each provider's own console on 2026-07-25.
+- Added:   files/pilot/PROVIDER-COMPARISON.md (the ONLY tracked artifact from this phase)
+- Changed: md-instructions/HANDOFF.md (Current Focus, Phase 7b work log, this entry)
+- Deleted: nothing
+- Local only (gitignored, NOT committed): files/qa-tools/scratch/pilot-2b/ — the harness
+           (compare_common.py, overedit.py, run_compare.py, analyze_compare.py,
+           reclassify.py), results.jsonl, unmeasured.jsonl, preflight.json and the
+           full-text bundle/ with every baseline, accepted output and unified diff.
+- Not touched (diff-verified byte-for-byte — `git diff d787c59 -- scripts/ config.toml`
+           returns EMPTY): all of scripts/, including ai/editor.py, ai/validation.py,
+           ai/prompt.py, ai/chunking.py, ai/spend_guard.py, ai/factory.py, ai/cloud.py,
+           ai/rate_limits.py, both provider adapters, gui/*, and config.toml.
+- Decided: run the quality-matched pair (gemini-3.6-flash vs llama-3.3-70b-versatile) at
+           the user's direction rather than the feasibility-matched 8B, because 2a showed
+           model size dominates edit quality and an 8B-vs-Flash result would have measured
+           parameter count while looking like a provider verdict. Strategy frozen at M —
+           this phase varies the provider, not the strategy, which 2a already settled.
+           A refused chapter is excluded from quality figures, never averaged in.
+- Evidence: Gemini 38/40 measured (36 accepted, 19 faithful echoes, 2 gate fallbacks);
+           Groq 14/40 measured (12 accepted, 8 echoes, 2 gate fallbacks) before its TPD
+           ceiling latched. Like-for-like on the 14 both served: Gemini 14/14 accepted,
+           10 echoes, 1 proper-noun change, 8.8 s p50; Groq 12/14, 8 echoes, 5 proper-noun
+           changes (incl. `Noble's`→`Noble's's` ×2 and a character renamed ×3), 36.2 s p50.
+           Neither produced any in-token punctuation corruption.
+- Flagged: **Gemini's daily quota exhaustion is misclassified as per-minute** (its 429
+           carries no "per day" wording), so the batch retried for ~35 min instead of
+           checkpointing. Groq classified correctly and refused in 0.0 s. Phase 8 item.
+           Nothing overspent; the spend guard was never the failing part.
+- Note:    no corpus text, chapter title, full diff, raw model response, API key or
+           organization ID was committed. The report's own safety gate refused to write
+           twice until chapter titles and the Groq org ID were redacted. Longest inline
+           span in the committed report: 50 chars. Pre-existing untracked `.claude/` and
+           `md-instructions/plan-2-ai-editor-integration.md` left untracked.
+- Result:  python scripts/verify.py -> PASS (1186 passed, 10 skipped, 0 failed; 1196
+           collected, unchanged from Phase 7a — the documented Tk display skip flipped
+           pass<->skip). git diff --check clean.
+- Next:    PAUSED for the user's provider decision. Phase 8 (adopt decision + bug hunt +
+           docs + release gate) is NOT started. Groq's remaining 26 chapters can be
+           completed on later daily windows with `--resume` if a fuller column is wanted
+           before deciding.
 
 ### 2026-07-25 — HOME-PC — PUSHED (Plan 2b Phase 7a: pre-flight spend guard — 7a COMPLETE)
 - Branch:  feature/plan-2b-cloud-providers (1 commit this session on top of 2123606)
