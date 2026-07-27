@@ -139,6 +139,21 @@ def run_batch(
     # selected novel's <Novel-Name>.md is layered on top when it exists, else universal.
     details = load_edit_details(novel_name)
     log("Loaded universal editor rules (UNIVERSAL.md).", "muted")
+
+    # Load the protected lexicon once for the whole run (built-in names + user index).
+    index_path = (
+        str(NOVEL_INDEX_DIR / dispatch.index_filename) if dispatch.index_filename else ""
+    )
+    lexicon = load_protected_lexicon(index_path, dispatch.canonical_names)
+    term_count = len(lexicon.terms)
+    log(f"Loaded {term_count} protected term(s) for "
+        f"{dispatch.display_name}.", "muted")
+
+    # The profile line comes AFTER the lexicon on purpose: it must be able to say whether
+    # the novel's names are protected, and "has a profile" and "has protected names" are
+    # two independent facts that this line used to collapse into one. Saying "no
+    # novel-specific profile — universal-only editing" for a novel carrying 1,429
+    # protected terms was technically true and read as the exact opposite of the truth.
     if dispatch.has_profile:
         layer = details.novel_path.name if details.novel_path else "built-in profile"
         log(f"Applied novel-specific editing layer for "
@@ -148,17 +163,13 @@ def run_batch(
         # Plan 1 Phase 3) — not a novel that happens to lack a profile.
         log("Universal editing selected — applying the standard universal-only "
             "editing (no novel-specific layer).", "muted")
+    elif term_count:
+        log(f"No novel-specific fix-up rules for '{selected_label}' — universal "
+            f"editing rules apply, and its {term_count} protected name(s) are "
+            f"preserved.", "muted")
     else:
-        log(f"No novel-specific profile for '{selected_label}' — "
-            f"universal-only editing.", "muted")
-
-    # Load the protected lexicon once for the whole run (built-in names + user index).
-    index_path = (
-        str(NOVEL_INDEX_DIR / dispatch.index_filename) if dispatch.index_filename else ""
-    )
-    lexicon = load_protected_lexicon(index_path, dispatch.canonical_names)
-    log(f"Loaded {len(lexicon.terms)} protected term(s) for "
-        f"{dispatch.display_name}.", "muted")
+        log(f"No novel-specific fix-up rules and no protected names for "
+            f"'{selected_label}' — universal editing rules only.", "muted")
     # Condensed log (v0.11.0): the pipeline's verbose per-stage chatter stays out of
     # the GUI (the JSONL carries the detail); its "⚠" integrity warnings (e.g. CDN
     # error pages, DECISIONS #005) must still surface loudly.
@@ -321,8 +332,22 @@ def run_batch(
                 1 for e in repl_log.entries if e.category != "integrity_flag"
             )
             edits_label = f"{edits} edit" + ("" if edits == 1 else "s")
-            if ai_outcome is not None and ai_outcome.used_ai and edits == 0:
-                edits_label = "AI accepted"
+            # The edit count and the AI verdict are two different facts, and the line
+            # used to print one OR the other: an accepted AI pass that changed nothing
+            # read as "done (AI accepted)" with no count, while an accepted AI pass that
+            # DID change something read as "done (7 edits)" with no hint the AI was
+            # involved — and a rejected one read exactly the same. Both are always shown
+            # now, so a reader can tell what actually happened to every file.
+            if ai_outcome is not None:
+                if ai_outcome.used_ai:
+                    edits_label += ", AI accepted"
+                elif ai_outcome.fallback_used:
+                    cause = (
+                        "AI unavailable"
+                        if ai_editor.run_state is ProviderRunState.UNAVAILABLE
+                        else "AI rejected"
+                    )
+                    edits_label += f", script-only ({cause})"
 
             if dry_run:
                 log(f"[{i}/{total}] {name} — done (dry run, {edits_label})", "info")

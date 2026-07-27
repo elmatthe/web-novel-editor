@@ -69,6 +69,20 @@ DECISIONS.md #062–#070.
   Renegade Immortal and **17,252 → 5,474** for Reverend Insanity, returning both to their zero-index
   cost. Protection is unchanged: the gate still validates against the whole index. DECISIONS #063.
 
+### Changed — the dropdown and the log no longer imply a protected novel is unprotected
+- **"Has a special-fixes profile" and "has protected names" are two different things**, and one label
+  was doing both jobs. Reverend Insanity — no profile, **1,429 protected terms** — showed as
+  "Reverend Insanity — no profile yet" and logged "No novel-specific profile — universal-only
+  editing", immediately above "Loaded 1429 protected term(s)". True on the letter, and the opposite
+  of the truth on the reading. The dropdown marker now reports the protection instead: no marker for
+  a registered profile, **"— names protected"** when the novel's index holds terms, and
+  **"— universal rules only"** when it does not. The run log says the same thing in a sentence, and
+  is derived from the same loader as the term count, so the two can never disagree.
+- **The per-file completion line reports the edit count *and* the AI verdict**, where it used to
+  print one or the other: "done (AI accepted)" hid the count, and "done (7 edits)" was identical
+  whether the AI had been accepted, rejected, or never consulted. It now reads
+  "done (7 edits, AI accepted)" or "done (7 edits, script-only (AI rejected))".
+
 ### Fixed — three approved models could not be called at all (pre-merge click-through)
 - **`openai/gpt-oss-20b` and `openai/gpt-oss-120b` failed every request with HTTP 400.** The Groq
   adapter sent `reasoning_effort = "none"`, which is a qwen3-only value; the gpt-oss family accepts

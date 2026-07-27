@@ -110,7 +110,7 @@ def _novel_combo_width(roster: list[str]) -> int:
     """Character width (font-average units) for the novel dropdown.
 
     Sized from the *actual* roster so the longest label — e.g. "Circle of
-    Inevitability — no profile yet" — is never truncated in either the closed
+    Inevitability — universal rules only" — is never truncated in either the closed
     display or the open list, and so onboarding a longer novel name keeps the
     widget correct without a hand-tuned constant. The +2 leaves room beside the
     dropdown arrow.
@@ -340,8 +340,10 @@ class WebnovelEditorApp(tk.Tk):
         ttk.Label(
             frame,
             text="Universal applies the standard cleanup to any novel. Choosing a novel "
-                 "layers its specific edits on top; novels marked “no profile yet” "
-                 "run the same universal cleanup until a profile is added.",
+                 "layers its own specific edits on top. “Names protected” means the "
+                 "novel has no extra edits of its own yet, but its names and places are "
+                 "still kept exactly as written; “universal rules only” means it has "
+                 "neither yet.",
             style="PathValue.TLabel", wraplength=720, justify="left",
         ).grid(row=1, column=0, columnspan=2, sticky="w", pady=(PAD_S, 0))
 
@@ -1156,8 +1158,8 @@ class WebnovelEditorApp(tk.Tk):
                 return
 
         # Map the display selection to its clean novel name BEFORE it reaches dispatch
-        # or folder naming: the "no profile yet" marker is display-only ("Universal"
-        # passes through and kebab-cases to universal-x).
+        # or folder naming: the roster markers are display-only ("Universal" passes
+        # through and kebab-cases to universal-x).
         novel = clean_novel_name(self.novel_var.get())
 
         # Forced output location: a fresh auto-numbered Downloads\<novel>-x folder,

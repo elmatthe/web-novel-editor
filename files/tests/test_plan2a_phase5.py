@@ -520,3 +520,40 @@ def test_the_editor_records_the_kind_behind_an_outage_not_just_the_text():
     assert editor.unavailable_kind == "ProviderUnavailable"
     assert "service is down" in editor.unavailable_reason
     assert "the AI service refused the request" in editor.unavailable_description
+
+
+def test_the_condensed_line_reports_the_edit_count_AND_the_ai_verdict(tmp_path, monkeypatch):
+    """Reconciles "done (N edits)" vs "done (AI accepted)" — both facts, every file."""
+    built = []
+    _wire(monkeypatch, built)
+    logs = []
+    run_batch(
+        _inputs(tmp_path, 1),
+        str(tmp_path / "out"),
+        ai_editor=_editor(
+            FakeProvider(
+                transform=lambda text: text.replace("he walk home", "he walks home")
+            )
+        ),
+        gui_log=lambda message, level="info": logs.append((level, message)),
+    )
+    done = [m for _, m in logs if "— done (" in m]
+    assert len(done) == 1
+    # Both facts, not one or the other: an accepted AI pass that changed something used
+    # to print only the count, indistinguishable from a rejected one.
+    assert "1 edit" in done[0] and "AI accepted" in done[0]
+
+
+def test_the_condensed_line_says_script_only_when_the_ai_was_not_used(tmp_path, monkeypatch):
+    built = []
+    _wire(monkeypatch, built)
+    logs = []
+    run_batch(
+        _inputs(tmp_path, 1),
+        str(tmp_path / "out"),
+        ai_editor=_editor(FakeProvider(errors=[ProviderUnavailable("down")] * 2)),
+        gui_log=lambda message, level="info": logs.append((level, message)),
+    )
+    done = [m for _, m in logs if "— done (" in m]
+    assert len(done) == 1
+    assert "script-only (AI unavailable)" in done[0]

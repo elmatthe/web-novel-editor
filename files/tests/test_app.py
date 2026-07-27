@@ -42,8 +42,8 @@ def test_app_constructs_and_has_widgets():
         assert app.opt_debug_text.get() is False
         # Novel dropdown exists, defaults to Universal (Plan 1 Phase 3), and offers
         # the full roster — Shadow Slave stays selectable, profile-less novels carry
-        # the "no profile yet" marker.
-        from core.novel_registry import NO_PROFILE_MARKER
+        # the display-only roster marker.
+        from core.novel_registry import UNIVERSAL_ONLY_MARKER as NO_PROFILE_MARKER
         assert app.novel_var.get() == "Universal"
         values = list(app.novel_combo["values"])
         assert values[0] == "Universal"
@@ -130,7 +130,7 @@ def test_app_layout_order_matches_scraper():
 
 def test_novel_combo_width_fits_longest_real_roster_entry():
     """The novel dropdown must be wide enough to show the longest real roster label
-    (e.g. 'Circle of Inevitability — no profile yet') without truncation. The width is
+    (e.g. 'Circle of Inevitability — universal rules only') without truncation. The width is
     computed from the live registry, not a guessed constant, so onboarding a longer
     novel name keeps the widget correct. Pure-helper level: needs tkinter importable
     but no display."""
@@ -148,7 +148,7 @@ def test_novel_combo_width_fits_longest_real_roster_entry():
 def test_app_novel_combo_wide_enough_for_longest_entry():
     """Display-gated: the realized combobox widget is sized to the longest roster label,
     so the closed display and the dropdown list never truncate 'Circle of Inevitability
-    — no profile yet'."""
+    — universal rules only'."""
     tk = pytest.importorskip("tkinter")
     from gui import app as appmod
     from core.novel_registry import available_novels
@@ -431,7 +431,7 @@ def test_app_marked_selection_strips_marker_before_batch_and_naming(
     """Selecting a marked profile-less novel must reach run_batch (and the output-folder
     kebab-casing) as the CLEAN name — the display marker never leaks downstream."""
     tk = pytest.importorskip("tkinter")
-    from core.novel_registry import NO_PROFILE_MARKER
+    from core.novel_registry import UNIVERSAL_ONLY_MARKER as NO_PROFILE_MARKER
     from gui import app as appmod
 
     pdf = tmp_path / "a.pdf"

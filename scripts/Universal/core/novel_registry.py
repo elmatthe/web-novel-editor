@@ -11,8 +11,10 @@ files in `scripts/Universal/resources/novel-index/` (one entry per `*.txt`), so 
 exercise (drop an index file + an optional profile) — never a GUI/code edit. Since
 v0.11.0 the roster leads with an injected **"Universal"** entry (the default selection —
 universal-only editing as an explicit, named choice), and profile-less novels carry a
-"no profile yet" display marker. Markers are display-only: the GUI strips them via
-`clean_novel_name` before any name reaches dispatch or output-folder naming.
+display marker saying what protection they do have ("names protected" when their index
+holds terms, "universal rules only" when it does not). Markers are display-only: the GUI
+strips them via `clean_novel_name` before any name reaches dispatch or output-folder
+naming.
 
 Default-to-universal path
 -------------------------
@@ -46,6 +48,7 @@ from pathlib import Path
 from typing import Callable, Optional
 
 from core.edit_details import _norm_key
+from core.protected_lexicon import load_protected_lexicon
 from pipelines import (
     lord_of_mysteries,
     renegade_immortal,
@@ -68,10 +71,35 @@ NOVEL_INDEX_DIR = Path(__file__).resolve().parents[1] / "resources" / "novel-ind
 # remains in the roster, just no longer pre-selected (Plan 1 Phase 3, DECISIONS log).
 DEFAULT_NOVEL = "Universal"
 
-# Display-only suffix marking roster novels that have no real per-novel profile yet.
-# `_norm_key` does NOT strip this, so it must never reach `resolve_dispatch` or the
-# output-folder kebab-casing — the GUI strips it with `clean_novel_name` first.
-NO_PROFILE_MARKER = " — no profile yet"
+# Display-only suffixes for roster novels that have no real per-novel profile.
+#
+# THESE ARE TWO DIFFERENT STATES AND USED TO SHARE ONE LABEL. "No profile" means only
+# that the novel has no special-fixes profile — its own hand-written substitution rules.
+# It says nothing about whether its names are protected, which comes from its index file
+# and is by far the thing a reader cares about. Reverend Insanity has no profile and
+# 1,429 protected terms, and reading " — no profile yet" beside it invited exactly the
+# wrong conclusion: that the novel was unprotected, when the opposite was true.
+#
+# So the marker now reports the protection, which is the useful fact:
+#   registered profile        -> no marker at all (the fullest treatment)
+#   no profile, terms indexed -> NAMES_PROTECTED_MARKER
+#   no profile, no terms      -> UNIVERSAL_ONLY_MARKER
+#
+# `_norm_key` does NOT strip these, so they must never reach `resolve_dispatch` or the
+# output-folder kebab-casing — the GUI strips them with `clean_novel_name` first.
+NAMES_PROTECTED_MARKER = " — names protected"
+UNIVERSAL_ONLY_MARKER = " — universal rules only"
+
+# Kept as the historical name for the profile-less state so existing callers and tests
+# keep a single symbol to reach for. It is the marker used when there is nothing to
+# protect either.
+NO_PROFILE_MARKER = UNIVERSAL_ONLY_MARKER
+
+# Every display-only suffix `clean_novel_name` must be able to remove. Longest first, so
+# a marker that is a suffix of another can never leave a fragment behind.
+DISPLAY_MARKERS = tuple(
+    sorted({NAMES_PROTECTED_MARKER, UNIVERSAL_ONLY_MARKER}, key=len, reverse=True)
+)
 
 # Small words kept lowercase when Title-Casing a display name (unless they are the first
 # word). This makes "lord-of-the-mysteries.txt" -> "Lord of the Mysteries", matching the
@@ -141,14 +169,34 @@ def index_filename_for(novel_name: Optional[str]) -> str:
     return key.replace(" ", "-") + ".txt"
 
 
+def protected_term_count(
+    index_filename: str,
+    canonical_names: frozenset[str] = frozenset(),
+    index_dir: Path | str = NOVEL_INDEX_DIR,
+) -> int:
+    """How many protected terms a novel actually has, counted the way the run counts them.
+
+    Deliberately routed through `load_protected_lexicon` rather than counting lines: the
+    roster marker and the run's own "Loaded N protected term(s)" line must never be able
+    to disagree, and the loader owns comment stripping, blank lines and de-duplication.
+    Never raises — a missing or unreadable file is simply zero terms.
+    """
+    if not index_filename:
+        return len(load_protected_lexicon("", canonical_names).terms)
+    path = Path(index_dir) / index_filename
+    return len(load_protected_lexicon(str(path), canonical_names).terms)
+
+
 def available_novels(index_dir: Path | str = NOVEL_INDEX_DIR) -> list[str]:
     """Return the dropdown roster: "Universal" first, then one display name per `*.txt`
     in the index folder, alphabetically.
 
     Placeholder (empty/comment-only) index files are intentionally **included** so the
-    full novel roster is visible in the GUI. Novels without a registered real profile
-    carry the display-only ``NO_PROFILE_MARKER`` suffix — still selectable, and they
-    dispatch to universal-only editing exactly as before once the GUI strips the marker
+    full novel roster is visible in the GUI. A novel with a registered profile carries no
+    marker. A profile-less novel carries a display-only suffix saying what protection it
+    *does* have — ``NAMES_PROTECTED_MARKER`` when its index holds terms,
+    ``UNIVERSAL_ONLY_MARKER`` when it does not. Either way it is still selectable and
+    dispatches to universal-only editing exactly as before once the GUI strips the marker
     (`clean_novel_name`). If the folder is missing or empty the roster is just
     ``["Universal"]`` (the dropdown is never empty).
     """
@@ -157,25 +205,28 @@ def available_novels(index_dir: Path | str = NOVEL_INDEX_DIR) -> list[str]:
     if not folder.is_dir():
         return roster
 
-    names = sorted(display_name_from_index_filename(p.name) for p in folder.glob("*.txt"))
-    for name in names:
+    files = sorted(folder.glob("*.txt"), key=lambda p: display_name_from_index_filename(p.name))
+    for path in files:
+        name = display_name_from_index_filename(path.name)
         if _norm_key(name) in _REGISTRY:
             roster.append(name)
-        else:
-            roster.append(name + NO_PROFILE_MARKER)
+            continue
+        terms = protected_term_count(path.name, frozenset(), folder)
+        roster.append(name + (NAMES_PROTECTED_MARKER if terms else UNIVERSAL_ONLY_MARKER))
     return roster
 
 
 def clean_novel_name(display_name: str) -> str:
     """Map a dropdown display string back to the clean novel name.
 
-    Strips the ``NO_PROFILE_MARKER`` suffix; anything else (including "Universal" and
-    real-profile names) passes through unchanged. The GUI must call this before a
-    selection reaches `run_batch`/`resolve_dispatch` or output-folder naming —
-    `_norm_key` would not remove the marker.
+    Strips any display-only marker in ``DISPLAY_MARKERS``; anything else (including
+    "Universal" and real-profile names) passes through unchanged. The GUI must call this
+    before a selection reaches `run_batch`/`resolve_dispatch` or output-folder naming —
+    `_norm_key` would not remove a marker.
     """
-    if display_name.endswith(NO_PROFILE_MARKER):
-        return display_name[: -len(NO_PROFILE_MARKER)]
+    for marker in DISPLAY_MARKERS:
+        if display_name.endswith(marker):
+            return display_name[: -len(marker)]
     return display_name
 
 

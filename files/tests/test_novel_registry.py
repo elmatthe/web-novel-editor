@@ -22,7 +22,9 @@ import pytest
 
 from core.novel_registry import (
     DEFAULT_NOVEL,
+    NAMES_PROTECTED_MARKER,
     NO_PROFILE_MARKER,
+    UNIVERSAL_ONLY_MARKER,
     NOVEL_INDEX_DIR,
     available_novels,
     clean_novel_name,
@@ -83,11 +85,12 @@ def test_available_novels_derived_from_synthetic_index_dir(tmp_path: Path) -> No
         (tmp_path / fn).write_text("", encoding="utf-8")
     roster = available_novels(tmp_path)
     # "Universal" is injected first (the default); index-derived novels follow
-    # alphabetically, profile-less ones carrying the "no profile yet" marker.
+    # alphabetically. These three index files are empty, so the profile-less ones say
+    # "universal rules only" rather than claiming any protection.
     assert roster == [
         "Universal",
-        "Lord of the Mysteries" + NO_PROFILE_MARKER,
-        "Re Monster" + NO_PROFILE_MARKER,
+        "Lord of the Mysteries" + UNIVERSAL_ONLY_MARKER,
+        "Re Monster" + UNIVERSAL_ONLY_MARKER,
         "Shadow Slave",
     ]
     assert roster[0] == DEFAULT_NOVEL  # default listed first
@@ -98,7 +101,7 @@ def test_available_novels_includes_empty_placeholder_files(tmp_path: Path) -> No
     (tmp_path / "shadow-slave.txt").write_text("real terms\n", encoding="utf-8")
     (tmp_path / "reverend-insanity.txt").write_text("", encoding="utf-8")  # placeholder
     roster = available_novels(tmp_path)
-    assert "Reverend Insanity" + NO_PROFILE_MARKER in roster
+    assert "Reverend Insanity" + UNIVERSAL_ONLY_MARKER in roster
 
 
 def test_available_novels_falls_back_when_folder_missing(tmp_path: Path) -> None:
@@ -114,8 +117,8 @@ def test_shipped_roster_has_known_novels_with_universal_first() -> None:
     roster = available_novels(NOVEL_INDEX_DIR)
     assert roster[0] == "Universal"
     for expected in ["Universal", "Shadow Slave",
-                     "Lord of the Mysteries" + NO_PROFILE_MARKER,
-                     "Reverend Insanity" + NO_PROFILE_MARKER]:
+                     "Lord of the Mysteries" + UNIVERSAL_ONLY_MARKER,
+                     "Reverend Insanity" + NAMES_PROTECTED_MARKER]:
         assert expected in roster
     # One entry per committed *.txt index file, plus the injected "Universal".
     assert len(roster) == len(list(NOVEL_INDEX_DIR.glob("*.txt"))) + 1
@@ -128,18 +131,40 @@ def test_shipped_roster_marks_exactly_the_profileless_novels() -> None:
     Renegade Immortal moved from marked to unmarked on 2026-07-26: it was registered so
     it could carry its own Ligou/Ligo -> Liguo substitution, which is per-profile data.
     The marker following that change is correct — it now genuinely has a profile.
+
+    Reverend Insanity is the case the two-marker split exists for. It has no profile and
+    1,429 protected terms, so it must NOT read like a bare novel.
     """
     roster = available_novels(NOVEL_INDEX_DIR)
-    marked = {n for n in roster if n.endswith(NO_PROFILE_MARKER)}
-    unmarked = set(roster) - marked
-    assert marked == {
-        "Circle of Inevitability" + NO_PROFILE_MARKER,
-        "Lord of the Mysteries" + NO_PROFILE_MARKER,
-        "Re Monster" + NO_PROFILE_MARKER,
-        "Reverend Insanity" + NO_PROFILE_MARKER,
+    protected = {n for n in roster if n.endswith(NAMES_PROTECTED_MARKER)}
+    bare = {n for n in roster if n.endswith(UNIVERSAL_ONLY_MARKER)}
+    unmarked = set(roster) - protected - bare
+    assert protected == {"Reverend Insanity" + NAMES_PROTECTED_MARKER}
+    assert bare == {
+        "Circle of Inevitability" + UNIVERSAL_ONLY_MARKER,
+        "Lord of the Mysteries" + UNIVERSAL_ONLY_MARKER,
+        "Re Monster" + UNIVERSAL_ONLY_MARKER,
     }
     assert unmarked == {"Universal", "Shadow Slave", "Supreme Magus",
                         "The Noble Queen", "Renegade Immortal"}
+
+
+def test_a_profileless_novel_with_terms_never_reads_as_unprotected() -> None:
+    """The regression this split exists to prevent.
+
+    A novel with no special-fixes profile but a populated index carries the protection
+    marker, and never the bare one — the old single marker said "no profile yet" for a
+    novel whose names were in fact protected, which reads as the opposite of the truth.
+    """
+    from core.novel_registry import protected_term_count
+
+    roster = available_novels(NOVEL_INDEX_DIR)
+    entry = next(n for n in roster if n.startswith("Reverend Insanity"))
+    assert protected_term_count("reverend-insanity.txt") > 0
+    assert entry.endswith(NAMES_PROTECTED_MARKER)
+    assert not entry.endswith(UNIVERSAL_ONLY_MARKER)
+    # And the count the marker is derived from is the same one the run reports.
+    assert protected_term_count("circle-of-inevitability.txt") == 0
 
 
 # -- display string -> clean novel name (the GUI-side mapping) --------------------------
@@ -149,8 +174,9 @@ def test_shipped_roster_marks_exactly_the_profileless_novels() -> None:
     [
         ("Universal", "Universal"),                                # default passes through
         ("Shadow Slave", "Shadow Slave"),                          # real profile untouched
-        ("Re Monster" + NO_PROFILE_MARKER, "Re Monster"),          # marker stripped
-        ("Lord of the Mysteries" + NO_PROFILE_MARKER, "Lord of the Mysteries"),
+        ("Re Monster" + UNIVERSAL_ONLY_MARKER, "Re Monster"),      # marker stripped
+        ("Lord of the Mysteries" + UNIVERSAL_ONLY_MARKER, "Lord of the Mysteries"),
+        ("Reverend Insanity" + NAMES_PROTECTED_MARKER, "Reverend Insanity"),
         ("Some Unlisted Novel", "Some Unlisted Novel"),            # unmarked passthrough
     ],
 )
@@ -163,9 +189,10 @@ def test_every_roster_entry_cleans_to_a_dispatchable_name() -> None:
     profiles resolve to themselves; marked entries and "Universal" go universal-only."""
     for entry in available_novels(NOVEL_INDEX_DIR):
         clean = clean_novel_name(entry)
-        assert NO_PROFILE_MARKER not in clean
+        assert UNIVERSAL_ONLY_MARKER not in clean
+        assert NAMES_PROTECTED_MARKER not in clean
         d = resolve_dispatch(clean)
-        if entry.endswith(NO_PROFILE_MARKER) or clean == "Universal":
+        if entry != clean or clean == "Universal":
             assert d.has_profile is False
             assert d.run_pipeline is lord_of_mysteries.run_pipeline
         else:
@@ -302,7 +329,7 @@ def _run_batch_logs(novel_kwargs: dict, tmp_path: Path) -> list[tuple[str, str]]
 def test_run_batch_default_is_universal_only(tmp_path: Path) -> None:
     logs = _run_batch_logs({}, tmp_path)  # no novel_name -> universal-only (#3)
     text = " ".join(m for _, m in logs)
-    assert "universal-only editing" in text
+    assert "universal editing rules only" in text
     assert "novel-specific editing layer" not in text
 
 
@@ -315,7 +342,25 @@ def test_run_batch_explicit_shadow_slave_applies_profile(tmp_path: Path) -> None
 def test_run_batch_profileless_novel_logs_universal_only(tmp_path: Path) -> None:
     logs = _run_batch_logs({"novel_name": "Lord of the Mysteries"}, tmp_path)
     text = " ".join(m for _, m in logs)
-    assert "universal-only editing" in text
+    # No profile AND no indexed terms: the line may say so plainly.
+    assert "no protected names" in text
+    assert "universal editing rules only" in text
+
+
+def test_run_batch_profileless_novel_with_terms_says_names_are_preserved(
+    tmp_path: Path,
+) -> None:
+    """The log's half of the same honesty fix.
+
+    Reverend Insanity has no special-fixes profile and 1,429 protected terms. The old
+    line ("No novel-specific profile — universal-only editing") was true and read as
+    "nothing is protected", which is the opposite of what is happening.
+    """
+    logs = _run_batch_logs({"novel_name": "Reverend Insanity"}, tmp_path)
+    text = " ".join(m for _, m in logs)
+    assert "no novel-specific fix-up rules" in text.lower()
+    assert "protected name(s) are preserved" in text
+    assert "no protected names" not in text
 
 
 def test_run_batch_universal_selection_logs_universal_only(tmp_path: Path) -> None:
