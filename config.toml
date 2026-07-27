@@ -95,6 +95,11 @@ backoff_max_seconds = 60
 backoff_jitter_ratio = 0.3
 max_attempts = 3
 max_wait_seconds = 900
+# A run must not spend forever retrying a 429 that never says WHICH limit it is. After
+# this many seconds of unexplained limit errors with no successful request in between,
+# the limiter stops cleanly and checkpoints instead of guessing "per minute" again. Set
+# to 0 to disable. Phase 7b measured ~35 minutes of futile Gemini calls without it.
+unnamed_limit_escalation_seconds = 600
 
 [ai.groq]
 enabled = false
@@ -118,6 +123,11 @@ backoff_max_seconds = 60
 backoff_jitter_ratio = 0.3
 max_attempts = 3
 max_wait_seconds = 900
+# A run must not spend forever retrying a 429 that never says WHICH limit it is. After
+# this many seconds of unexplained limit errors with no successful request in between,
+# the limiter stops cleanly and checkpoints instead of guessing "per minute" again. Set
+# to 0 to disable. Phase 7b measured ~35 minutes of futile Gemini calls without it.
+unnamed_limit_escalation_seconds = 600
 
 # ---------------------------------------------------------------------------
 # Approved cloud models (Plan 2b Phase 0 — reviewed 2026-07-24)

@@ -36,6 +36,7 @@ from __future__ import annotations
 
 import importlib
 import logging
+import re
 import threading
 import time
 from pathlib import Path
@@ -108,6 +109,91 @@ _FINISH_BLOCKED = frozenset(
 _FINISH_UNSPECIFIED = frozenset({"", "FINISH_REASON_UNSPECIFIED"})
 
 _MAX_ERROR_CHARS = 300
+
+# --- quota classification -------------------------------------------------
+# Gemini publishes no rate-limit headers, but a 429 body carries `google.rpc.QuotaFailure`
+# whose violations name the exact quota that ran out — `quotaId` values such as
+# `GenerateRequestsPerDayPerProjectPerModel-FreeTier` (per day),
+# `GenerateRequestsPerMinutePerProjectPerModel-FreeTier` and
+# `GenerateContentInputTokensPerModelPerMinute-FreeTier` (per minute) — plus a
+# `google.rpc.RetryInfo` with a `retryDelay`. The SDK keeps the whole parsed body on
+# `APIError.details` (verified against the SDK's own `errors.py` via Context7, 2026-07-27).
+#
+# This is read STRUCTURALLY rather than sniffed out of the stringified error, and that is
+# the Phase 7b bug. `str(APIError)` is `f"{code} {status}. {details}"`, so the evidence is
+# technically in the text — but the human-readable message and its documentation URL run
+# to roughly 250 characters on their own, and `_safe_message` truncates at 300 to bound
+# what reaches a log. `quotaId` sits near character 450. The old `"perday" in squashed`
+# check was correct; its input had been amputated before it ever ran, so every daily
+# exhaustion was classified as a per-minute limit and retried for ~35 minutes instead of
+# checkpointing. Widening the truncation would only have made that less likely.
+_QUOTA_FAILURE_TYPE = "quotafailure"
+_RETRY_INFO_TYPE = "retryinfo"
+
+
+def _squash(text: str) -> str:
+    return text.lower().replace(" ", "").replace("_", "").replace("-", "")
+
+
+def _error_details(exc: BaseException) -> list[Any]:
+    """The `error.details` list off an SDK error, or empty. Never raises."""
+    body = getattr(exc, "details", None)
+    if not isinstance(body, Mapping):
+        return []
+    error = body.get("error", body)
+    if not isinstance(error, Mapping):
+        return []
+    details = error.get("details")
+    return list(details) if isinstance(details, (list, tuple)) else []
+
+
+def quota_period(exc: BaseException) -> str | None:
+    """``"day"``, ``"minute"``, or ``None`` when the body names no quota at all.
+
+    Per-day wins when a body reports both. That is the fail-closed direction: treating a
+    daily exhaustion as per-minute burns a run in futile retries, while treating a
+    per-minute limit as daily costs one clean stop the user can resume from immediately.
+    """
+    periods: set[str] = set()
+    for entry in _error_details(exc):
+        if not isinstance(entry, Mapping):
+            continue
+        if _QUOTA_FAILURE_TYPE not in _squash(str(entry.get("@type", ""))):
+            continue
+        violations = entry.get("violations")
+        for violation in violations if isinstance(violations, (list, tuple)) else ():
+            if not isinstance(violation, Mapping):
+                continue
+            named = _squash(
+                f"{violation.get('quotaId', '')}{violation.get('quotaMetric', '')}"
+            )
+            if "perday" in named:
+                periods.add("day")
+            elif "perminute" in named:
+                periods.add("minute")
+    if "day" in periods:
+        return "day"
+    return "minute" if "minute" in periods else None
+
+
+def retry_delay_seconds(exc: BaseException) -> float | None:
+    """The `RetryInfo.retryDelay` a 429 carries, in seconds (`"36s"` -> ``36.0``).
+
+    Phase 4's limiter already prefers an authoritative `retry_after_seconds` over its own
+    configured floor, so surfacing this makes the per-minute wait correct as well —
+    Gemini was previously floored on every 429 for want of anywhere to read this.
+    """
+    for entry in _error_details(exc):
+        if not isinstance(entry, Mapping):
+            continue
+        if _RETRY_INFO_TYPE not in _squash(str(entry.get("@type", ""))):
+            continue
+        raw = str(entry.get("retryDelay", "")).strip()
+        match = re.fullmatch(r"(\d+(?:\.\d+)?)s?", raw)
+        if match:
+            return float(match.group(1))
+    return None
+
 
 logger = logging.getLogger(__name__)
 
@@ -587,17 +673,23 @@ class GeminiProvider:
         if code == 429:
             # Never infer daily exhaustion from every 429 (drop, rate-limiting
             # section). Only a quota Google itself names as per-day is treated as
-            # the checkpoint-and-stop case Phase 5 handles.
-            if "perday" in squashed or "daily" in squashed:
+            # the checkpoint-and-stop case Phase 5 handles — but read that name off
+            # the STRUCTURED QuotaFailure violations first, because the redacted,
+            # length-bounded message is not long enough to reach it.
+            period = quota_period(exc)
+            if period == "day" or "perday" in squashed or "daily" in squashed:
                 raise DailyQuotaExhausted(
                     f"Gemini's free daily quota for {self.model_id} is used up "
                     f"({message}). Requests-per-day quotas reset at midnight "
                     f"Pacific time.",
                     retryable=False,
                 ) from exc
-            raise RateLimited(
+            limited = RateLimited(
                 f"Gemini is rate limiting this project ({message}).", retryable=True
-            ) from exc
+            )
+            # The limiter prefers this over its configured floor when it is present.
+            limited.retry_after_seconds = retry_delay_seconds(exc)
+            raise limited from exc
         if code is not None and 500 <= code < 600:
             raise ProviderUnavailable(
                 f"Gemini's service returned an error ({message}).", retryable=True

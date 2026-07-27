@@ -1163,3 +1163,132 @@ def test_the_whole_limiter_works_with_no_api_key_in_the_environment(monkeypatch)
     provider = FakeProvider(exposes_rate_limits=True)
     wrapped, _limiter, _clock, _sleeper = wrap(provider)
     assert wrapped.complete(make_request()).text == "edited"
+
+
+# --------------------------------------------------------------------------
+# Phase 8 bug fix — a 429 that never names its period must not be retried forever
+#
+# Phase 7b's measured defect. Gemini's 429 named no period the classifier could reach, so
+# every one classified as a per-minute limit and prefer-AI degraded chapter after chapter
+# for ~35 minutes, where Groq's correctly-named `tokens per day` latched at once. Two
+# layers answer it: the Gemini adapter now reads the structured QuotaFailure violations
+# (see test_gemini_provider.py), and this provider-neutral floor catches any provider that
+# stays quiet. Every test here drives the injected clock; nothing waits.
+# --------------------------------------------------------------------------
+_MUTE_429 = "429 Too Many Requests"
+
+
+def test_an_unexplained_limit_is_still_a_per_minute_wait_at_first():
+    limiter, _clock, _sleeper = build_limiter(unnamed_limit_escalation_seconds=600)
+    decision = limiter.decide_for_error(RateLimited(_MUTE_429))
+    assert decision.kind is LimitKind.REQUESTS_PER_MINUTE
+    assert decision.retry is True
+
+
+def test_unexplained_limits_persisting_past_the_window_become_a_clean_stop():
+    limiter, clock, _sleeper = build_limiter(unnamed_limit_escalation_seconds=600)
+    assert limiter.decide_for_error(RateLimited(_MUTE_429)).retry is True
+    clock.advance(599)
+    assert limiter.decide_for_error(RateLimited(_MUTE_429)).retry is True
+    clock.advance(2)
+    decision = limiter.decide_for_error(RateLimited(_MUTE_429))
+    assert decision.kind is LimitKind.DAILY_UNSPECIFIED
+    assert decision.daily is True
+    assert decision.retry is False
+    # Honest about what it does not know, rather than guessing midnight.
+    assert decision.reset_known is False
+    stop = limiter.note_quota_stop(decision, RateLimited(_MUTE_429))
+    assert stop is not None and stop.is_daily
+
+
+def test_a_successful_request_clears_the_escalation_streak():
+    limiter, clock, _sleeper = build_limiter(unnamed_limit_escalation_seconds=600)
+    limiter.decide_for_error(RateLimited(_MUTE_429))
+    clock.advance(900)
+    limiter.record_success(estimated_tokens=10)
+    clock.advance(900)
+    # The streak restarted at the success, so this is the FIRST unexplained error again.
+    assert limiter.decide_for_error(RateLimited(_MUTE_429)).kind is (
+        LimitKind.REQUESTS_PER_MINUTE
+    )
+
+
+def test_a_named_per_minute_limit_never_escalates_however_long_it_lasts():
+    limiter, clock, _sleeper = build_limiter(unnamed_limit_escalation_seconds=600)
+    named = RateLimited("429: requests per minute exceeded for this project")
+    for _ in range(5):
+        clock.advance(600)
+        decision = limiter.decide_for_error(named)
+        assert decision.kind is LimitKind.REQUESTS_PER_MINUTE
+        assert decision.retry is True
+
+
+def test_header_evidence_of_the_period_also_prevents_escalation():
+    limiter, clock, _sleeper = build_limiter(
+        HeaderDrivenRateLimiter, unnamed_limit_escalation_seconds=600
+    )
+    snapshot = RateLimitSnapshot(remaining_tokens=0, reset_tokens_seconds=8.0)
+    for _ in range(4):
+        clock.advance(600)
+        decision = limiter.decide_for_error(RateLimited(_MUTE_429), snapshot=snapshot)
+        assert decision.kind is LimitKind.TOKENS_PER_MINUTE
+        assert decision.retry is True
+
+
+def test_escalation_is_off_when_the_window_is_zero():
+    limiter, clock, _sleeper = build_limiter(unnamed_limit_escalation_seconds=0)
+    for _ in range(5):
+        clock.advance(3600)
+        assert limiter.decide_for_error(RateLimited(_MUTE_429)).retry is True
+
+
+def test_a_transient_fault_is_never_escalated_into_a_quota_stop():
+    """A dead network is not an exhausted quota, however long it lasts."""
+    limiter, clock, _sleeper = build_limiter(unnamed_limit_escalation_seconds=600)
+    for _ in range(4):
+        clock.advance(600)
+        decision = limiter.decide_for_error(TransientNetworkError("connection reset"))
+        assert decision.kind is LimitKind.TRANSIENT
+        assert decision.daily is False
+
+
+def test_the_escalated_run_refuses_the_next_chapter_without_a_network_call():
+    """The whole point: after the stop, no further request is sent at all."""
+
+    class AlwaysLimited:
+        def __init__(self):
+            self.calls = 0
+
+        def capabilities(self):
+            return ProviderCapabilities("gemini", False, ("m",), 100_000, 4096)
+
+        def health_check(self):
+            return ProviderStatus.OK
+
+        def list_models(self):
+            return ["m"]
+
+        def complete(self, request):
+            self.calls += 1
+            raise RateLimited(_MUTE_429, retryable=True)
+
+    inner = AlwaysLimited()
+    limiter, clock, sleeper = build_limiter(
+        unnamed_limit_escalation_seconds=600, max_attempts=2, rpm_floor=0, tpm_floor=0
+    )
+    paced = RateLimitedProvider(inner, limiter)
+    request = make_request()
+
+    with pytest.raises(RateLimited):
+        paced.complete(request)
+    calls_before = inner.calls
+    clock.advance(1200)
+    with pytest.raises((RateLimited, DailyQuotaExhausted)):
+        paced.complete(request)
+    assert limiter.quota_stop is not None and limiter.quota_stop.is_daily
+    calls_after = inner.calls
+
+    with pytest.raises(DailyQuotaExhausted):
+        paced.complete(request)
+    assert inner.calls == calls_after, "a stopped run still contacted the provider"
+    assert calls_after > calls_before

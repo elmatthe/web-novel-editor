@@ -146,6 +146,28 @@ def classify_limit(exc: BaseException, snapshot: Any | None = None) -> LimitKind
     return LimitKind.NONE
 
 
+def limit_period_is_named(exc: BaseException, snapshot: Any | None = None) -> bool:
+    """Whether the provider gave POSITIVE evidence of which limit was hit.
+
+    :func:`classify_limit` must always return something, so when a 429 says nothing but
+    "Too Many Requests" it falls through to ``REQUESTS_PER_MINUTE`` — the safe guess, and
+    a guess. This function is what distinguishes the guess from the evidence, so
+    :meth:`RateLimiter.decide_for_error` can stop guessing forever.
+    """
+    squashed = _squash(str(exc))
+    if (
+        _names_tokens_per_day(squashed)
+        or _names_requests_per_day(squashed)
+        or _names_tokens_per_minute(squashed)
+        or _names_requests_per_minute(squashed)
+    ):
+        return True
+    return (
+        getattr(snapshot, "remaining_requests", None) == 0
+        or getattr(snapshot, "remaining_tokens", None) == 0
+    )
+
+
 def _positive_float(value: Any, fallback: float) -> float:
     """A usable non-negative number, or the shipped fallback. Never a partial guess."""
     try:
@@ -177,6 +199,7 @@ class LimiterSettings:
     backoff_jitter_ratio: float
     max_attempts: int
     max_wait_seconds: float
+    unnamed_limit_escalation_seconds: float = 0.0
 
     @property
     def min_interval_seconds(self) -> float:
@@ -212,6 +235,7 @@ class LimiterSettings:
                 source.get("max_attempts"), defaults.get("max_attempts", 1)
             ),
             max_wait_seconds=number("max_wait_seconds"),
+            unnamed_limit_escalation_seconds=number("unnamed_limit_escalation_seconds"),
         )
 
 
@@ -335,6 +359,9 @@ class RateLimiter:
         self._last_request_monotonic: float | None = None
         self._token_events: deque[tuple[float, int]] = deque()
         self._quota_stop: QuotaStop | None = None
+        # When an unexplained limit error was first seen with no success since. Monotonic,
+        # so a clock jump cannot shorten or extend the escalation window.
+        self._unnamed_limit_since: float | None = None
 
     # -- provider-specific ------------------------------------------------
     def snapshot_from(self, provider: Any, exc: BaseException | None) -> Any | None:
@@ -438,6 +465,8 @@ class RateLimiter:
             spent = int(input_tokens or 0) + int(output_tokens or 0)
         if spent > 0 and self.settings.tpm_floor > 0:
             self._token_events.append((self._monotonic(), spent))
+        # A request got through, so whatever the unexplained 429s were, they have cleared.
+        self._unnamed_limit_since = None
 
     # -- the decision table -----------------------------------------------
     def decide_for_error(
@@ -445,7 +474,10 @@ class RateLimiter:
     ) -> WaitDecision:
         kind = classify_limit(exc, snapshot)
         if kind is LimitKind.NONE:
+            self._unnamed_limit_since = None
             return WaitDecision(LimitKind.NONE)
+
+        kind = self._escalate_if_unexplained(kind, exc, snapshot)
 
         if kind in DAILY_KINDS:
             # Never a wait. Not once, not briefly, not "just until the reset".
@@ -501,6 +533,43 @@ class RateLimiter:
             reset_seconds=seconds if known else None,
             reset_known=known,
         )
+
+    def _escalate_if_unexplained(
+        self, kind: LimitKind, exc: BaseException, snapshot: Any | None
+    ) -> LimitKind:
+        """Stop guessing "per minute" forever when the provider never says which limit.
+
+        Phase 7b's real cost. Gemini's 429 named no period the classifier could reach, so
+        every one of them classified as a per-minute limit, the limiter waited and
+        retried, and prefer-AI degraded chapter after chapter — **~35 minutes of futile
+        calls** where Groq, whose message *does* name `tokens per day`, latched
+        immediately and refused the rest of the run in 0.0 s with no network traffic. The
+        structured fix lives in the Gemini adapter; this is the provider-neutral floor
+        under it, for any provider that goes quiet about the period, including a future
+        one and including Gemini when a body arrives without `QuotaFailure`.
+
+        Escalating to ``DAILY_UNSPECIFIED`` is not a claim that the daily quota is gone.
+        It routes to the same clean stop: write the checkpoint, tell the user the reset
+        time is unknown, offer the provider's limits page and a Retry. Resuming is one
+        click whenever the limit clears, so being wrong costs a stop the user can undo —
+        while being wrong the other way costs the run.
+
+        Only unexplained limits count. A named per-minute limit with an authoritative
+        `Retry-After` is left exactly as it is, however long it goes on.
+        """
+        window = self.settings.unnamed_limit_escalation_seconds
+        if window <= 0 or kind in DAILY_KINDS or kind in BACKOFF_KINDS:
+            return kind
+        if limit_period_is_named(exc, snapshot):
+            self._unnamed_limit_since = None
+            return kind
+        now = self._monotonic()
+        if self._unnamed_limit_since is None:
+            self._unnamed_limit_since = now
+            return kind
+        if now - self._unnamed_limit_since < window:
+            return kind
+        return LimitKind.DAILY_UNSPECIFIED
 
     def _backoff_seconds(self, attempt: int) -> float:
         """Jittered, bounded, and only ever reached from a transient or capacity error."""

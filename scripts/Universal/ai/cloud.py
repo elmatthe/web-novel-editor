@@ -80,6 +80,7 @@ CLOUD_DEFAULTS: dict[str, dict[str, Any]] = {
         "backoff_jitter_ratio": 0.3,
         "max_attempts": 3,
         "max_wait_seconds": 900,
+        "unnamed_limit_escalation_seconds": 600,
     },
     "groq": {
         "enabled": False,
@@ -103,6 +104,7 @@ CLOUD_DEFAULTS: dict[str, dict[str, Any]] = {
         "backoff_jitter_ratio": 0.3,
         "max_attempts": 3,
         "max_wait_seconds": 900,
+        "unnamed_limit_escalation_seconds": 600,
     },
 }
 

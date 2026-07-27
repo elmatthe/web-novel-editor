@@ -33,7 +33,12 @@ from ai.errors import (
 from ai.disclosure import DISCLOSURE_VERSION
 from ai.factory import create_provider
 from ai.models import CompletionRequest, ProviderStatus
-from ai.providers.gemini import GeminiProvider
+from ai.providers.gemini import (
+    GeminiProvider,
+    _safe_message,
+    quota_period,
+    retry_delay_seconds,
+)
 
 FAKE_KEY = "AIzaSyFAKEgeminikeyfortestsonly0000000001"
 MODEL = "gemini-3.5-flash"
@@ -665,3 +670,148 @@ def test_no_key_reaches_the_transport_call_record():
 
 def test_the_adapter_never_stores_the_key_in_its_repr():
     assert FAKE_KEY not in repr(provider())
+
+
+# ---------------------------------------------------------------------------
+# Phase 8 bug fix — read the quota period off the STRUCTURED QuotaFailure body
+#
+# Phase 7b: Gemini's daily exhaustion classified as a per-minute limit, so prefer-AI
+# retried chapter after chapter for ~35 minutes instead of checkpointing. The evidence
+# was always in the response — `error.details[]` carries a `google.rpc.QuotaFailure`
+# whose `quotaId` names the exact period — but `str(APIError)` puts the human message and
+# its documentation URL first, and `_safe_message` truncates at 300 characters to bound
+# what reaches a log. `quotaId` sits past character 400. These tests build the error the
+# way the SDK really does, long message included, so the truncation is reproduced rather
+# than assumed.
+# ---------------------------------------------------------------------------
+_GOOGLE_429_MESSAGE = (
+    "You exceeded your current quota, please check your plan and billing details. "
+    "For more information on this error, head to: "
+    "https://ai.google.dev/gemini-api/docs/rate-limits."
+)
+
+
+class RealisticAPIError(Exception):
+    """Mimics ``google.genai.errors.APIError``: ``.details`` is the whole response JSON
+    and ``__str__`` is ``f"{code} {status}. {details}"`` (verified via Context7 against
+    the SDK's own ``errors.py``)."""
+
+    def __init__(self, code: int, violations, *, retry_delay: str | None = None):
+        details = []
+        if violations is not None:
+            details.append(
+                {
+                    "@type": "type.googleapis.com/google.rpc.QuotaFailure",
+                    "violations": violations,
+                }
+            )
+        if retry_delay is not None:
+            details.append(
+                {"@type": "type.googleapis.com/google.rpc.RetryInfo",
+                 "retryDelay": retry_delay}
+            )
+        self.details = {
+            "error": {
+                "code": code,
+                "message": _GOOGLE_429_MESSAGE,
+                "status": "RESOURCE_EXHAUSTED",
+                "details": details,
+            }
+        }
+        self.code = code
+        self.message = _GOOGLE_429_MESSAGE
+        super().__init__(f"{code} RESOURCE_EXHAUSTED. {self.details}")
+
+
+def _violation(quota_id: str) -> dict:
+    return {
+        "quotaMetric": "generativelanguage.googleapis.com/generate_content_free_tier_requests",
+        "quotaId": quota_id,
+        "quotaDimensions": {"model": "gemini-3.6-flash", "location": "global"},
+        "quotaValue": "50",
+    }
+
+
+def test_the_truncated_message_really_does_hide_the_quota_id():
+    """The premise of this whole fix, asserted rather than believed."""
+    error = RealisticAPIError(429, [_violation("GenerateRequestsPerDayPerProjectPerModel-FreeTier")])
+    assert "PerDay" in str(error)
+    assert "PerDay" not in _safe_message(error), (
+        "if this ever passes the classifier the string check would have sufficed"
+    )
+
+
+def test_a_daily_quota_id_is_read_from_the_structured_body():
+    client = _Client(
+        generate_error=RealisticAPIError(
+            429, [_violation("GenerateRequestsPerDayPerProjectPerModel-FreeTier")]
+        )
+    )
+    with pytest.raises(DailyQuotaExhausted) as caught:
+        provider(client).complete(request())
+    assert caught.value.retryable is False
+
+
+@pytest.mark.parametrize(
+    "quota_id",
+    [
+        "GenerateRequestsPerMinutePerProjectPerModel-FreeTier",
+        "GenerateContentInputTokensPerModelPerMinute-FreeTier",
+    ],
+)
+def test_a_per_minute_quota_id_stays_a_retryable_rate_limit(quota_id):
+    client = _Client(generate_error=RealisticAPIError(429, [_violation(quota_id)]))
+    with pytest.raises(RateLimited) as caught:
+        provider(client).complete(request())
+    assert caught.value.retryable is True
+
+
+def test_a_body_naming_both_periods_fails_closed_to_daily():
+    """Waiting a minute for a quota that resets tomorrow is the failure being fixed."""
+    client = _Client(
+        generate_error=RealisticAPIError(
+            429,
+            [
+                _violation("GenerateRequestsPerMinutePerProjectPerModel-FreeTier"),
+                _violation("GenerateRequestsPerDayPerProjectPerModel-FreeTier"),
+            ],
+        )
+    )
+    with pytest.raises(DailyQuotaExhausted):
+        provider(client).complete(request())
+
+
+def test_retry_info_becomes_the_authoritative_wait():
+    client = _Client(
+        generate_error=RealisticAPIError(
+            429,
+            [_violation("GenerateRequestsPerMinutePerProjectPerModel-FreeTier")],
+            retry_delay="36s",
+        )
+    )
+    with pytest.raises(RateLimited) as caught:
+        provider(client).complete(request())
+    # Phase 4's limiter prefers this over its configured floor.
+    assert caught.value.retry_after_seconds == 36.0
+
+
+def test_a_429_with_no_quota_details_is_still_a_plain_rate_limit():
+    """Fail-safe: no structured evidence means no claim. The limiter's own escalation
+    window is what stops such a run, not a guess made here."""
+    client = _Client(generate_error=RealisticAPIError(429, None))
+    with pytest.raises(RateLimited) as caught:
+        provider(client).complete(request())
+    assert caught.value.retryable is True
+    assert caught.value.retry_after_seconds is None
+
+
+@pytest.mark.parametrize(
+    "body",
+    [None, "not a mapping", {"error": "not a mapping"}, {"error": {"details": "nope"}},
+     {"error": {"details": [None, 7, {"@type": "other"}]}}],
+)
+def test_malformed_error_bodies_never_raise_out_of_the_classifier(body):
+    error = FakeAPIError(429, "too many requests")
+    error.details = body
+    assert quota_period(error) is None
+    assert retry_delay_seconds(error) is None
