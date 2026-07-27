@@ -463,3 +463,56 @@ def test_new_normalizations_are_scoped_to_their_own_novel() -> None:
         out = d.run_pipeline(bait, lex)
         assert "Kraii" in out, f"NQ fix leaked into {novel}"
         assert "Ligou" in out, f"RI fix leaked into {novel}"
+
+
+# -- Phase 8 bug hunt: extraction artifacts must not reach a shipped index -------------------
+#
+# 76 of Reverend Insanity's 2,334 extracted chapters lost their newlines as a literal "n",
+# which welded that letter onto the following word. The #062 build counted the results
+# honestly and indexed 25 of them ("Butn", "Thisn", "Gun" — that last one being "Gu", the
+# novel's central concept, plus the stray letter). They protected nothing, because no real
+# text contains them; "Gun" additionally froze every ordinary "gun". These pin the removal.
+
+_ARTIFACT_TERMS = frozenset({
+    "Fangn", "Butn", "Thisn", "Starn", "Aftern", "Giantn", "Itn", "Atn", "Ifn", "Asn",
+    "Evenn", "Spectraln", "Theren", "Althoughn", "Thesen", "Whenn", "Becausen", "Gun",
+    "Qinn", "Rightn", "Whatn", "Fairyn", "Oncen", "Backn", "Xiaon", "Heavenlyn", "Withn",
+    "Immortaln",
+})
+
+# Indexing one of these would freeze a word that appears in nearly every paragraph, which
+# is a far larger blast radius than the dual-use words the REVIEW block already defers.
+_FUNCTION_WORDS = frozenset({
+    "a", "an", "and", "as", "at", "although", "back", "because", "before", "but", "by",
+    "even", "for", "from", "he", "her", "his", "if", "in", "it", "its", "of", "on",
+    "once", "or", "right", "she", "so", "that", "the", "their", "then", "there", "these",
+    "they", "this", "to", "was", "were", "what", "when", "which", "while", "with",
+})
+
+
+def _every_shipped_index() -> list[Path]:
+    return sorted(NOVEL_INDEX_DIR.glob("*.txt"))
+
+
+def test_no_shipped_index_contains_a_known_extraction_artifact() -> None:
+    for path in _every_shipped_index():
+        found = _ARTIFACT_TERMS & set(_load_terms_from_file(path))
+        assert not found, f"{path.name} still indexes extraction artifacts: {sorted(found)}"
+
+
+def test_no_shipped_index_protects_an_ordinary_function_word() -> None:
+    for path in _every_shipped_index():
+        found = sorted(
+            term
+            for term in _load_terms_from_file(path)
+            if term.lower() in _FUNCTION_WORDS
+        )
+        assert not found, f"{path.name} would freeze ordinary prose: {found}"
+
+
+def test_the_batch_review_promotions_are_live_in_the_two_indexes() -> None:
+    """Uncommented in place under the REVIEW header still has to reach the loader."""
+    _, ri = _lexicon_for("Renegade Immortal")
+    assert {"Nascent Soul", "Azure Dragon", "War God"} <= set(ri.terms)
+    _, rev = _lexicon_for("Reverend Insanity")
+    assert {"Southern Border", "Qi Sea", "Clear Jade"} <= set(rev.terms)

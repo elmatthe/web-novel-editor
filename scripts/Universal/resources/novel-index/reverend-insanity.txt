@@ -128,11 +128,9 @@ Qiao  # n=399 in 85 chapters
 Lin  # n=393 in 39 chapters
 Zhu  # n=391 in 83 chapters
 Meng  # n=381 in 58 chapters
-Fangn  # n=371 in 60 chapters
 Lei  # n=369 in 69 chapters
 Tong  # n=348 in 73 chapters
 Zhou  # n=326 in 93 chapters
-Butn  # n=319 in 74 chapters
 Zhong  # n=318 in 62 chapters
 Zhan  # n=312 in 76 chapters
 Zai  # n=302 in 43 chapters
@@ -141,13 +139,11 @@ Hen  # n=291 in 78 chapters
 Kong  # n=289 in 95 chapters
 Leng  # n=289 in 65 chapters
 Hui  # n=284 in 72 chapters
-Thisn  # n=282 in 75 chapters
 Gui  # n=281 in 83 chapters
 Shui  # n=279 in 74 chapters
 Kai  # n=275 in 27 chapters
 Mei  # n=272 in 51 chapters
 Genesis  # n=267 in 125 chapters
-Starn  # n=262 in 45 chapters
 Chan  # n=261 in 38 chapters
 Cai  # n=259 in 54 chapters
 ChibiGeneral  # n=255 in 130 chapters
@@ -158,7 +154,6 @@ Quan  # n=241 in 56 chapters
 Guan  # n=236 in 72 chapters
 Cang  # n=236 in 57 chapters
 Wen  # n=223 in 82 chapters
-Aftern  # n=220 in 71 chapters
 Xuan  # n=213 in 55 chapters
 Jie  # n=210 in 42 chapters
 Ting  # n=209 in 39 chapters
@@ -174,7 +169,6 @@ Chun  # n=185 in 42 chapters
 Huo  # n=185 in 49 chapters
 Shou  # n=184 in 54 chapters
 Qun  # n=179 in 24 chapters
-Giantn  # n=179 in 33 chapters
 Kuang  # n=178 in 24 chapters
 Desolation  # n=161 in 36 chapters
 Chong  # n=150 in 30 chapters
@@ -182,16 +176,13 @@ Tao  # n=143 in 36 chapters
 Kuai  # n=143 in 15 chapters
 Pan  # n=140 in 30 chapters
 Nian  # n=136 in 21 chapters
-Itn  # n=135 in 68 chapters
 Cao  # n=128 in 28 chapters
 Gao  # n=127 in 34 chapters
 Pei  # n=127 in 31 chapters
-Atn  # n=127 in 61 chapters
 Lao  # n=126 in 34 chapters
 Qiong  # n=126 in 29 chapters
 Zhuo  # n=124 in 29 chapters
 Zuo  # n=123 in 32 chapters
-Ifn  # n=123 in 58 chapters
 Miniscule  # n=120 in 29 chapters
 Tuo  # n=111 in 31 chapters
 Mian  # n=107 in 19 chapters
@@ -202,15 +193,12 @@ Tigress  # n=101 in 24 chapters
 Peng  # n=100 in 17 chapters
 Rong  # n=96 in 32 chapters
 Xunzi  # n=96 in 14 chapters
-Asn  # n=89 in 57 chapters
 Zong  # n=88 in 21 chapters
 Zun  # n=82 in 28 chapters
 Solor  # n=81 in 33 chapters
 Omni-directional  # n=77 in 40 chapters
 Murong  # n=77 in 17 chapters
 Yacht  # n=76 in 19 chapters
-Evenn  # n=76 in 49 chapters
-Spectraln  # n=76 in 25 chapters
 Niu  # n=75 in 19 chapters
 Weng  # n=74 in 16 chapters
 Que  # n=74 in 17 chapters
@@ -221,9 +209,7 @@ Liao  # n=64 in 14 chapters
 Lun  # n=64 in 11 chapters
 Coop  # n=64 in 18 chapters
 Tou  # n=63 in 17 chapters
-Theren  # n=61 in 47 chapters
 Beacon  # n=60 in 15 chapters
-Althoughn  # n=58 in 38 chapters
 Nie  # n=57 in 13 chapters
 Guo  # n=55 in 23 chapters
 Qian  # n=50 in 25 chapters
@@ -231,30 +217,19 @@ Earthwolf  # n=50 in 10 chapters
 Ninety-five  # n=50 in 14 chapters
 Bian  # n=50 in 22 chapters
 Zui  # n=49 in 11 chapters
-Thesen  # n=49 in 35 chapters
 Qiang  # n=48 in 10 chapters
 Zodiac  # n=47 in 19 chapters
 Shabi  # n=47 in 14 chapters
-Whenn  # n=47 in 34 chapters
 Pang  # n=46 in 19 chapters
-Becausen  # n=42 in 29 chapters
 Zeng  # n=40 in 13 chapters
-Gun  # n=40 in 23 chapters
-Qinn  # n=39 in 12 chapters
 Swordmaster  # n=37 in 18 chapters
 Ruan  # n=37 in 13 chapters
 Chanyu  # n=35 in 12 chapters
 Moonglow  # n=34 in 22 chapters
-Rightn  # n=34 in 28 chapters
-Whatn  # n=33 in 39 chapters
-Fairyn  # n=33 in 10 chapters
 Zuan  # n=31 in 10 chapters
 Oracle  # n=29 in 10 chapters
 Canary  # n=28 in 15 chapters
-Oncen  # n=28 in 27 chapters
-Backn  # n=27 in 27 chapters
 Lai  # n=25 in 13 chapters
-Xiaon  # n=25 in 10 chapters
 
 # --- REVEREND INSANITY — multi-word names, places and in-world terms ---
 Fang Yuan  # n=26647 in 2092 chapters
@@ -1463,12 +1438,21 @@ Love Immortal Venerable  # n=25 in 13 chapters
 Po Kong  # n=25 in 10 chapters
 
 # ============================================================
-# REVIEW — dual-use words, NOT enabled
+# REVIEW — dual-use words
 # ============================================================
 # Each of these is used in this novel BOTH as a name/term and as an ordinary word.
 # Because masking is case-insensitive, uncommenting one freezes the ordinary word too
 # (protecting "Rain" also stops any repair to the weather). Uncomment only the ones
 # where that trade is right for this novel.
+#
+# BATCH REVIEW 2026-07-27 (Plan 2b Phase 8): 19 of these were promoted and are now
+# UNCOMMENTED IN PLACE below, keeping their evidence comment. They cleared a bar of:
+# 100+ capitalized uses; lowercase form absent from at least 3 of the 4 other novel
+# corpora (so it is this novel's vocabulary, not ordinary English); lowercase use under
+# 75% of capitalized use; and multi-word only, because every false positive in the first
+# pass was a single word that is merely RARE English ("Venerable", "Warship", "Seeker").
+# The rest are still commented and still awaiting the author. Reproduce with
+# files/qa-tools/scratch/index-build/review_batch.py.
 # ============================================================
 # Venerable  # capitalized 4017x in 804 chapters, but also lowercase 693x
 # Masters  # capitalized 3547x in 869 chapters, but also lowercase 287x
@@ -1478,50 +1462,50 @@ Po Kong  # n=25 in 10 chapters
 # Continent  # capitalized 1590x in 590 chapters, but also lowercase 170x
 # Border  # capitalized 1544x in 529 chapters, but also lowercase 152x
 # Eastern  # capitalized 1424x in 447 chapters, but also lowercase 104x
-# Southern Border  # capitalized 1354x in 476 chapters, but also lowercase 125x
-# Central Continent  # capitalized 1269x in 514 chapters, but also lowercase 137x
-# Northern Plains  # capitalized 1264x in 517 chapters, but also lowercase 528x
+Southern Border  # capitalized 1354x in 476 chapters, but also lowercase 125x
+Central Continent  # capitalized 1269x in 514 chapters, but also lowercase 137x
+Northern Plains  # capitalized 1264x in 517 chapters, but also lowercase 528x
 # Rank  # capitalized 1240x in 627 chapters, but also lowercase 12006x
-# Qi Sea  # capitalized 824x in 154 chapters, but also lowercase 149x
+Qi Sea  # capitalized 824x in 154 chapters, but also lowercase 149x
 # River of Time  # capitalized 782x in 223 chapters, but also lowercase 108x
 # Paradise  # capitalized 754x in 200 chapters, but also lowercase 59x
 # Imperial  # capitalized 747x in 283 chapters, but also lowercase 46x
 # Ding  # capitalized 722x in 146 chapters, but also lowercase 43x
 # Western  # capitalized 666x in 281 chapters, but also lowercase 60x
 # Longevity  # capitalized 658x in 264 chapters, but also lowercase 37x
-# Western Desert  # capitalized 466x in 217 chapters, but also lowercase 29x
-# Fixed Immortal Travel  # capitalized 438x in 187 chapters, but also lowercase 110x
-# Divine Bean  # capitalized 433x in 82 chapters, but also lowercase 80x
-# Reverse Flow  # capitalized 414x in 111 chapters, but also lowercase 279x
+Western Desert  # capitalized 466x in 217 chapters, but also lowercase 29x
+Fixed Immortal Travel  # capitalized 438x in 187 chapters, but also lowercase 110x
+Divine Bean  # capitalized 433x in 82 chapters, but also lowercase 80x
+Reverse Flow  # capitalized 414x in 111 chapters, but also lowercase 279x
 # Warship  # capitalized 404x in 65 chapters, but also lowercase 31x
-# Red Lotus  # capitalized 392x in 169 chapters, but also lowercase 35x
+Red Lotus  # capitalized 392x in 169 chapters, but also lowercase 35x
 # Primordial  # capitalized 382x in 136 chapters, but also lowercase 35x
 # Wolf King  # capitalized 309x in 90 chapters, but also lowercase 254x
 # Seeker  # capitalized 304x in 78 chapters, but also lowercase 24x
-# Myriad Year Flying Warship  # capitalized 291x in 60 chapters, but also lowercase 21x
-# Pure Dream  # capitalized 287x in 76 chapters, but also lowercase 77x
+Myriad Year Flying Warship  # capitalized 291x in 60 chapters, but also lowercase 21x
+Pure Dream  # capitalized 287x in 76 chapters, but also lowercase 77x
 # Prince  # capitalized 277x in 88 chapters, but also lowercase 15x
 # Trench  # capitalized 273x in 102 chapters, but also lowercase 30x
 # Reckless  # capitalized 267x in 119 chapters, but also lowercase 23x
-# Pure Dream Reality Seeker  # capitalized 260x in 73 chapters, but also lowercase 23x
+Pure Dream Reality Seeker  # capitalized 260x in 73 chapters, but also lowercase 23x
 # Limitless  # capitalized 246x in 101 chapters, but also lowercase 25x
 # Refinement Path  # capitalized 240x in 106 chapters, but also lowercase 1316x
 # Immortal Zombie  # capitalized 211x in 36 chapters, but also lowercase 1101x
 # Ice Crystal  # capitalized 197x in 38 chapters, but also lowercase 66x
 # Biao  # capitalized 182x in 33 chapters, but also lowercase 16x
-# Ice Soul  # capitalized 179x in 58 chapters, but also lowercase 11x
-# Heavenly Essence Treasure  # capitalized 176x in 53 chapters, but also lowercase 11x
+Ice Soul  # capitalized 179x in 58 chapters, but also lowercase 11x
+Heavenly Essence Treasure  # capitalized 176x in 53 chapters, but also lowercase 11x
 # Antiquity  # capitalized 172x in 95 chapters, but also lowercase 19x
 # The Legends  # capitalized 148x in 98 chapters, but also lowercase 10x
-# Beast Calamity  # capitalized 134x in 35 chapters, but also lowercase 24x
+Beast Calamity  # capitalized 134x in 35 chapters, but also lowercase 24x
 # Duo  # capitalized 133x in 19 chapters, but also lowercase 8x
-# Bamboo Building  # capitalized 129x in 44 chapters, but also lowercase 39x
+Bamboo Building  # capitalized 129x in 44 chapters, but also lowercase 39x
 # Starry Sky  # capitalized 120x in 40 chapters, but also lowercase 11x
 # Unfettered  # capitalized 118x in 37 chapters, but also lowercase 7x
-# Northern Dark Ice Soul  # capitalized 116x in 56 chapters, but also lowercase 7x
+Northern Dark Ice Soul  # capitalized 116x in 56 chapters, but also lowercase 7x
 # Door of Life  # capitalized 115x in 29 chapters, but also lowercase 104x
-# Yellow Earth  # capitalized 113x in 26 chapters, but also lowercase 16x
-# Clear Jade  # capitalized 112x in 41 chapters, but also lowercase 7x
+Yellow Earth  # capitalized 113x in 26 chapters, but also lowercase 16x
+Clear Jade  # capitalized 112x in 41 chapters, but also lowercase 7x
 # Five Elements  # capitalized 108x in 45 chapters, but also lowercase 11x
 # City Lord  # capitalized 106x in 18 chapters, but also lowercase 64x
 # Cooking  # capitalized 101x in 35 chapters, but also lowercase 11x
@@ -1539,7 +1523,6 @@ Po Kong  # n=25 in 10 chapters
 # Giant City  # capitalized 78x in 29 chapters, but also lowercase 7x
 # Jade Pool  # capitalized 75x in 19 chapters, but also lowercase 9x
 # Heavenly Essence Treasure Lotus  # capitalized 75x in 25 chapters, but also lowercase 43x
-# Heavenlyn  # capitalized 74x in 42 chapters, but also lowercase 4x
 # White Boar  # capitalized 70x in 24 chapters, but also lowercase 14x
 # Soul Beast  # capitalized 67x in 26 chapters, but also lowercase 315x
 # Blood Sea  # capitalized 66x in 30 chapters, but also lowercase 32x
@@ -1552,13 +1535,11 @@ Po Kong  # n=25 in 10 chapters
 # Thousand Li  # capitalized 62x in 13 chapters, but also lowercase 109x
 # White Jade  # capitalized 61x in 26 chapters, but also lowercase 53x
 # Soul Beast Token  # capitalized 60x in 22 chapters, but also lowercase 9x
-# Withn  # capitalized 57x in 48 chapters, but also lowercase 4x
 # Four Elements  # capitalized 57x in 22 chapters, but also lowercase 9x
 # Nine Leaf Vitality Grass  # capitalized 54x in 14 chapters, but also lowercase 8x
 # Inkman City  # capitalized 52x in 15 chapters, but also lowercase 13x
 # Ben  # capitalized 51x in 27 chapters, but also lowercase 4x
 # Night Heavenly  # capitalized 50x in 18 chapters, but also lowercase 4x
-# Immortaln  # capitalized 49x in 28 chapters, but also lowercase 3x
 # Soul Pacifying  # capitalized 49x in 12 chapters, but also lowercase 3x
 # Night Heavenly Wolf  # capitalized 49x in 18 chapters, but also lowercase 4x
 # Frost Jade  # capitalized 49x in 20 chapters, but also lowercase 11x

@@ -883,61 +883,70 @@ Xuan Vice  # n=25 in 11 chapters
 Fiend Devil  # n=25 in 10 chapters
 
 # ============================================================
-# REVIEW — dual-use words, NOT enabled
+# REVIEW — dual-use words
 # ============================================================
 # Each of these is used in this novel BOTH as a name/term and as an ordinary word.
 # Because masking is case-insensitive, uncommenting one freezes the ordinary word too
 # (protecting "Rain" also stops any repair to the weather). Uncomment only the ones
 # where that trade is right for this novel.
+#
+# BATCH REVIEW 2026-07-27 (Plan 2b Phase 8): 24 of these were promoted and are now
+# UNCOMMENTED IN PLACE below, keeping their evidence comment. They cleared a bar of:
+# 100+ capitalized uses; lowercase form absent from at least 3 of the 4 other novel
+# corpora (so it is this novel's vocabulary, not ordinary English); lowercase use under
+# 75% of capitalized use; and multi-word only, because every false positive in the first
+# pass was a single word that is merely RARE English ("Venerable", "Warship", "Seeker").
+# The rest are still commented and still awaiting the author. Reproduce with
+# files/qa-tools/scratch/index-build/review_batch.py.
 # ============================================================
 # Realm  # capitalized 4790x in 857 chapters, but also lowercase 461x
 # Dao  # capitalized 3578x in 663 chapters, but also lowercase 1684x
 # Bird  # capitalized 1335x in 214 chapters, but also lowercase 133x
 # Nascent  # capitalized 1283x in 279 chapters, but also lowercase 122x
 # Immortal  # capitalized 1259x in 390 chapters, but also lowercase 223x
-# Nascent Soul  # capitalized 1178x in 274 chapters, but also lowercase 105x
-# Star System  # capitalized 923x in 332 chapters, but also lowercase 307x
+Nascent Soul  # capitalized 1178x in 274 chapters, but also lowercase 105x
+Star System  # capitalized 923x in 332 chapters, but also lowercase 307x
 # Yin  # capitalized 910x in 265 chapters, but also lowercase 97x
 # Transformation  # capitalized 781x in 287 chapters, but also lowercase 79x
 # Yang  # capitalized 509x in 228 chapters, but also lowercase 69x
 # Ashen  # capitalized 480x in 39 chapters, but also lowercase 31x
 # Mountain  # capitalized 433x in 171 chapters, but also lowercase 2724x
-# Soul Refining  # capitalized 424x in 96 chapters, but also lowercase 70x
-# Sealed Realm  # capitalized 396x in 126 chapters, but also lowercase 21x
+Soul Refining  # capitalized 424x in 96 chapters, but also lowercase 70x
+Sealed Realm  # capitalized 396x in 126 chapters, but also lowercase 21x
 # Brilliant  # capitalized 393x in 134 chapters, but also lowercase 27x
 # Pine  # capitalized 380x in 40 chapters, but also lowercase 25x
-# Corpse Sect  # capitalized 368x in 93 chapters, but also lowercase 35x
+Corpse Sect  # capitalized 368x in 93 chapters, but also lowercase 35x
 # Greed  # capitalized 347x in 86 chapters, but also lowercase 149x
-# Thunder Beast  # capitalized 272x in 44 chapters, but also lowercase 31x
-# Heaven Defying  # capitalized 264x in 95 chapters, but also lowercase 44x
+Thunder Beast  # capitalized 272x in 44 chapters, but also lowercase 31x
+Heaven Defying  # capitalized 264x in 95 chapters, but also lowercase 44x
 # Ancient God  # capitalized 248x in 99 chapters, but also lowercase 1931x
-# Fellow Cultivator  # capitalized 240x in 105 chapters, but also lowercase 126x
+Fellow Cultivator  # capitalized 240x in 105 chapters, but also lowercase 126x
 # Heaven Defying Bead  # capitalized 234x in 83 chapters, but also lowercase 436x
 # Thirteen  # capitalized 228x in 61 chapters, but also lowercase 38x
-# Imperial Teacher  # capitalized 215x in 42 chapters, but also lowercase 16x
-# Ancient Celestial  # capitalized 211x in 79 chapters, but also lowercase 16x
+Imperial Teacher  # capitalized 215x in 42 chapters, but also lowercase 16x
+Ancient Celestial  # capitalized 211x in 79 chapters, but also lowercase 16x
 # Tie  # capitalized 206x in 52 chapters, but also lowercase 16x
-# Azure Dragon  # capitalized 204x in 54 chapters, but also lowercase 13x
-# Rain Celestial  # capitalized 202x in 86 chapters, but also lowercase 17x
-# Celestial Ancestor  # capitalized 193x in 74 chapters, but also lowercase 17x
+Azure Dragon  # capitalized 204x in 54 chapters, but also lowercase 13x
+Rain Celestial  # capitalized 202x in 86 chapters, but also lowercase 17x
+Celestial Ancestor  # capitalized 193x in 74 chapters, but also lowercase 17x
 # Hunchback  # capitalized 178x in 33 chapters, but also lowercase 17x
-# Sealing Formation  # capitalized 176x in 47 chapters, but also lowercase 27x
-# Heavenly Fate  # capitalized 167x in 71 chapters, but also lowercase 16x
+Sealing Formation  # capitalized 176x in 47 chapters, but also lowercase 27x
+Heavenly Fate  # capitalized 167x in 71 chapters, but also lowercase 16x
 # White Tiger  # capitalized 166x in 40 chapters, but also lowercase 18x
-# Cultivation Alliance  # capitalized 164x in 86 chapters, but also lowercase 12x
+Cultivation Alliance  # capitalized 164x in 86 chapters, but also lowercase 12x
 # Ancient Demon  # capitalized 154x in 72 chapters, but also lowercase 548x
 # Bending  # capitalized 149x in 82 chapters, but also lowercase 8x
 # Qilin  # capitalized 148x in 34 chapters, but also lowercase 34x
-# Heavenly Dao  # capitalized 142x in 50 chapters, but also lowercase 69x
+Heavenly Dao  # capitalized 142x in 50 chapters, but also lowercase 69x
 # Cultivation Planet  # capitalized 137x in 40 chapters, but also lowercase 440x
-# Black Tortoise  # capitalized 136x in 46 chapters, but also lowercase 8x
-# Ancient Emperor  # capitalized 127x in 26 chapters, but also lowercase 11x
-# Spatial Bending  # capitalized 125x in 73 chapters, but also lowercase 7x
-# Ethereal Fire  # capitalized 122x in 37 chapters, but also lowercase 15x
+Black Tortoise  # capitalized 136x in 46 chapters, but also lowercase 8x
+Ancient Emperor  # capitalized 127x in 26 chapters, but also lowercase 11x
+Spatial Bending  # capitalized 125x in 73 chapters, but also lowercase 7x
+Ethereal Fire  # capitalized 122x in 37 chapters, but also lowercase 15x
 # Sundered  # capitalized 108x in 41 chapters, but also lowercase 7x
-# Soul Lasher  # capitalized 108x in 32 chapters, but also lowercase 15x
-# Sundered Night  # capitalized 107x in 39 chapters, but also lowercase 6x
-# War God  # capitalized 104x in 24 chapters, but also lowercase 8x
+Soul Lasher  # capitalized 108x in 32 chapters, but also lowercase 15x
+Sundered Night  # capitalized 107x in 39 chapters, but also lowercase 6x
+War God  # capitalized 104x in 24 chapters, but also lowercase 8x
 # War Chariot  # capitalized 85x in 42 chapters, but also lowercase 120x
 # Celestial Slaughter Art  # capitalized 84x in 35 chapters, but also lowercase 10x
 # Ancient Devil  # capitalized 80x in 30 chapters, but also lowercase 361x
