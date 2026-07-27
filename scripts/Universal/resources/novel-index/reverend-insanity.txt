@@ -1,0 +1,1611 @@
+# ============================================================
+# Reverend Insanity — Do-Not-Touch Protected Terms
+# ============================================================
+# Format: one term or phrase per line
+# Lines beginning with # are comments and are ignored
+# Blank lines are ignored
+# Preserve case exactly as written here
+# Multi-word phrases are supported
+# ============================================================
+# Built 2026-07-26 by corpus frequency analysis over the novel's own chapters
+# (2334 extracted chapters, files/pdf-example-chapters/reverend-insanity-1/).
+#
+# Method — every term below was COUNTED in this novel's own text before being listed:
+#   * candidates came from capitalization statistics, from a local qwen3 pass over
+#     sampled chapters, and from the novel's own text alone;
+#   * a term is listed only if it appears at the exact spelling shown, at least
+#     25x across at least 10 chapters, capitalized mid-sentence;
+#   * a term is listed only if this novel's lowercase use of it is under 5% of its
+#     capitalized use. Masking is case-insensitive, so protecting "Song" would also
+#     freeze every "song". Genuinely dual-use words are left commented in the REVIEW
+#     block below rather than enabled.
+#
+# Trailing "# n=... in ... chapters" is the measured corpus evidence, stripped at load.
+# ============================================================
+
+# --- REVEREND INSANITY — names and single-word terms (by corpus frequency) ---
+Yuan  # n=45155 in 2131 chapters
+Fang  # n=39689 in 2155 chapters
+Bai  # n=7966 in 945 chapters
+Court  # n=4995 in 970 chapters
+Hei  # n=4282 in 678 chapters
+Yun  # n=4049 in 504 chapters
+Feng  # n=3840 in 587 chapters
+Ning  # n=3549 in 401 chapters
+Lou  # n=3543 in 480 chapters
+Lan  # n=3528 in 542 chapters
+Sheng  # n=3489 in 541 chapters
+Bing  # n=3311 in 497 chapters
+Wei  # n=2746 in 486 chapters
+Shang  # n=2742 in 295 chapters
+Lang  # n=2687 in 488 chapters
+Zheng  # n=2520 in 403 chapters
+Jiu  # n=2514 in 342 chapters
+Yue  # n=2498 in 393 chapters
+Yang  # n=2360 in 505 chapters
+Qing  # n=2212 in 519 chapters
+Chang  # n=2178 in 327 chapters
+Huang  # n=1921 in 386 chapters
+Spectral  # n=1836 in 437 chapters
+Shen  # n=1808 in 262 chapters
+Shan  # n=1794 in 351 chapters
+Xie  # n=1638 in 279 chapters
+Duke  # n=1608 in 252 chapters
+Shi  # n=1590 in 318 chapters
+Ying  # n=1583 in 358 chapters
+Jin  # n=1566 in 335 chapters
+Chi  # n=1548 in 232 chapters
+Tai  # n=1547 in 344 chapters
+Liu  # n=1527 in 264 chapters
+Xin  # n=1509 in 195 chapters
+Tian  # n=1501 in 378 chapters
+Xiao  # n=1492 in 253 chapters
+Yong  # n=1480 in 212 chapters
+Fan  # n=1425 in 263 chapters
+Lian  # n=1387 in 197 chapters
+Dong  # n=1379 in 196 chapters
+Hong  # n=1372 in 299 chapters
+Xue  # n=1319 in 304 chapters
+Constellation  # n=1283 in 242 chapters
+Tie  # n=1283 in 180 chapters
+Yan  # n=1257 in 246 chapters
+Yao  # n=1240 in 264 chapters
+Chen  # n=1122 in 247 chapters
+Chu  # n=1106 in 168 chapters
+Ming  # n=1056 in 176 chapters
+Xia  # n=1036 in 165 chapters
+Shuai  # n=1016 in 133 chapters
+Cheng  # n=999 in 199 chapters
+Fei  # n=964 in 191 chapters
+Qin  # n=961 in 261 chapters
+Monarch  # n=947 in 217 chapters
+Wan  # n=922 in 168 chapters
+Ling  # n=908 in 182 chapters
+Zhao  # n=898 in 166 chapters
+Thieving  # n=888 in 223 chapters
+Qiu  # n=869 in 175 chapters
+Cicada  # n=865 in 298 chapters
+Hun  # n=820 in 259 chapters
+Ren  # n=811 in 237 chapters
+Luo  # n=774 in 219 chapters
+Xian  # n=740 in 141 chapters
+Dang  # n=735 in 258 chapters
+Hao  # n=710 in 154 chapters
+Miao  # n=702 in 156 chapters
+Han  # n=683 in 125 chapters
+Hua  # n=641 in 142 chapters
+Eighty-Eight  # n=640 in 241 chapters
+Overseeing  # n=634 in 123 chapters
+Xing  # n=621 in 137 chapters
+Jue  # n=588 in 109 chapters
+Bei  # n=582 in 105 chapters
+Xiu  # n=577 in 107 chapters
+Zhen  # n=572 in 87 chapters
+Wang  # n=570 in 114 chapters
+Cong  # n=569 in 73 chapters
+Liang  # n=566 in 101 chapters
+Jiang  # n=556 in 134 chapters
+Chuan  # n=556 in 117 chapters
+Ruo  # n=554 in 74 chapters
+Xiang  # n=551 in 143 chapters
+Chou  # n=551 in 100 chapters
+Xiong  # n=546 in 116 chapters
+Shu  # n=543 in 86 chapters
+Demoness  # n=537 in 74 chapters
+Guang  # n=533 in 103 chapters
+San  # n=529 in 106 chapters
+Ping  # n=508 in 88 chapters
+Affinity  # n=485 in 158 chapters
+Sai  # n=469 in 98 chapters
+Altar  # n=448 in 96 chapters
+Gong  # n=443 in 92 chapters
+Mao  # n=428 in 197 chapters
+Zhang  # n=428 in 114 chapters
+Tang  # n=418 in 82 chapters
+Jia  # n=415 in 67 chapters
+Lui  # n=404 in 83 chapters
+Qiao  # n=399 in 85 chapters
+Lin  # n=393 in 39 chapters
+Zhu  # n=391 in 83 chapters
+Meng  # n=381 in 58 chapters
+Fangn  # n=371 in 60 chapters
+Lei  # n=369 in 69 chapters
+Tong  # n=348 in 73 chapters
+Zhou  # n=326 in 93 chapters
+Butn  # n=319 in 74 chapters
+Zhong  # n=318 in 62 chapters
+Zhan  # n=312 in 76 chapters
+Zai  # n=302 in 43 chapters
+Dan  # n=300 in 49 chapters
+Hen  # n=291 in 78 chapters
+Kong  # n=289 in 95 chapters
+Leng  # n=289 in 65 chapters
+Hui  # n=284 in 72 chapters
+Thisn  # n=282 in 75 chapters
+Gui  # n=281 in 83 chapters
+Shui  # n=279 in 74 chapters
+Kai  # n=275 in 27 chapters
+Mei  # n=272 in 51 chapters
+Genesis  # n=267 in 125 chapters
+Starn  # n=262 in 45 chapters
+Chan  # n=261 in 38 chapters
+Cai  # n=259 in 54 chapters
+ChibiGeneral  # n=255 in 130 chapters
+Tan  # n=254 in 64 chapters
+Zang  # n=247 in 60 chapters
+Jian  # n=243 in 57 chapters
+Quan  # n=241 in 56 chapters
+Guan  # n=236 in 72 chapters
+Cang  # n=236 in 57 chapters
+Wen  # n=223 in 82 chapters
+Aftern  # n=220 in 71 chapters
+Xuan  # n=213 in 55 chapters
+Jie  # n=210 in 42 chapters
+Ting  # n=209 in 39 chapters
+Chai  # n=203 in 30 chapters
+Cui  # n=194 in 44 chapters
+Jing  # n=193 in 42 chapters
+Extremity  # n=193 in 41 chapters
+Jiao  # n=191 in 43 chapters
+Bao  # n=190 in 53 chapters
+Suan  # n=189 in 46 chapters
+Skyfarrow  # n=188 in 94 chapters
+Chun  # n=185 in 42 chapters
+Huo  # n=185 in 49 chapters
+Shou  # n=184 in 54 chapters
+Qun  # n=179 in 24 chapters
+Giantn  # n=179 in 33 chapters
+Kuang  # n=178 in 24 chapters
+Desolation  # n=161 in 36 chapters
+Chong  # n=150 in 30 chapters
+Tao  # n=143 in 36 chapters
+Kuai  # n=143 in 15 chapters
+Pan  # n=140 in 30 chapters
+Nian  # n=136 in 21 chapters
+Itn  # n=135 in 68 chapters
+Cao  # n=128 in 28 chapters
+Gao  # n=127 in 34 chapters
+Pei  # n=127 in 31 chapters
+Atn  # n=127 in 61 chapters
+Lao  # n=126 in 34 chapters
+Qiong  # n=126 in 29 chapters
+Zhuo  # n=124 in 29 chapters
+Zuo  # n=123 in 32 chapters
+Ifn  # n=123 in 58 chapters
+Miniscule  # n=120 in 29 chapters
+Tuo  # n=111 in 31 chapters
+Mian  # n=107 in 19 chapters
+Infallible  # n=105 in 49 chapters
+Mang  # n=101 in 23 chapters
+Dock  # n=101 in 37 chapters
+Tigress  # n=101 in 24 chapters
+Peng  # n=100 in 17 chapters
+Rong  # n=96 in 32 chapters
+Xunzi  # n=96 in 14 chapters
+Asn  # n=89 in 57 chapters
+Zong  # n=88 in 21 chapters
+Zun  # n=82 in 28 chapters
+Solor  # n=81 in 33 chapters
+Omni-directional  # n=77 in 40 chapters
+Murong  # n=77 in 17 chapters
+Yacht  # n=76 in 19 chapters
+Evenn  # n=76 in 49 chapters
+Spectraln  # n=76 in 25 chapters
+Niu  # n=75 in 19 chapters
+Weng  # n=74 in 16 chapters
+Que  # n=74 in 17 chapters
+Dancer  # n=72 in 13 chapters
+Traveler  # n=70 in 10 chapters
+Shuang  # n=66 in 21 chapters
+Liao  # n=64 in 14 chapters
+Lun  # n=64 in 11 chapters
+Coop  # n=64 in 18 chapters
+Tou  # n=63 in 17 chapters
+Theren  # n=61 in 47 chapters
+Beacon  # n=60 in 15 chapters
+Althoughn  # n=58 in 38 chapters
+Nie  # n=57 in 13 chapters
+Guo  # n=55 in 23 chapters
+Qian  # n=50 in 25 chapters
+Earthwolf  # n=50 in 10 chapters
+Ninety-five  # n=50 in 14 chapters
+Bian  # n=50 in 22 chapters
+Zui  # n=49 in 11 chapters
+Thesen  # n=49 in 35 chapters
+Qiang  # n=48 in 10 chapters
+Zodiac  # n=47 in 19 chapters
+Shabi  # n=47 in 14 chapters
+Whenn  # n=47 in 34 chapters
+Pang  # n=46 in 19 chapters
+Becausen  # n=42 in 29 chapters
+Zeng  # n=40 in 13 chapters
+Gun  # n=40 in 23 chapters
+Qinn  # n=39 in 12 chapters
+Swordmaster  # n=37 in 18 chapters
+Ruan  # n=37 in 13 chapters
+Chanyu  # n=35 in 12 chapters
+Moonglow  # n=34 in 22 chapters
+Rightn  # n=34 in 28 chapters
+Whatn  # n=33 in 39 chapters
+Fairyn  # n=33 in 10 chapters
+Zuan  # n=31 in 10 chapters
+Oracle  # n=29 in 10 chapters
+Canary  # n=28 in 15 chapters
+Oncen  # n=28 in 27 chapters
+Backn  # n=27 in 27 chapters
+Lai  # n=25 in 13 chapters
+Xiaon  # n=25 in 10 chapters
+
+# --- REVEREND INSANITY — multi-word names, places and in-world terms ---
+Fang Yuan  # n=26647 in 2092 chapters
+Immortal Gu  # n=11534 in 1506 chapters
+Gu Immortal  # n=6271 in 1523 chapters
+Heavenly Court  # n=3610 in 745 chapters
+Ning Bing  # n=2940 in 387 chapters
+Gu Master  # n=2932 in 854 chapters
+Lou Lan  # n=2903 in 460 chapters
+Lang Ya  # n=2427 in 451 chapters
+Immortal Venerable  # n=2355 in 539 chapters
+Hei Lou  # n=2079 in 443 chapters
+Bai Ning  # n=2007 in 362 chapters
+Bai Yun  # n=1959 in 293 chapters
+Jiu Ge  # n=1869 in 265 chapters
+Hei Lou Lan  # n=1656 in 425 chapters
+Gu House  # n=1651 in 522 chapters
+Bai Ning Bing  # n=1626 in 349 chapters
+Yun Sheng  # n=1591 in 263 chapters
+Bai Yun Sheng  # n=1566 in 261 chapters
+Immortal Gu House  # n=1551 in 497 chapters
+Gu Yue  # n=1526 in 322 chapters
+Feng Jiu  # n=1475 in 277 chapters
+Wu Xie  # n=1448 in 239 chapters
+Spectral Soul  # n=1414 in 360 chapters
+Zi Wei  # n=1373 in 258 chapters
+Demon Venerable  # n=1372 in 468 chapters
+Fang Zheng  # n=1318 in 294 chapters
+Tai Bai  # n=1298 in 265 chapters
+Giant Sun  # n=1272 in 353 chapters
+Tai Bai Yun  # n=1224 in 261 chapters
+Feng Jiu Ge  # n=1216 in 253 chapters
+Eastern Sea  # n=1147 in 400 chapters
+Sun Immortal  # n=1071 in 305 chapters
+Ying Wu  # n=1052 in 232 chapters
+Dong Fang  # n=1022 in 137 chapters
+Constellation Immortal  # n=983 in 185 chapters
+Hu Immortal  # n=979 in 289 chapters
+Tai Bai Yun Sheng  # n=973 in 244 chapters
+Lian Yun  # n=940 in 119 chapters
+Star Constellation  # n=872 in 227 chapters
+True Yang  # n=856 in 253 chapters
+Ying Wu Xie  # n=854 in 215 chapters
+Shadow Sect  # n=847 in 337 chapters
+Fairy Zi  # n=835 in 244 chapters
+Autumn Cicada  # n=833 in 293 chapters
+Xin Ci  # n=824 in 97 chapters
+Spring Autumn  # n=818 in 297 chapters
+Wu Yong  # n=803 in 174 chapters
+Giant Sun Immortal  # n=790 in 285 chapters
+Sun Immortal Venerable  # n=787 in 243 chapters
+Sea Ancestor  # n=784 in 153 chapters
+Yang Building  # n=764 in 239 chapters
+Constellation Immortal Venerable  # n=757 in 159 chapters
+Hong Yun  # n=757 in 156 chapters
+True Yang Building  # n=730 in 233 chapters
+Dang Hun  # n=711 in 238 chapters
+Spring Autumn Cicada  # n=707 in 275 chapters
+Jin Huang  # n=706 in 116 chapters
+Fairy Zi Wei  # n=686 in 230 chapters
+Wei Yin  # n=674 in 122 chapters
+Bai Zu  # n=656 in 94 chapters
+Thieving Heaven  # n=649 in 189 chapters
+Zhao Lian  # n=647 in 116 chapters
+Dragon Palace  # n=643 in 146 chapters
+Star Constellation Immortal  # n=641 in 170 chapters
+Eighty-Eight True  # n=620 in 229 chapters
+Fang Chang  # n=619 in 104 chapters
+Li Shan  # n=618 in 140 chapters
+Chu Du  # n=610 in 111 chapters
+Mountain True  # n=608 in 127 chapters
+True Monarch  # n=606 in 158 chapters
+Imperial Court  # n=604 in 233 chapters
+Eighty-Eight True Yang  # n=602 in 223 chapters
+Shan Yin  # n=596 in 124 chapters
+Overseeing Tower  # n=587 in 119 chapters
+Shang Xin  # n=586 in 91 chapters
+Bai Sheng  # n=579 in 106 chapters
+Feng Jin  # n=572 in 119 chapters
+Wu Shuai  # n=569 in 121 chapters
+Soul Demon  # n=561 in 196 chapters
+Ancestor Xue  # n=559 in 132 chapters
+Giant Sun Immortal Venerable  # n=557 in 225 chapters
+Chang Shan  # n=548 in 125 chapters
+Ren Zu  # n=542 in 167 chapters
+Qi Sea Ancestor  # n=534 in 121 chapters
+Eighty-Eight True Yang Building  # n=531 in 211 chapters
+Ma Hong  # n=528 in 143 chapters
+Ding Ling  # n=528 in 103 chapters
+Di Chang  # n=526 in 81 chapters
+Zhao Lian Yun  # n=524 in 111 chapters
+Immortal Qi  # n=519 in 89 chapters
+Lord Bai  # n=517 in 93 chapters
+Qi Jue  # n=517 in 86 chapters
+Heaven Demoness  # n=513 in 72 chapters
+Immortal Crane  # n=511 in 135 chapters
+Xue Hu  # n=509 in 135 chapters
+Fairy Li  # n=502 in 142 chapters
+Longevity Heaven  # n=501 in 216 chapters
+Immortal Travel  # n=490 in 197 chapters
+Ancestor Xue Hu  # n=487 in 131 chapters
+Paradise Earth  # n=481 in 157 chapters
+Shang Xin Ci  # n=479 in 86 chapters
+Star Constellation Immortal Venerable  # n=476 in 142 chapters
+Zombie Alliance  # n=475 in 142 chapters
+Fixed Immortal  # n=471 in 198 chapters
+Cong Sheng  # n=467 in 59 chapters
+Mountain True Monarch  # n=464 in 108 chapters
+Crane Sect  # n=462 in 123 chapters
+Luo Po  # n=461 in 151 chapters
+Feng Jin Huang  # n=459 in 110 chapters
+Ming Shen  # n=458 in 45 chapters
+Chang Shan Yin  # n=458 in 118 chapters
+Heaven Overseeing  # n=456 in 114 chapters
+Hei Fan  # n=448 in 99 chapters
+Ma Hong Yun  # n=447 in 132 chapters
+Qin Bai  # n=443 in 107 chapters
+Bean Palace  # n=443 in 80 chapters
+Chang Fan  # n=442 in 80 chapters
+Blazing Heaven  # n=440 in 80 chapters
+Fang Yu  # n=431 in 53 chapters
+Immortal Qi Jue  # n=428 in 78 chapters
+Lu Wei  # n=428 in 117 chapters
+Yue Fang  # n=427 in 184 chapters
+Soul Demon Venerable  # n=425 in 171 chapters
+Lord Bai Zu  # n=424 in 84 chapters
+Flow River  # n=424 in 107 chapters
+Luck Altar  # n=422 in 90 chapters
+Dong Fang Chang  # n=421 in 98 chapters
+Spectral Soul Demon  # n=421 in 177 chapters
+Fairy Li Shan  # n=420 in 131 chapters
+Heaven Overseeing Tower  # n=418 in 110 chapters
+Crazed Demon  # n=416 in 111 chapters
+Spirit Affinity  # n=413 in 146 chapters
+Song Zi  # n=412 in 79 chapters
+Fang Chang Fan  # n=412 in 79 chapters
+Wu Yi  # n=411 in 114 chapters
+Purple Mountain  # n=410 in 118 chapters
+Year Flying  # n=409 in 63 chapters
+Purple Mountain True  # n=400 in 118 chapters
+Immortal Crane Sect  # n=399 in 122 chapters
+Yi Hai  # n=396 in 102 chapters
+Divine Bean Palace  # n=392 in 78 chapters
+Sai Chuan  # n=391 in 97 chapters
+Ruo Nan  # n=387 in 56 chapters
+Hei Cheng  # n=384 in 109 chapters
+Reverse Flow River  # n=384 in 104 chapters
+Yi Tian  # n=382 in 174 chapters
+Flying Warship  # n=380 in 62 chapters
+Heaven Demon  # n=378 in 157 chapters
+Calamity Luck  # n=370 in 89 chapters
+Year Flying Warship  # n=368 in 61 chapters
+Lu Wei Yin  # n=367 in 111 chapters
+Affinity House  # n=360 in 137 chapters
+Feng Xian  # n=360 in 80 chapters
+Feng Yang  # n=357 in 45 chapters
+Ya Sect  # n=355 in 154 chapters
+Heavenly Lord  # n=350 in 80 chapters
+Zombie Giant  # n=347 in 34 chapters
+Blazing Heaven Demoness  # n=346 in 70 chapters
+Calamity Luck Altar  # n=345 in 86 chapters
+Hun Mountain  # n=343 in 127 chapters
+Myriad Year  # n=341 in 63 chapters
+Yan Fei  # n=340 in 82 chapters
+Miao Ming  # n=338 in 60 chapters
+Demon Immortal  # n=328 in 77 chapters
+Wu Yi Hai  # n=328 in 98 chapters
+Fang Di  # n=326 in 79 chapters
+Heavenly Lord Bai  # n=325 in 79 chapters
+Lang Ya Sect  # n=324 in 148 chapters
+Myriad Year Flying  # n=324 in 62 chapters
+Tian Mountain  # n=321 in 147 chapters
+Yu Liang  # n=317 in 44 chapters
+Spectral Soul Demon Venerable  # n=316 in 150 chapters
+Continent Gu  # n=316 in 129 chapters
+Spirit Affinity House  # n=315 in 128 chapters
+Fang Yu Liang  # n=313 in 44 chapters
+Earth Immortal  # n=310 in 121 chapters
+Demon Cave  # n=306 in 105 chapters
+Demon Immortal Qi  # n=305 in 71 chapters
+Yi Tian Mountain  # n=304 in 143 chapters
+Qin Bai Sheng  # n=298 in 86 chapters
+Emperor City  # n=298 in 86 chapters
+Central Continent Gu  # n=296 in 124 chapters
+Crystal Immortal  # n=296 in 42 chapters
+Shark Demon  # n=295 in 41 chapters
+Reality Seeker  # n=293 in 76 chapters
+Dream Reality  # n=292 in 78 chapters
+Dang Hun Mountain  # n=291 in 114 chapters
+Chi Qu  # n=290 in 81 chapters
+Immortal Monarch  # n=290 in 46 chapters
+Purple Mountain True Monarch  # n=287 in 96 chapters
+Qin Ding  # n=287 in 95 chapters
+Court Gu  # n=283 in 134 chapters
+Zombie Giant Sun  # n=283 in 34 chapters
+Bu Du  # n=282 in 50 chapters
+Qiu Zhen  # n=282 in 20 chapters
+Dream Reality Seeker  # n=281 in 76 chapters
+Border Gu  # n=280 in 121 chapters
+Dong Fang Chang Fan  # n=279 in 75 chapters
+Gu Yue Fang  # n=277 in 148 chapters
+Thieving Heaven Demon  # n=277 in 144 chapters
+Heaven Demon Venerable  # n=276 in 126 chapters
+Judgment Board  # n=275 in 63 chapters
+Dong Fang Yu  # n=272 in 50 chapters
+Southern Border Gu  # n=271 in 119 chapters
+Pure Dream Reality  # n=271 in 75 chapters
+Ye Lui  # n=270 in 70 chapters
+Snowy Mountain  # n=269 in 119 chapters
+Shen Cong  # n=268 in 53 chapters
+Heavenly Court Gu  # n=267 in 130 chapters
+Qing Chou  # n=265 in 56 chapters
+Qing Mao  # n=264 in 153 chapters
+Crazed Demon Cave  # n=264 in 98 chapters
+Heavenly Lord Bai Zu  # n=262 in 75 chapters
+Paradise Earth Immortal  # n=261 in 114 chapters
+Prince Feng  # n=260 in 70 chapters
+White Rabbit  # n=258 in 72 chapters
+Earth Trench  # n=257 in 101 chapters
+Huang Jin  # n=255 in 129 chapters
+Fang Di Chang  # n=252 in 71 chapters
+Miao Ming Shen  # n=250 in 44 chapters
+Seeker Physique  # n=249 in 70 chapters
+Crystal Immortal Monarch  # n=248 in 40 chapters
+Xiao Bai  # n=247 in 23 chapters
+Demon Immortal Qi Jue  # n=246 in 66 chapters
+Reality Seeker Physique  # n=239 in 69 chapters
+Chen Tian  # n=239 in 48 chapters
+Demon Judgment  # n=239 in 61 chapters
+Earth Immortal Venerable  # n=238 in 107 chapters
+Yue Bo  # n=237 in 55 chapters
+Chen Yi  # n=237 in 69 chapters
+Qin Ding Ling  # n=235 in 86 chapters
+Yue Fang Zheng  # n=234 in 113 chapters
+Lotus Demon  # n=233 in 127 chapters
+Sky Crane  # n=230 in 38 chapters
+Bo Qing  # n=229 in 86 chapters
+Dream Reality Seeker Physique  # n=229 in 69 chapters
+Miao Yin  # n=229 in 78 chapters
+Tie Ruo  # n=227 in 49 chapters
+Bing Sai  # n=225 in 75 chapters
+Demon Judgment Board  # n=224 in 60 chapters
+Si Liu  # n=224 in 33 chapters
+Path Convention  # n=222 in 97 chapters
+Pure Dream Reality Seeker Physique  # n=222 in 70 chapters
+Strength True  # n=219 in 92 chapters
+Shen Cong Sheng  # n=219 in 49 chapters
+Refinement Path Convention  # n=216 in 96 chapters
+Prince Feng Xian  # n=215 in 69 chapters
+Ya Zi  # n=215 in 30 chapters
+Limitless Demon  # n=211 in 90 chapters
+Xue Song  # n=210 in 53 chapters
+Li Xiao  # n=209 in 25 chapters
+Qing Shu  # n=208 in 39 chapters
+Sixth Hair  # n=208 in 76 chapters
+True Martial  # n=207 in 89 chapters
+Shen Shang  # n=207 in 44 chapters
+Bai Qing  # n=205 in 33 chapters
+Legends of Ren  # n=204 in 129 chapters
+Strength True Martial  # n=202 in 88 chapters
+Essence Treasure  # n=202 in 57 chapters
+Immortal Zombie Giant  # n=202 in 32 chapters
+Genesis Lotus  # n=201 in 102 chapters
+Zang Sheng  # n=199 in 54 chapters
+Yue Chi  # n=199 in 49 chapters
+Shang Yan  # n=197 in 66 chapters
+Paradise Earth Immortal Venerable  # n=195 in 100 chapters
+Kai Bei  # n=192 in 19 chapters
+Zhan Bu  # n=192 in 47 chapters
+Primordial Domain  # n=191 in 33 chapters
+Dong Fang Yu Liang  # n=191 in 42 chapters
+Red Lotus Demon  # n=190 in 116 chapters
+Thieving Heaven Demon Venerable  # n=190 in 112 chapters
+Di Zang  # n=190 in 58 chapters
+Lotus Immortal  # n=187 in 95 chapters
+Heavenly Essence  # n=187 in 60 chapters
+Mo Yao  # n=185 in 72 chapters
+Dark Ice  # n=184 in 59 chapters
+Guan Yi  # n=183 in 58 chapters
+Moonlight Gu  # n=182 in 52 chapters
+Tie Ruo Nan  # n=182 in 47 chapters
+Bu Jin  # n=181 in 37 chapters
+Xia Lin  # n=181 in 15 chapters
+Man Yan  # n=180 in 34 chapters
+San Cha  # n=180 in 66 chapters
+Hair Ancestor  # n=179 in 98 chapters
+Sea Gu  # n=178 in 82 chapters
+Dark Ice Soul  # n=177 in 58 chapters
+Bing Sai Chuan  # n=177 in 70 chapters
+Transformations Ancestor  # n=174 in 28 chapters
+Ghost True  # n=174 in 56 chapters
+Flower Wine  # n=173 in 50 chapters
+Plains Gu  # n=173 in 111 chapters
+Eastern Sea Gu  # n=173 in 80 chapters
+Elements Grandmaster  # n=173 in 50 chapters
+Suan Bu  # n=173 in 40 chapters
+Ghost Bai  # n=172 in 22 chapters
+Yi Shi  # n=172 in 22 chapters
+Yan Shi  # n=171 in 39 chapters
+Lady White  # n=170 in 64 chapters
+Ying Jie  # n=170 in 23 chapters
+Zi Xing  # n=168 in 28 chapters
+Star Form  # n=168 in 57 chapters
+Xue Song Zi  # n=168 in 50 chapters
+Lotus Demon Venerable  # n=166 in 97 chapters
+Lui Qun  # n=166 in 24 chapters
+Reckless Savage  # n=164 in 75 chapters
+Zhan Bu Du  # n=164 in 45 chapters
+Chaotic Duel  # n=163 in 41 chapters
+Man Yan Shi  # n=163 in 34 chapters
+Yue Yao  # n=162 in 33 chapters
+Ice Crystal Immortal  # n=162 in 37 chapters
+Yue Mo  # n=161 in 49 chapters
+Lord Wan  # n=159 in 36 chapters
+Shang Yan Fei  # n=158 in 56 chapters
+Ju Kai  # n=156 in 18 chapters
+Li Qiu  # n=156 in 37 chapters
+Immortal Zombie Giant Sun  # n=156 in 31 chapters
+Yu Lu  # n=155 in 43 chapters
+Xue Leng  # n=155 in 36 chapters
+Yao Huang  # n=154 in 62 chapters
+Northern Plains Gu  # n=154 in 99 chapters
+Liu Guan  # n=152 in 55 chapters
+Bi Chen  # n=151 in 44 chapters
+Antiquity Era  # n=151 in 87 chapters
+Di Zang Sheng  # n=151 in 53 chapters
+Dao Ku  # n=151 in 22 chapters
+Tai Qiu  # n=150 in 45 chapters
+Bai Man  # n=149 in 33 chapters
+Suan Bu Jin  # n=149 in 36 chapters
+Divine Emperor  # n=149 in 44 chapters
+Savage Demon  # n=148 in 63 chapters
+Gu Yue Fang Zheng  # n=148 in 92 chapters
+Wei Yang  # n=147 in 39 chapters
+Duel Stage  # n=147 in 40 chapters
+Chaotic Duel Stage  # n=146 in 39 chapters
+Shui Han  # n=144 in 31 chapters
+Origin Immortal  # n=143 in 74 chapters
+Chi Shang  # n=143 in 15 chapters
+Bai Jun  # n=143 in 19 chapters
+Genesis Lotus Immortal  # n=142 in 81 chapters
+Graceful Chaotic  # n=142 in 42 chapters
+Graceful Chaotic Duel  # n=141 in 41 chapters
+Tower Lord  # n=141 in 44 chapters
+Xiu Ping  # n=141 in 28 chapters
+Ghost Bai Jun  # n=141 in 19 chapters
+Fei Kuai  # n=140 in 14 chapters
+Thunder Ghost  # n=140 in 52 chapters
+Qun Xing  # n=139 in 23 chapters
+Lady White Rabbit  # n=139 in 60 chapters
+Thousand Transformations  # n=139 in 25 chapters
+The Legends of Ren Zu  # n=139 in 90 chapters
+Overseeing Tower Lord  # n=138 in 42 chapters
+Lang Zi  # n=138 in 25 chapters
+Yue Qing  # n=138 in 31 chapters
+Thunder Ghost True  # n=138 in 52 chapters
+Ye Fan  # n=136 in 35 chapters
+Liu Guan Yi  # n=136 in 54 chapters
+Fairy Miao  # n=136 in 64 chapters
+Primordial Origin  # n=135 in 82 chapters
+Meng Qiu  # n=135 in 23 chapters
+Shang Ya  # n=134 in 26 chapters
+Red Lotus Demon Venerable  # n=133 in 88 chapters
+Mo Bei  # n=133 in 39 chapters
+Jade Dripping  # n=133 in 43 chapters
+Ghost True Monarch  # n=133 in 53 chapters
+Nian Er  # n=132 in 18 chapters
+Yao Ji  # n=130 in 28 chapters
+Dripping Wind  # n=130 in 42 chapters
+Wind Tiny  # n=130 in 44 chapters
+Ye Lui Qun  # n=129 in 24 chapters
+Lui Qun Xing  # n=129 in 23 chapters
+Xia Cha  # n=129 in 43 chapters
+Combat Beast  # n=129 in 24 chapters
+Lotus Immortal Venerable  # n=128 in 70 chapters
+Graceful Chaotic Duel Stage  # n=128 in 39 chapters
+Bi Chen Tian  # n=128 in 42 chapters
+Tiny Bamboo  # n=128 in 42 chapters
+Li Xiao Bai  # n=128 in 20 chapters
+Ice Crystal Immortal Monarch  # n=128 in 34 chapters
+Divine Emperor City  # n=128 in 43 chapters
+Tan Sang  # n=127 in 27 chapters
+Limitless Demon Venerable  # n=127 in 64 chapters
+Jade Dripping Wind  # n=127 in 41 chapters
+Qi Yuan  # n=127 in 38 chapters
+Mu Bai  # n=127 in 26 chapters
+Wan Xiang  # n=126 in 30 chapters
+Wen Wu  # n=126 in 32 chapters
+ChibiGeneral ChibiGeneral  # n=125 in 125 chapters
+Po Valley  # n=124 in 71 chapters
+Lord Sky  # n=124 in 38 chapters
+Shi Lei  # n=124 in 32 chapters
+Dripping Wind Tiny  # n=124 in 42 chapters
+Reckless Savage Demon  # n=123 in 62 chapters
+Wind Tiny Bamboo  # n=123 in 42 chapters
+Tiny Bamboo Building  # n=123 in 42 chapters
+Wan Shou  # n=122 in 37 chapters
+Song Zi Xing  # n=121 in 27 chapters
+Gu Yue Chi  # n=121 in 43 chapters
+Xue Er  # n=121 in 40 chapters
+Immortal Hua  # n=121 in 30 chapters
+Jade Dripping Wind Tiny  # n=121 in 41 chapters
+Northern Dark  # n=120 in 57 chapters
+Fairy Miao Yin  # n=120 in 60 chapters
+Ma Ying  # n=120 in 25 chapters
+Luo Po Valley  # n=119 in 69 chapters
+Glory Lightning  # n=119 in 19 chapters
+Northern Dark Ice  # n=119 in 57 chapters
+Huang Shi  # n=119 in 16 chapters
+Xiao Er  # n=119 in 12 chapters
+Ju Kai Bei  # n=118 in 18 chapters
+Qiao Si  # n=118 in 32 chapters
+Wind Tiny Bamboo Building  # n=118 in 42 chapters
+Shen Guang  # n=118 in 28 chapters
+Merit Obelisk  # n=118 in 26 chapters
+Ji Liu  # n=118 in 31 chapters
+Boar Gu  # n=117 in 37 chapters
+Yue Qing Shu  # n=117 in 30 chapters
+Dripping Wind Tiny Bamboo  # n=117 in 40 chapters
+Ba Xiu  # n=117 in 13 chapters
+Miniscule Mountain  # n=116 in 28 chapters
+Lightning Brilliance  # n=115 in 19 chapters
+Bai Xiang  # n=115 in 42 chapters
+Feng Zi  # n=115 in 25 chapters
+Ling Yang  # n=114 in 32 chapters
+Jin Sheng  # n=114 in 23 chapters
+Pi Shui  # n=114 in 31 chapters
+Qing Yu  # n=113 in 22 chapters
+Hua Die  # n=113 in 22 chapters
+Fairy Bai  # n=113 in 36 chapters
+Su Bai  # n=113 in 32 chapters
+Wang Xiao  # n=113 in 21 chapters
+Tian Yu  # n=113 in 21 chapters
+Ge Yao  # n=113 in 22 chapters
+Glory Lightning Brilliance  # n=112 in 19 chapters
+Past Pavilion  # n=112 in 20 chapters
+Han Mo  # n=112 in 13 chapters
+Book Mountain  # n=112 in 30 chapters
+Tie Mu  # n=112 in 27 chapters
+Lord Wan Xiang  # n=111 in 28 chapters
+Meng Qiu Zhen  # n=111 in 19 chapters
+Star Child  # n=110 in 28 chapters
+Ancient Moon  # n=110 in 22 chapters
+Xiang Zi  # n=110 in 34 chapters
+Star Lord  # n=109 in 33 chapters
+Clear Jade Dripping  # n=109 in 40 chapters
+Hao Ji  # n=109 in 33 chapters
+Luck Pot  # n=108 in 34 chapters
+Mu Chun  # n=107 in 19 chapters
+Tie Xue  # n=107 in 32 chapters
+Wu Tian  # n=107 in 19 chapters
+Pan Ping  # n=107 in 24 chapters
+Star Lord Wan  # n=106 in 33 chapters
+Chi Cheng  # n=106 in 36 chapters
+Chu Ying  # n=106 in 30 chapters
+Primordial Origin Immortal  # n=105 in 69 chapters
+Chi Lian  # n=105 in 25 chapters
+Origin Immortal Venerable  # n=105 in 52 chapters
+Chainsaw Golden  # n=105 in 26 chapters
+Cold Ash  # n=105 in 18 chapters
+Plains Zombie  # n=104 in 54 chapters
+Unfettered Scholar  # n=104 in 33 chapters
+Shi Cheng  # n=104 in 18 chapters
+Constellation Chessboard  # n=104 in 46 chapters
+Mao Li  # n=104 in 34 chapters
+Thunder Ghost True Monarch  # n=104 in 48 chapters
+Ke Xin  # n=104 in 17 chapters
+Clear Jade Dripping Wind  # n=103 in 38 chapters
+Flower Hall  # n=103 in 17 chapters
+Liu Wen  # n=103 in 32 chapters
+Skin Gu  # n=102 in 28 chapters
+Jia Jin  # n=102 in 25 chapters
+Ye Hui  # n=102 in 21 chapters
+Xiong Xin  # n=101 in 30 chapters
+Feather City  # n=100 in 20 chapters
+Ye Lui Qun Xing  # n=100 in 23 chapters
+Liu Ru  # n=100 in 16 chapters
+Song Yi  # n=100 in 22 chapters
+Shang Ya Zi  # n=100 in 26 chapters
+Savage Demon Venerable  # n=99 in 49 chapters
+Pi Shui Han  # n=99 in 29 chapters
+Cooking Luck  # n=99 in 30 chapters
+Xing Xiang  # n=99 in 36 chapters
+Yu Xiu  # n=99 in 19 chapters
+Gu Yue Bo  # n=98 in 47 chapters
+Ren Xiu  # n=98 in 26 chapters
+Qiao Si Liu  # n=98 in 31 chapters
+Su Bai Man  # n=98 in 32 chapters
+Water Pavilion  # n=98 in 31 chapters
+Blazing Glory  # n=97 in 18 chapters
+Wine Monk  # n=97 in 30 chapters
+Yue Fang Yuan  # n=97 in 73 chapters
+Fallen Flower  # n=97 in 14 chapters
+Man Zheng  # n=97 in 38 chapters
+Genesis Lotus Immortal Venerable  # n=95 in 59 chapters
+Jiang Yu  # n=95 in 31 chapters
+Yue Yao Ji  # n=95 in 26 chapters
+Meng Tu  # n=95 in 19 chapters
+Zheng Yuan  # n=95 in 38 chapters
+Ge Guang  # n=95 in 32 chapters
+Blazing Glory Lightning  # n=94 in 18 chapters
+Skyfarrow Skyfarrow  # n=94 in 94 chapters
+Han Li  # n=94 in 20 chapters
+Bai Gu  # n=94 in 34 chapters
+Hong Yi  # n=93 in 29 chapters
+Mao Li Qiu  # n=93 in 34 chapters
+Mian Shen  # n=93 in 19 chapters
+Fang Ming  # n=93 in 16 chapters
+Ming Hao  # n=93 in 20 chapters
+Yi Ye  # n=92 in 22 chapters
+Fang Gong  # n=92 in 28 chapters
+Grotto Lord  # n=92 in 10 chapters
+Sacred Feather  # n=91 in 20 chapters
+Little Hu  # n=91 in 35 chapters
+Shi Ba  # n=91 in 20 chapters
+Imperial Lotus  # n=91 in 38 chapters
+Plains Gu Immortal  # n=91 in 65 chapters
+Zhen Zi  # n=91 in 19 chapters
+Ba Chong  # n=91 in 12 chapters
+Qiong Du  # n=91 in 25 chapters
+Lord Sky Crane  # n=91 in 29 chapters
+Profound Literature  # n=91 in 24 chapters
+Man Zheng Yuan  # n=91 in 38 chapters
+Cang Shui  # n=91 in 32 chapters
+Ma Ying Jie  # n=91 in 22 chapters
+Flower Wine Monk  # n=90 in 29 chapters
+River Swallowing  # n=90 in 13 chapters
+Swallowing Toad  # n=90 in 15 chapters
+Five Elements Grandmaster  # n=89 in 42 chapters
+Star Constellation Chessboard  # n=89 in 44 chapters
+Treasure Imperial  # n=88 in 39 chapters
+Domination Immortal  # n=88 in 43 chapters
+Er Ping  # n=88 in 16 chapters
+Mo Chen  # n=88 in 29 chapters
+Lord Fang  # n=88 in 54 chapters
+Ye Zi  # n=88 in 23 chapters
+Jun Shen  # n=88 in 27 chapters
+Li Huang  # n=88 in 32 chapters
+Blazing Glory Lightning Brilliance  # n=87 in 18 chapters
+Gu Yue Qing  # n=87 in 26 chapters
+Northern Plains Zombie  # n=87 in 50 chapters
+Jia Fu  # n=87 in 25 chapters
+Iron Eagle  # n=87 in 29 chapters
+Hui Feng  # n=87 in 23 chapters
+Fallen Flower Hall  # n=87 in 14 chapters
+Heavenly Dao  # n=87 in 44 chapters
+Ri Tian  # n=87 in 27 chapters
+Tie Dao  # n=87 in 17 chapters
+Treasure Imperial Lotus  # n=86 in 37 chapters
+Tie Xue Leng  # n=86 in 30 chapters
+Ren Xiu Ping  # n=86 in 26 chapters
+Jing Lan  # n=86 in 10 chapters
+Cooking Luck Pot  # n=86 in 29 chapters
+Bo Dan  # n=86 in 17 chapters
+Mao Mountain  # n=85 in 60 chapters
+Gu Yue Mo  # n=85 in 37 chapters
+Qing Ye  # n=85 in 26 chapters
+Tie Mu Bai  # n=85 in 24 chapters
+Hao Ji Liu  # n=85 in 31 chapters
+Liu Wen Wu  # n=85 in 31 chapters
+Lui Sang  # n=85 in 36 chapters
+Zhu Zai  # n=85 in 20 chapters
+Northern Plains Gu Immortal  # n=84 in 60 chapters
+Plains Zombie Alliance  # n=84 in 46 chapters
+Hei Tu  # n=84 in 39 chapters
+Zheng Yi  # n=84 in 15 chapters
+Heavenly Palace  # n=84 in 31 chapters
+Yue Chi Lian  # n=83 in 23 chapters
+Yi Ye Zi  # n=83 in 21 chapters
+Lady Cold  # n=83 in 20 chapters
+Yu Mu  # n=82 in 17 chapters
+Sacred Feather City  # n=82 in 18 chapters
+Gu Yue Yao  # n=82 in 27 chapters
+Mo Tan  # n=82 in 29 chapters
+Chu Sect  # n=82 in 28 chapters
+Fairy Bai Qing  # n=82 in 31 chapters
+Suppression Heavenly  # n=82 in 31 chapters
+Fang Yun  # n=82 in 22 chapters
+Song Yi Shi  # n=82 in 20 chapters
+Shi Kuang  # n=82 in 16 chapters
+Falling Heavenly  # n=81 in 23 chapters
+Martial Physique  # n=81 in 59 chapters
+Essence Treasure Imperial  # n=81 in 35 chapters
+Zuo Ye  # n=81 in 23 chapters
+Song Qi  # n=81 in 34 chapters
+Chang Biao  # n=81 in 20 chapters
+Jade Skin  # n=80 in 24 chapters
+Earth Abyss  # n=80 in 36 chapters
+Du Xiu  # n=80 in 26 chapters
+Lord Wu  # n=80 in 46 chapters
+Xing Xiang Zi  # n=80 in 33 chapters
+Chou Jiu  # n=80 in 17 chapters
+Shen Tong  # n=79 in 18 chapters
+Chi Shan  # n=79 in 28 chapters
+Essence Treasure Imperial Lotus  # n=79 in 33 chapters
+Suppression Heavenly Palace  # n=79 in 31 chapters
+Tie Ba  # n=79 in 13 chapters
+Yan Tu  # n=78 in 14 chapters
+River Swallowing Toad  # n=78 in 13 chapters
+Flow Giant  # n=78 in 29 chapters
+Soil Heavy  # n=78 in 18 chapters
+Li Ran  # n=78 in 14 chapters
+Reckless Savage Demon Venerable  # n=77 in 48 chapters
+Falling Heavenly River  # n=77 in 22 chapters
+Man Bei  # n=77 in 15 chapters
+Jun Ying  # n=77 in 16 chapters
+Heavy Mountain  # n=77 in 17 chapters
+True Martial Physique  # n=76 in 56 chapters
+Desolate Ancient  # n=76 in 18 chapters
+Zhou Zhong  # n=76 in 15 chapters
+Hui Feng Zi  # n=76 in 22 chapters
+Hua Sheng  # n=76 in 18 chapters
+Fate Gu  # n=76 in 36 chapters
+Heavenly Essence Treasure Imperial Lotus  # n=76 in 32 chapters
+Twelfth Hair  # n=75 in 18 chapters
+Ping Zhi  # n=75 in 16 chapters
+Tong Hua  # n=75 in 18 chapters
+Human Sea  # n=75 in 18 chapters
+Strength True Martial Physique  # n=74 in 55 chapters
+Giant Solor  # n=74 in 32 chapters
+Gu Yue Qing Shu  # n=74 in 26 chapters
+Refinement Cauldron  # n=74 in 30 chapters
+Lightning Fiend  # n=74 in 15 chapters
+Flow Giant City  # n=74 in 28 chapters
+Desert Gu  # n=74 in 43 chapters
+Yue Mo Chen  # n=74 in 28 chapters
+Lord Huang  # n=74 in 17 chapters
+Tang Fang  # n=74 in 17 chapters
+Xie Han  # n=74 in 13 chapters
+Soil Heavy Mountain  # n=74 in 17 chapters
+Elder Fang Yuan  # n=74 in 33 chapters
+Seven Star Child  # n=73 in 23 chapters
+Qing Mao Mountain  # n=73 in 56 chapters
+Dark Flow  # n=73 in 28 chapters
+Jia Jin Sheng  # n=73 in 22 chapters
+Nu Er  # n=73 in 24 chapters
+Dream Immortal  # n=73 in 46 chapters
+Spiritual Fairy  # n=73 in 16 chapters
+Mountain Fortress  # n=73 in 18 chapters
+Wang Xiao Er  # n=73 in 12 chapters
+King Chang  # n=73 in 47 chapters
+Chang Ji  # n=73 in 14 chapters
+Qi Zai  # n=72 in 17 chapters
+Western Desert Gu  # n=72 in 43 chapters
+Wu Du  # n=72 in 29 chapters
+Primordial Origin Immortal Venerable  # n=72 in 48 chapters
+Sweeping Building  # n=72 in 19 chapters
+Tie Ba Xiu  # n=72 in 13 chapters
+Wei Ling  # n=71 in 26 chapters
+Heavenly Essence Treasure Imperial  # n=71 in 31 chapters
+Gu Yue Fang Yuan  # n=71 in 59 chapters
+Omni-directional Travel  # n=71 in 39 chapters
+Ling Lan  # n=71 in 13 chapters
+Desolation Immortal  # n=71 in 15 chapters
+Southern Alliance  # n=71 in 36 chapters
+Feng Tian  # n=71 in 21 chapters
+King Chang Shan  # n=71 in 47 chapters
+Jade Skin Gu  # n=70 in 23 chapters
+Yue Dong  # n=70 in 13 chapters
+Little Hu Immortal  # n=70 in 30 chapters
+Dark Prison  # n=70 in 21 chapters
+Er Ping Zhi  # n=70 in 16 chapters
+Lady Wan  # n=70 in 36 chapters
+Mo Tan Sang  # n=70 in 27 chapters
+Feng Jiang  # n=70 in 20 chapters
+Northern Plains Zombie Alliance  # n=70 in 41 chapters
+Star Lord Wan Xiang  # n=70 in 26 chapters
+Beast Token  # n=70 in 26 chapters
+Song Qi Yuan  # n=70 in 31 chapters
+Heavenly Wolf  # n=70 in 19 chapters
+Tie Dao Ku  # n=70 in 17 chapters
+Mo Wu  # n=70 in 19 chapters
+Bai Lian  # n=70 in 11 chapters
+Yu Mu Chun  # n=69 in 17 chapters
+Cui Bo  # n=69 in 15 chapters
+Dancer Hong  # n=69 in 13 chapters
+Jun Shen Guang  # n=69 in 24 chapters
+Peaceful Soil  # n=69 in 18 chapters
+Heavy Mountain Fortress  # n=69 in 17 chapters
+Gu Yue Dong Tu  # n=69 in 13 chapters
+Lao Wu  # n=68 in 18 chapters
+Elements Square  # n=68 in 21 chapters
+Regret Blood  # n=68 in 22 chapters
+Tian Ti  # n=67 in 33 chapters
+Heavenly Giant  # n=67 in 31 chapters
+Leaf Vitality  # n=67 in 15 chapters
+Liu Qing  # n=67 in 13 chapters
+Bei Feng  # n=67 in 15 chapters
+Relic Gu  # n=67 in 21 chapters
+Xiong Li  # n=67 in 16 chapters
+Zuo Ye Hui  # n=67 in 21 chapters
+Fairy Cui  # n=67 in 20 chapters
+Hu Land  # n=67 in 19 chapters
+Kong Ri  # n=67 in 27 chapters
+Vitality Grass  # n=66 in 17 chapters
+Jiao San  # n=66 in 13 chapters
+Xia Fei  # n=66 in 14 chapters
+Xie Han Mo  # n=66 in 13 chapters
+Peaceful Soil Heavy  # n=66 in 18 chapters
+Soil Heavy Mountain Fortress  # n=66 in 17 chapters
+Wolf Lord  # n=66 in 19 chapters
+Wei Ling Yang  # n=65 in 25 chapters
+Xiao Die  # n=65 in 29 chapters
+Lady Wan Shou  # n=65 in 36 chapters
+Heavenly Wolf Lord  # n=65 in 19 chapters
+Square Regret  # n=65 in 22 chapters
+Refinement Pool  # n=65 in 22 chapters
+Feng Tian Yu  # n=65 in 21 chapters
+Mei Er  # n=65 in 19 chapters
+Mo Yan  # n=64 in 24 chapters
+Man Bei Feng  # n=64 in 15 chapters
+Sea Zombie  # n=64 in 23 chapters
+Commander Ye  # n=64 in 16 chapters
+Eternal Yacht  # n=64 in 18 chapters
+Ba Shi  # n=64 in 19 chapters
+Yang Gu  # n=64 in 30 chapters
+Elements Square Regret  # n=64 in 21 chapters
+Square Regret Blood  # n=64 in 22 chapters
+Water Demon  # n=64 in 21 chapters
+Desolate Ancient Moon  # n=63 in 18 chapters
+Leaf Vitality Grass  # n=63 in 15 chapters
+Sea Gu Immortal  # n=63 in 32 chapters
+Lord Fang Yuan  # n=63 in 43 chapters
+Fang Leng  # n=63 in 20 chapters
+Qi Alliance  # n=63 in 25 chapters
+Elements Square Regret Blood  # n=63 in 21 chapters
+Regret Blood Refinement  # n=63 in 21 chapters
+King Chang Shan Yin  # n=63 in 43 chapters
+Shi Han  # n=63 in 19 chapters
+Wu Shen  # n=62 in 18 chapters
+Heavenly Lotus  # n=62 in 36 chapters
+Jade Gu  # n=62 in 25 chapters
+White Boar Gu  # n=62 in 22 chapters
+Heavenly Giant Solor  # n=62 in 30 chapters
+Eastern Sea Gu Immortal  # n=62 in 31 chapters
+Dark Flow Giant  # n=62 in 26 chapters
+Communication Ear  # n=62 in 21 chapters
+Tie Mian  # n=62 in 18 chapters
+Dancer Hong Yun  # n=62 in 13 chapters
+Peaceful Soil Heavy Mountain  # n=62 in 17 chapters
+Lady Cold Ash  # n=62 in 16 chapters
+Righteous Qi Alliance  # n=62 in 25 chapters
+Liu Gong  # n=62 in 13 chapters
+Heaven Overseeing Tower Lord  # n=61 in 32 chapters
+Mini Southern  # n=61 in 32 chapters
+Xuan Zi  # n=61 in 11 chapters
+Dog Coop  # n=61 in 18 chapters
+Fire Plain  # n=61 in 10 chapters
+Shi Nu  # n=60 in 29 chapters
+Five Xiangs  # n=60 in 19 chapters
+Dark Flow Giant City  # n=60 in 25 chapters
+Continent Refinement  # n=60 in 44 chapters
+Continent Refinement Path  # n=60 in 44 chapters
+Yue Mo Bei  # n=60 in 26 chapters
+Dream Immortal Venerable  # n=60 in 44 chapters
+Luck Suppression  # n=60 in 26 chapters
+Frosty Peak  # n=60 in 13 chapters
+Lord Huang Shi  # n=60 in 16 chapters
+Sea God  # n=60 in 12 chapters
+Whale Paradise  # n=60 in 23 chapters
+Blood Refinement Pool  # n=60 in 21 chapters
+Di Qiu  # n=60 in 17 chapters
+Xiao Shan  # n=59 in 12 chapters
+Nine Leaf  # n=59 in 14 chapters
+Su Xian  # n=59 in 18 chapters
+Xian Er  # n=59 in 15 chapters
+Qi Ye  # n=59 in 16 chapters
+Square Regret Blood Refinement  # n=59 in 20 chapters
+Regret Blood Refinement Pool  # n=59 in 21 chapters
+Yi Huo  # n=59 in 17 chapters
+Nine Leaf Vitality  # n=58 in 14 chapters
+Vicious Lightning  # n=58 in 14 chapters
+Nian Er Ping  # n=58 in 14 chapters
+Ba De  # n=58 in 25 chapters
+Xia Fei Kuai  # n=58 in 14 chapters
+Black Tigress  # n=58 in 22 chapters
+Zhou Xiong  # n=58 in 24 chapters
+Bai Cang  # n=58 in 23 chapters
+Kong Ri Tian  # n=58 in 24 chapters
+Wolf King Chang  # n=58 in 41 chapters
+Mo Shi  # n=58 in 16 chapters
+Si Xuan  # n=58 in 21 chapters
+Jade Peacock  # n=58 in 18 chapters
+Dong Tu  # n=57 in 11 chapters
+Mini Southern Border  # n=57 in 31 chapters
+Immortal Hua Die  # n=57 in 16 chapters
+Chicken Dog  # n=57 in 17 chapters
+Hong Ting  # n=57 in 11 chapters
+Dragon Whale Paradise  # n=57 in 23 chapters
+Black Moon  # n=57 in 15 chapters
+Zhang Zhu  # n=57 in 16 chapters
+Wolf King Chang Shan  # n=57 in 41 chapters
+Four Elements Square Regret Blood Refinement Pool  # n=57 in 19 chapters
+Jiu Sheng  # n=56 in 17 chapters
+Gu Yue Chi Lian  # n=56 in 18 chapters
+Wind Sweeping  # n=56 in 19 chapters
+Link Camp  # n=56 in 18 chapters
+Dragon Dock  # n=56 in 18 chapters
+Luck Suppression Heavenly  # n=56 in 26 chapters
+Eastern Sea Zombie  # n=56 in 22 chapters
+Ye Cha  # n=56 in 15 chapters
+Pei Yan  # n=56 in 17 chapters
+Master Chu  # n=56 in 15 chapters
+Court Gu Immortal  # n=55 in 36 chapters
+Shang Liang  # n=55 in 25 chapters
+De Xin  # n=55 in 10 chapters
+Commander Ye Cha  # n=55 in 15 chapters
+Earth Communication  # n=55 in 19 chapters
+Yu Bo  # n=55 in 11 chapters
+Ma Zun  # n=55 in 20 chapters
+Four Elements Square  # n=55 in 20 chapters
+Mo Wu Tian  # n=55 in 18 chapters
+Remote Antiquity  # n=54 in 46 chapters
+White Jade Gu  # n=54 in 23 chapters
+Continent Refinement Path Convention  # n=54 in 41 chapters
+Luck Suppression Heavenly Palace  # n=54 in 26 chapters
+Tie Mian Shen  # n=54 in 18 chapters
+Qing Yue  # n=54 in 16 chapters
+Combat Beast King  # n=54 in 20 chapters
+Gu Liu  # n=54 in 14 chapters
+Xi Land  # n=54 in 21 chapters
+Heavenly Court Gu Immortal  # n=53 in 36 chapters
+Liu Qing Yu  # n=53 in 13 chapters
+Central Continent Refinement  # n=53 in 39 chapters
+Central Continent Refinement Path  # n=53 in 39 chapters
+Chicken Dog Coop  # n=53 in 17 chapters
+Savage Wilderness  # n=53 in 21 chapters
+Li Xian  # n=53 in 20 chapters
+Fairy Cui Bo  # n=52 in 14 chapters
+Zhou Xiong Xin  # n=52 in 22 chapters
+Ba Shi Ba  # n=52 in 18 chapters
+Bai Cang Shui  # n=52 in 22 chapters
+Hua Yu  # n=52 in 10 chapters
+Cang Yu  # n=52 in 10 chapters
+Lotus Sect  # n=51 in 28 chapters
+Combat Immortal  # n=51 in 24 chapters
+Immortal Chu  # n=51 in 30 chapters
+Chou Lao  # n=51 in 17 chapters
+Li Jun  # n=51 in 15 chapters
+Wind Sweeping Building  # n=51 in 18 chapters
+Tou Tuo  # n=51 in 15 chapters
+Luo Zi  # n=51 in 10 chapters
+Merman Imperial  # n=51 in 19 chapters
+Four Elements Square Regret  # n=51 in 20 chapters
+King Quan  # n=51 in 20 chapters
+Yue Dong Tu  # n=50 in 11 chapters
+Xiao Mang  # n=50 in 17 chapters
+Dragon Cave  # n=50 in 24 chapters
+Myriad Dragon Dock  # n=50 in 18 chapters
+Earth Communication Ear  # n=50 in 19 chapters
+Sea Zombie Alliance  # n=50 in 19 chapters
+Li Earthwolf  # n=50 in 10 chapters
+Zhang Yin  # n=50 in 23 chapters
+Gao Yang  # n=50 in 19 chapters
+Central Continent Refinement Path Convention  # n=50 in 38 chapters
+Border Gu Immortal  # n=49 in 40 chapters
+Remote Antiquity Era  # n=49 in 41 chapters
+Immortal Chu Du  # n=49 in 30 chapters
+Immortal Sect  # n=49 in 19 chapters
+Zhi Cai  # n=49 in 13 chapters
+Yuan Qiong  # n=49 in 21 chapters
+Yellow Crane  # n=49 in 16 chapters
+Thousand Li Earthwolf  # n=49 in 10 chapters
+Zi Hong  # n=49 in 22 chapters
+Qiu Niu  # n=49 in 13 chapters
+Pei Yan Fei  # n=49 in 17 chapters
+Zhou Quan  # n=48 in 11 chapters
+Xu Hao  # n=48 in 13 chapters
+Wan Ting  # n=48 in 12 chapters
+Wu Du Xiu  # n=48 in 22 chapters
+Lord Duke  # n=48 in 30 chapters
+Yue Chi Cheng  # n=48 in 26 chapters
+Autumn Yellow  # n=48 in 16 chapters
+Crane Platform  # n=48 in 15 chapters
+Heaven Plain  # n=48 in 16 chapters
+Qi Xing  # n=48 in 14 chapters
+Wu Shen Tong  # n=47 in 17 chapters
+Southern Border Gu Immortal  # n=47 in 39 chapters
+Mini Northern  # n=47 in 29 chapters
+Desert Gu Immortals  # n=47 in 31 chapters
+Li Jun Ying  # n=47 in 15 chapters
+Jiao Man  # n=47 in 11 chapters
+Tang Fang Ming  # n=47 in 12 chapters
+Tang Miao  # n=47 in 15 chapters
+Four Xunzi  # n=47 in 10 chapters
+Gu Liu Ru  # n=47 in 14 chapters
+Foot Mountain  # n=47 in 19 chapters
+Mo Shi Kuang  # n=47 in 16 chapters
+Bian Si  # n=47 in 17 chapters
+Olden Antiquity  # n=46 in 43 chapters
+Vicious Lightning Fiend  # n=46 in 14 chapters
+Continent Gu Immortal  # n=46 in 31 chapters
+Chou Lao Wu  # n=46 in 17 chapters
+Immortal Wang  # n=46 in 13 chapters
+Edge Link  # n=46 in 16 chapters
+Su Shou  # n=46 in 12 chapters
+Su Xian Er  # n=45 in 15 chapters
+Western Desert Gu Immortals  # n=45 in 31 chapters
+Chen Chi  # n=45 in 10 chapters
+Ancestor Giant  # n=45 in 32 chapters
+Zheng Ling  # n=45 in 11 chapters
+South Desolation  # n=45 in 14 chapters
+Wu Yu  # n=45 in 11 chapters
+Shadow Earth  # n=45 in 21 chapters
+Autumn Yellow Crane  # n=45 in 16 chapters
+Flow Lever  # n=45 in 13 chapters
+Yellow Crane Platform  # n=45 in 15 chapters
+Night Heavenly Wolf Lord  # n=45 in 18 chapters
+Bai Hua  # n=45 in 14 chapters
+Demon Hao  # n=45 in 21 chapters
+Demon Hao Ji  # n=45 in 21 chapters
+Ling Mei  # n=45 in 11 chapters
+Ba Gui  # n=45 in 15 chapters
+Hidden Dragon  # n=44 in 20 chapters
+Green City  # n=44 in 16 chapters
+Han Dong  # n=44 in 14 chapters
+Nian Er Ping Zhi  # n=44 in 13 chapters
+Gu Yue Yao Ji  # n=44 in 19 chapters
+Hao Zhen  # n=44 in 16 chapters
+Eight Extremities  # n=44 in 22 chapters
+Communication Ear Grass  # n=44 in 16 chapters
+Dao Guardian  # n=44 in 28 chapters
+Fang Hua  # n=44 in 17 chapters
+God Ceremony  # n=44 in 10 chapters
+Fusion Color  # n=44 in 12 chapters
+Ba Quan Feng  # n=44 in 11 chapters
+Tang Miao Ming  # n=44 in 14 chapters
+Uncle Zhang  # n=44 in 11 chapters
+Heavenly Lotus Sect  # n=43 in 26 chapters
+Immortal Kong  # n=43 in 22 chapters
+Qing Qing  # n=43 in 11 chapters
+Man Shi  # n=43 in 10 chapters
+Three Crazed  # n=43 in 15 chapters
+Yu Yi  # n=43 in 17 chapters
+Dragon Commander  # n=43 in 14 chapters
+Dragon Commander Ye  # n=43 in 14 chapters
+Eastern Sea Zombie Alliance  # n=43 in 18 chapters
+Three Autumn  # n=43 in 16 chapters
+Shark Flow  # n=43 in 12 chapters
+Beast Fusion  # n=43 in 12 chapters
+Beast Fusion Color  # n=43 in 12 chapters
+Fairy Yu  # n=43 in 20 chapters
+Gao Wan  # n=43 in 13 chapters
+Shang Qing Qing  # n=43 in 12 chapters
+Fortune Rivalling  # n=42 in 27 chapters
+Soul Sect  # n=42 in 22 chapters
+Immortal Chen  # n=42 in 18 chapters
+Gui Qi  # n=42 in 13 chapters
+Three Crazed Demon  # n=42 in 15 chapters
+Yu Yi Ye  # n=42 in 16 chapters
+Collection City  # n=42 in 15 chapters
+Qing Tian  # n=42 in 15 chapters
+Ye Lui Sang  # n=42 in 24 chapters
+Frost Jade Peacock  # n=42 in 18 chapters
+Lu Qing Ming  # n=42 in 10 chapters
+Immortal Bo  # n=41 in 30 chapters
+Sect Gu  # n=41 in 26 chapters
+Gu Yue Dong  # n=41 in 11 chapters
+Mini Northern Plains  # n=41 in 25 chapters
+City Rampage  # n=41 in 16 chapters
+Immortal Monkey  # n=41 in 23 chapters
+Edge Link Camp  # n=41 in 16 chapters
+Yuan Qiong Du  # n=41 in 21 chapters
+Fang Hua Sheng  # n=41 in 16 chapters
+Canopy Gu  # n=41 in 22 chapters
+Twelve Zodiac  # n=41 in 17 chapters
+Autumn Yellow Crane Platform  # n=41 in 15 chapters
+Sea God Ceremony  # n=41 in 10 chapters
+Extreme Desolation  # n=41 in 13 chapters
+Ascending Heaven Plain  # n=41 in 16 chapters
+Star Collection  # n=41 in 16 chapters
+Fairy Ming  # n=41 in 15 chapters
+Doctor Su  # n=41 in 12 chapters
+Quan Inheritance  # n=41 in 16 chapters
+Man Duo  # n=41 in 13 chapters
+Lord Wolf  # n=41 in 23 chapters
+Hua Cai Yun  # n=41 in 16 chapters
+Wind Cloud  # n=40 in 20 chapters
+Central Continent Gu Immortal  # n=40 in 28 chapters
+Yao Le  # n=40 in 11 chapters
+Demon Eccentrics  # n=40 in 16 chapters
+Combat Immortal Sect  # n=40 in 18 chapters
+Quan Feng  # n=40 in 11 chapters
+Chi Gui  # n=40 in 13 chapters
+Shark Flow Lever  # n=40 in 12 chapters
+Cai Yun  # n=40 in 15 chapters
+Fusion Color Heaven  # n=40 in 11 chapters
+Color Heaven  # n=40 in 11 chapters
+Shang Yi  # n=40 in 10 chapters
+Fairy Jiang  # n=39 in 21 chapters
+Hidden Dragon Cave  # n=39 in 20 chapters
+Shen Cui  # n=39 in 12 chapters
+Crazed Demon Eccentrics  # n=39 in 16 chapters
+Plunder Shadow  # n=39 in 20 chapters
+Wu Ba  # n=39 in 13 chapters
+Inquiry Dock  # n=39 in 17 chapters
+Three Autumn Yellow  # n=39 in 16 chapters
+Seven Extreme  # n=39 in 12 chapters
+Beast Fusion Color Heaven  # n=39 in 11 chapters
+Jiang Ya  # n=38 in 11 chapters
+Gu Yue Mo Chen  # n=38 in 23 chapters
+Xiao Yun  # n=38 in 15 chapters
+Shi Zheng  # n=38 in 11 chapters
+Wu Yu Bo  # n=38 in 11 chapters
+King Quan Inheritance  # n=38 in 16 chapters
+Wu Gui  # n=38 in 14 chapters
+Battle of Yi Tian Mountain  # n=38 in 27 chapters
+Tao Zhu  # n=37 in 14 chapters
+Lord Tian  # n=37 in 13 chapters
+Qing Ming  # n=37 in 10 chapters
+Succession Mountain  # n=37 in 16 chapters
+Gu House Dragon  # n=37 in 30 chapters
+House Dragon  # n=37 in 30 chapters
+Yu Yi Ye Zi  # n=37 in 15 chapters
+Dragon Commander Ye Cha  # n=37 in 14 chapters
+Plunder Shadow Earth  # n=37 in 20 chapters
+Shadow Earth Trench  # n=37 in 20 chapters
+Beacon Towers  # n=37 in 14 chapters
+Wu Ji  # n=37 in 14 chapters
+Sky Canopy  # n=37 in 22 chapters
+Moon Gu  # n=37 in 14 chapters
+Kun Crystal  # n=37 in 15 chapters
+Wu Shang  # n=37 in 10 chapters
+Hu Mei  # n=37 in 15 chapters
+Sun Shi  # n=37 in 15 chapters
+Lian Jiu  # n=36 in 14 chapters
+Five Regional Mountain  # n=36 in 13 chapters
+Regional Mountain  # n=36 in 13 chapters
+Wei De  # n=36 in 10 chapters
+Shi Zong  # n=36 in 15 chapters
+Shi Shi  # n=36 in 13 chapters
+Gui Qi Ye  # n=36 in 13 chapters
+Lord Wu Yi  # n=36 in 18 chapters
+Immortal Gu House Dragon  # n=36 in 30 chapters
+Earth Communication Ear Grass  # n=36 in 14 chapters
+Tu Tou  # n=36 in 13 chapters
+Mushroomman Paradise  # n=36 in 18 chapters
+Three Autumn Yellow Crane  # n=36 in 15 chapters
+Lord Alliance  # n=36 in 17 chapters
+Star Collection City  # n=36 in 15 chapters
+Refining Demon  # n=36 in 19 chapters
+Bian Si Xuan  # n=36 in 17 chapters
+Cloud Manor  # n=35 in 18 chapters
+Kong Jue  # n=35 in 20 chapters
+Blood Sea Ancestor  # n=35 in 19 chapters
+Gu House Dragon Palace  # n=35 in 28 chapters
+House Dragon Palace  # n=35 in 28 chapters
+Eagle Concubine  # n=35 in 14 chapters
+Earth Trenches  # n=35 in 21 chapters
+Qu Zhong  # n=35 in 13 chapters
+Wan Zi  # n=35 in 17 chapters
+Che Wei  # n=35 in 21 chapters
+Hairy Foot  # n=35 in 17 chapters
+Green Ant  # n=35 in 14 chapters
+Kun Crystal Wall  # n=35 in 15 chapters
+Xiao Qi  # n=35 in 12 chapters
+Bi Xia  # n=35 in 12 chapters
+Fairy Black  # n=35 in 14 chapters
+Ha Tu  # n=35 in 16 chapters
+Demon Hao Ji Liu  # n=35 in 19 chapters
+Lian Jiu Sheng  # n=34 in 13 chapters
+Fairy Jiang Yu  # n=34 in 20 chapters
+Regional Mountain Range  # n=34 in 12 chapters
+Cover Continent  # n=34 in 17 chapters
+Eccentric Tian  # n=34 in 17 chapters
+Ancient Soul Sect  # n=34 in 20 chapters
+Green City Rampage  # n=34 in 16 chapters
+Hei Bai  # n=34 in 14 chapters
+Golden Dawn  # n=34 in 14 chapters
+Dawn Hall  # n=34 in 14 chapters
+Immortal Monkey King  # n=34 in 22 chapters
+Gong Wan  # n=34 in 11 chapters
+Scales Gu  # n=34 in 16 chapters
+Shi Zheng Yi  # n=34 in 10 chapters
+Black Extremity  # n=34 in 20 chapters
+Tu Tou Tuo  # n=34 in 13 chapters
+Regret Pavilion  # n=34 in 19 chapters
+Seven Extreme Desolation  # n=34 in 12 chapters
+Hairy Foot Mountain  # n=34 in 16 chapters
+Plunder Gu  # n=34 in 10 chapters
+Lifespan Gu  # n=34 in 17 chapters
+Moonglow Gu  # n=33 in 21 chapters
+Tian Du  # n=33 in 10 chapters
+Golden Dawn Hall  # n=33 in 14 chapters
+Black Boar Gu  # n=33 in 16 chapters
+Bu Zhen  # n=33 in 11 chapters
+Bao Ya  # n=33 in 18 chapters
+Plunder Shadow Earth Trench  # n=33 in 19 chapters
+Wu Ba Chong  # n=33 in 12 chapters
+Flower Lady  # n=33 in 10 chapters
+Qian Kun  # n=33 in 14 chapters
+King Xin  # n=33 in 13 chapters
+Lord Wolf King  # n=33 in 21 chapters
+Ao Xue  # n=33 in 11 chapters
+Embroidered Tower  # n=32 in 13 chapters
+Cloud Cover Continent  # n=32 in 17 chapters
+Immortal Kong Jue  # n=32 in 20 chapters
+Domination Immortal Chu  # n=32 in 23 chapters
+Lord Tian Du  # n=32 in 10 chapters
+Wu Liao  # n=32 in 10 chapters
+Lord Wu Yi Hai  # n=32 in 17 chapters
+Ice House  # n=32 in 10 chapters
+Bull Demon  # n=32 in 12 chapters
+Nine Spiritual Fairy  # n=32 in 14 chapters
+Myriad Beast Fusion  # n=32 in 11 chapters
+Myriad Beast Fusion Color  # n=32 in 11 chapters
+Fairy Ming Hao  # n=32 in 13 chapters
+Heaven Refining  # n=32 in 17 chapters
+Refining Demon Venerable  # n=32 in 19 chapters
+Doctor Su Shou  # n=32 in 11 chapters
+Sun Shi Han  # n=32 in 14 chapters
+Snowy Mountain Alliance  # n=32 in 30 chapters
+Mountain Alliance  # n=32 in 30 chapters
+Divine Lord Tian Du  # n=32 in 10 chapters
+Sword Immortal  # n=31 in 25 chapters
+Domination Immortal Chu Du  # n=31 in 23 chapters
+Wei De Xin  # n=31 in 10 chapters
+Gu Yue Mo Bei  # n=31 in 18 chapters
+Regret Pool  # n=31 in 14 chapters
+Shi Shi Cheng  # n=31 in 12 chapters
+Ancestor Giant Sun  # n=31 in 25 chapters
+Stealth Scales  # n=31 in 14 chapters
+Imperfection Regret  # n=31 in 18 chapters
+Imperfection Regret Pavilion  # n=31 in 18 chapters
+Ruan Dan  # n=31 in 11 chapters
+Ant Ascetic  # n=31 in 14 chapters
+Chi Wen  # n=31 in 10 chapters
+Heaven Refining Demon  # n=31 in 17 chapters
+Tu Gu  # n=31 in 16 chapters
+Qi Xiang  # n=31 in 15 chapters
+King Bao  # n=31 in 12 chapters
+Tidal Dragon  # n=30 in 13 chapters
+Chan Zi  # n=30 in 12 chapters
+Pu Lao  # n=30 in 12 chapters
+Shang Clan  # n=30 in 21 chapters
+Immortal Succession  # n=30 in 14 chapters
+Gong Wan Ting  # n=30 in 11 chapters
+Po Ying  # n=30 in 15 chapters
+Sha Xiao  # n=30 in 10 chapters
+Sky Canopy Gu  # n=30 in 19 chapters
+Qian Kun Crystal  # n=30 in 14 chapters
+Dong Po  # n=30 in 11 chapters
+Fairy Cang  # n=30 in 11 chapters
+Wind Cloud Manor  # n=29 in 16 chapters
+Immortal Succession Mountain  # n=29 in 14 chapters
+Bing Zhuo  # n=29 in 11 chapters
+Ming Lu  # n=29 in 14 chapters
+Huang Er  # n=29 in 12 chapters
+Stealth Scales Gu  # n=29 in 14 chapters
+Mu Ling  # n=29 in 12 chapters
+Zhang San  # n=29 in 10 chapters
+Fairy Si  # n=29 in 12 chapters
+Jiang Bao  # n=29 in 17 chapters
+Shield Gu  # n=29 in 13 chapters
+Love Immortal  # n=29 in 14 chapters
+Blood Moon Gu  # n=29 in 13 chapters
+Fairy Black Moon  # n=29 in 14 chapters
+Hu Mei Er  # n=29 in 14 chapters
+Sword Immortal Bo  # n=28 in 22 chapters
+Immortal Bo Qing  # n=28 in 24 chapters
+Mini Eastern  # n=28 in 21 chapters
+Mini Eastern Sea  # n=28 in 21 chapters
+Gu House Dark  # n=28 in 16 chapters
+Gu House Dark Prison  # n=28 in 16 chapters
+House Dark  # n=28 in 16 chapters
+House Dark Prison  # n=28 in 16 chapters
+Strength Gu  # n=28 in 15 chapters
+Bu Zhen Zi  # n=28 in 11 chapters
+Four Dragon  # n=28 in 18 chapters
+Qian Kun Crystal Wall  # n=28 in 14 chapters
+Ha Tu Gu  # n=28 in 14 chapters
+Sha Huang  # n=28 in 20 chapters
+According to Fang  # n=28 in 28 chapters
+Canary Pavilion  # n=27 in 14 chapters
+Envy Manor  # n=27 in 13 chapters
+Medieval Antiquity  # n=27 in 25 chapters
+Elder Fang  # n=27 in 14 chapters
+Qiao Zhi  # n=27 in 10 chapters
+Bing Yuan  # n=27 in 16 chapters
+Liu Hao  # n=27 in 13 chapters
+Shabi Ninety-five  # n=27 in 11 chapters
+Fei Xiong  # n=27 in 12 chapters
+Four Dragon Generals  # n=27 in 18 chapters
+Thieves Den  # n=27 in 11 chapters
+Heaven Refining Demon Venerable  # n=27 in 17 chapters
+Water Demon Hao  # n=27 in 19 chapters
+Water Demon Hao Ji  # n=27 in 19 chapters
+Worldly Wave  # n=27 in 20 chapters
+Yin Liu  # n=27 in 11 chapters
+Tian Nan  # n=26 in 17 chapters
+Liang Mountain  # n=26 in 12 chapters
+Immortal Gu House Dark  # n=26 in 16 chapters
+Inkman King  # n=26 in 13 chapters
+Jiang Bao Ya  # n=26 in 17 chapters
+Hao Fang  # n=26 in 14 chapters
+Little Lan  # n=26 in 14 chapters
+Yin Liu Gong  # n=26 in 11 chapters
+Dark Ice Soul Physique  # n=25 in 21 chapters
+Ice Soul Physique  # n=25 in 21 chapters
+Soul Physique  # n=25 in 21 chapters
+Mini Central  # n=25 in 21 chapters
+Yang Po  # n=25 in 14 chapters
+Dao Lord  # n=25 in 12 chapters
+Shang Qiu  # n=25 in 11 chapters
+Love Immortal Venerable  # n=25 in 13 chapters
+Po Kong  # n=25 in 10 chapters
+
+# ============================================================
+# REVIEW — dual-use words, NOT enabled
+# ============================================================
+# Each of these is used in this novel BOTH as a name/term and as an ordinary word.
+# Because masking is case-insensitive, uncommenting one freezes the ordinary word too
+# (protecting "Rain" also stops any repair to the weather). Uncomment only the ones
+# where that trade is right for this novel.
+# ============================================================
+# Venerable  # capitalized 4017x in 804 chapters, but also lowercase 693x
+# Masters  # capitalized 3547x in 869 chapters, but also lowercase 287x
+# Fairy  # capitalized 2200x in 682 chapters, but also lowercase 192x
+# Southern  # capitalized 2074x in 619 chapters, but also lowercase 166x
+# Yin  # capitalized 1831x in 412 chapters, but also lowercase 107x
+# Continent  # capitalized 1590x in 590 chapters, but also lowercase 170x
+# Border  # capitalized 1544x in 529 chapters, but also lowercase 152x
+# Eastern  # capitalized 1424x in 447 chapters, but also lowercase 104x
+# Southern Border  # capitalized 1354x in 476 chapters, but also lowercase 125x
+# Central Continent  # capitalized 1269x in 514 chapters, but also lowercase 137x
+# Northern Plains  # capitalized 1264x in 517 chapters, but also lowercase 528x
+# Rank  # capitalized 1240x in 627 chapters, but also lowercase 12006x
+# Qi Sea  # capitalized 824x in 154 chapters, but also lowercase 149x
+# River of Time  # capitalized 782x in 223 chapters, but also lowercase 108x
+# Paradise  # capitalized 754x in 200 chapters, but also lowercase 59x
+# Imperial  # capitalized 747x in 283 chapters, but also lowercase 46x
+# Ding  # capitalized 722x in 146 chapters, but also lowercase 43x
+# Western  # capitalized 666x in 281 chapters, but also lowercase 60x
+# Longevity  # capitalized 658x in 264 chapters, but also lowercase 37x
+# Western Desert  # capitalized 466x in 217 chapters, but also lowercase 29x
+# Fixed Immortal Travel  # capitalized 438x in 187 chapters, but also lowercase 110x
+# Divine Bean  # capitalized 433x in 82 chapters, but also lowercase 80x
+# Reverse Flow  # capitalized 414x in 111 chapters, but also lowercase 279x
+# Warship  # capitalized 404x in 65 chapters, but also lowercase 31x
+# Red Lotus  # capitalized 392x in 169 chapters, but also lowercase 35x
+# Primordial  # capitalized 382x in 136 chapters, but also lowercase 35x
+# Wolf King  # capitalized 309x in 90 chapters, but also lowercase 254x
+# Seeker  # capitalized 304x in 78 chapters, but also lowercase 24x
+# Myriad Year Flying Warship  # capitalized 291x in 60 chapters, but also lowercase 21x
+# Pure Dream  # capitalized 287x in 76 chapters, but also lowercase 77x
+# Prince  # capitalized 277x in 88 chapters, but also lowercase 15x
+# Trench  # capitalized 273x in 102 chapters, but also lowercase 30x
+# Reckless  # capitalized 267x in 119 chapters, but also lowercase 23x
+# Pure Dream Reality Seeker  # capitalized 260x in 73 chapters, but also lowercase 23x
+# Limitless  # capitalized 246x in 101 chapters, but also lowercase 25x
+# Refinement Path  # capitalized 240x in 106 chapters, but also lowercase 1316x
+# Immortal Zombie  # capitalized 211x in 36 chapters, but also lowercase 1101x
+# Ice Crystal  # capitalized 197x in 38 chapters, but also lowercase 66x
+# Biao  # capitalized 182x in 33 chapters, but also lowercase 16x
+# Ice Soul  # capitalized 179x in 58 chapters, but also lowercase 11x
+# Heavenly Essence Treasure  # capitalized 176x in 53 chapters, but also lowercase 11x
+# Antiquity  # capitalized 172x in 95 chapters, but also lowercase 19x
+# The Legends  # capitalized 148x in 98 chapters, but also lowercase 10x
+# Beast Calamity  # capitalized 134x in 35 chapters, but also lowercase 24x
+# Duo  # capitalized 133x in 19 chapters, but also lowercase 8x
+# Bamboo Building  # capitalized 129x in 44 chapters, but also lowercase 39x
+# Starry Sky  # capitalized 120x in 40 chapters, but also lowercase 11x
+# Unfettered  # capitalized 118x in 37 chapters, but also lowercase 7x
+# Northern Dark Ice Soul  # capitalized 116x in 56 chapters, but also lowercase 7x
+# Door of Life  # capitalized 115x in 29 chapters, but also lowercase 104x
+# Yellow Earth  # capitalized 113x in 26 chapters, but also lowercase 16x
+# Clear Jade  # capitalized 112x in 41 chapters, but also lowercase 7x
+# Five Elements  # capitalized 108x in 45 chapters, but also lowercase 11x
+# City Lord  # capitalized 106x in 18 chapters, but also lowercase 64x
+# Cooking  # capitalized 101x in 35 chapters, but also lowercase 11x
+# Golden Centipede  # capitalized 99x in 26 chapters, but also lowercase 11x
+# Beast King  # capitalized 96x in 28 chapters, but also lowercase 319x
+# Thousand Transformations Ancestor  # capitalized 91x in 25 chapters, but also lowercase 62x
+# Seven Star  # capitalized 90x in 25 chapters, but also lowercase 13x
+# Chainsaw Golden Centipede  # capitalized 89x in 25 chapters, but also lowercase 14x
+# Treasure Lotus  # capitalized 89x in 28 chapters, but also lowercase 5x
+# Years Flow  # capitalized 86x in 37 chapters, but also lowercase 23x
+# Essence Treasure Lotus  # capitalized 86x in 26 chapters, but also lowercase 8x
+# Myriad Dragon  # capitalized 83x in 32 chapters, but also lowercase 54x
+# Heavenly River  # capitalized 82x in 22 chapters, but also lowercase 20x
+# Righteous Qi  # capitalized 81x in 28 chapters, but also lowercase 6x
+# Giant City  # capitalized 78x in 29 chapters, but also lowercase 7x
+# Jade Pool  # capitalized 75x in 19 chapters, but also lowercase 9x
+# Heavenly Essence Treasure Lotus  # capitalized 75x in 25 chapters, but also lowercase 43x
+# Heavenlyn  # capitalized 74x in 42 chapters, but also lowercase 4x
+# White Boar  # capitalized 70x in 24 chapters, but also lowercase 14x
+# Soul Beast  # capitalized 67x in 26 chapters, but also lowercase 315x
+# Blood Sea  # capitalized 66x in 30 chapters, but also lowercase 32x
+# Evil Dragon  # capitalized 65x in 23 chapters, but also lowercase 8x
+# Blood Refinement  # capitalized 65x in 22 chapters, but also lowercase 14x
+# Mountain Range  # capitalized 64x in 27 chapters, but also lowercase 142x
+# Green Lotus  # capitalized 64x in 20 chapters, but also lowercase 10x
+# Dragon Whale  # capitalized 63x in 25 chapters, but also lowercase 112x
+# Alliance Leader  # capitalized 63x in 29 chapters, but also lowercase 111x
+# Thousand Li  # capitalized 62x in 13 chapters, but also lowercase 109x
+# White Jade  # capitalized 61x in 26 chapters, but also lowercase 53x
+# Soul Beast Token  # capitalized 60x in 22 chapters, but also lowercase 9x
+# Withn  # capitalized 57x in 48 chapters, but also lowercase 4x
+# Four Elements  # capitalized 57x in 22 chapters, but also lowercase 9x
+# Nine Leaf Vitality Grass  # capitalized 54x in 14 chapters, but also lowercase 8x
+# Inkman City  # capitalized 52x in 15 chapters, but also lowercase 13x
+# Ben  # capitalized 51x in 27 chapters, but also lowercase 4x
+# Night Heavenly  # capitalized 50x in 18 chapters, but also lowercase 4x
+# Immortaln  # capitalized 49x in 28 chapters, but also lowercase 3x
+# Soul Pacifying  # capitalized 49x in 12 chapters, but also lowercase 3x
+# Night Heavenly Wolf  # capitalized 49x in 18 chapters, but also lowercase 4x
+# Frost Jade  # capitalized 49x in 20 chapters, but also lowercase 11x
+# Monkey King  # capitalized 48x in 27 chapters, but also lowercase 99x
+# Extremities  # capitalized 46x in 23 chapters, but also lowercase 4x
+# Ancient Soul  # capitalized 46x in 25 chapters, but also lowercase 62x
+# Ear Grass  # capitalized 44x in 16 chapters, but also lowercase 11x
+# Merman Imperial Court  # capitalized 44x in 15 chapters, but also lowercase 3x
+# Ascending Heaven  # capitalized 43x in 16 chapters, but also lowercase 3x
+# Five Regional  # capitalized 42x in 16 chapters, but also lowercase 178x
+# Demon Suppression  # capitalized 41x in 19 chapters, but also lowercase 8x
+# Dog Shit  # capitalized 40x in 29 chapters, but also lowercase 8x
+# Black Heaven  # capitalized 40x in 20 chapters, but also lowercase 189x
+# Cloud Cover  # capitalized 39x in 22 chapters, but also lowercase 5x
+# Rivalling Heaven  # capitalized 38x in 26 chapters, but also lowercase 15x
+# Blood Deity  # capitalized 38x in 20 chapters, but also lowercase 43x
+# Olden Antiquity Era  # capitalized 38x in 35 chapters, but also lowercase 6x
+# Blessed Land  # capitalized 38x in 29 chapters, but also lowercase 4621x
+# Crystal Wall  # capitalized 38x in 15 chapters, but also lowercase 48x
+# Nine Spiritual  # capitalized 37x in 15 chapters, but also lowercase 7x
+# Shit Luck  # capitalized 36x in 27 chapters, but also lowercase 3x
+# Black Hair  # capitalized 36x in 12 chapters, but also lowercase 90x
+# Connect Luck  # capitalized 36x in 30 chapters, but also lowercase 35x
+# Three Crazed Demon Eccentrics  # capitalized 36x in 14 chapters, but also lowercase 16x
+# Five Regional Mountain Range  # capitalized 34x in 12 chapters, but also lowercase 62x
+# Cleanse Soul  # capitalized 34x in 20 chapters, but also lowercase 91x
+# Black Boar  # capitalized 34x in 16 chapters, but also lowercase 7x
+# Ascetic  # capitalized 33x in 14 chapters, but also lowercase 3x
+# Dog Shit Luck  # capitalized 33x in 26 chapters, but also lowercase 29x
+# Fortune Rivalling Heaven  # capitalized 33x in 24 chapters, but also lowercase 120x
+# Dark Limit  # capitalized 33x in 25 chapters, but also lowercase 74x
+# Profound Ice  # capitalized 33x in 10 chapters, but also lowercase 58x
+# Myriad Beast  # capitalized 33x in 11 chapters, but also lowercase 150x
+# Gruel Mud  # capitalized 33x in 15 chapters, but also lowercase 59x
+# Sword Escape  # capitalized 32x in 23 chapters, but also lowercase 94x
+# Wan Zi Hong  # capitalized 32x in 17 chapters, but also lowercase 22x
+# Dragon Generals  # capitalized 31x in 19 chapters, but also lowercase 16x
+# Pulling Mountain  # capitalized 30x in 25 chapters, but also lowercase 27x
+# Blood Moon  # capitalized 30x in 13 chapters, but also lowercase 12x
+# Worldly Wave Trace  # capitalized 30x in 19 chapters, but also lowercase 35x
+# Pulling Water  # capitalized 29x in 21 chapters, but also lowercase 27x
+# Lord Alliance Leader  # capitalized 29x in 14 chapters, but also lowercase 3x
+# Dream Token  # capitalized 28x in 15 chapters, but also lowercase 18x
+# Wave Trace  # capitalized 28x in 17 chapters, but also lowercase 13x
+# Green Ant Ascetic  # capitalized 27x in 14 chapters, but also lowercase 3x
+# Myriad Self  # capitalized 26x in 22 chapters, but also lowercase 367x
+# Secret Schemer  # capitalized 26x in 10 chapters, but also lowercase 13x
+# Medieval Antiquity Era  # capitalized 25x in 23 chapters, but also lowercase 3x
+# Awakening Ceremony  # capitalized 25x in 14 chapters, but also lowercase 7x
+# Immortal Inheritance  # capitalized 25x in 11 chapters, but also lowercase 8x
