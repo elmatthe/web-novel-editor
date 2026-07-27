@@ -1,6 +1,26 @@
 # Web Novel Editor — Handoff
 
 ## Current Focus
+
+**Plan 2b (Cloud AI Providers — Gemini, Groq) is COMPLETE through Phase 8, v0.13.0, on
+`feature/plan-2b-cloud-providers`. It has NOT been merged to `main` and awaits the author's
+sign-off.** `verify` is green at **1238 passed / 9 skipped**, and identical in the clean room with
+`ollama`, `groq` and `google.genai` import-blocked and every key unset.
+
+**The author's Phase 8 decisions, now shipped:** no default cloud provider — cloud is opt-in per run,
+every run, with no persisted preference (DECISIONS #064); Renegade Immortal's real profile is correct
+and expected; and the 240 flagged index terms were batch-reviewed (43 promoted, 197 left).
+
+Phase 8 also **changed the prompt layer once, deliberately** — the sanctioned exception to the plan's
+"prompt layer unchanged" rule, investigated first and recorded as DECISIONS #063. The protected-term
+block is now scoped to the terms present in each request, cutting mean per-chapter input by 51% and
+68% for the two large-index novels with no loss of protection. `AIEditor`'s decision logic, the gate,
+the chunker and the base contract are byte-for-byte unchanged against the v0.12.0 baseline `72d68ca`.
+
+**Remaining before merge:** the author's hands-on click-through and explicit end-of-plan sign-off.
+The plan drop `plan-2b-cloud-providers.md` was deleted as its own final step.
+
+## Previous Focus (superseded)
 **Plan 2b (Cloud AI Providers — Gemini, Groq — target v0.13.0) is UNDERWAY. Phases 0–7b are
 complete. Phase 7b is DONE and PAUSED for the provider decision — the first real cloud calls this
 project has ever made were issued on 2026-07-25/26 and `files/pilot/PROVIDER-COMPARISON.md` is
@@ -39,6 +59,109 @@ first phase that makes a real cloud call, so it needs a key and the billing/plan
 manually in the provider's own console (done 2026-07-25 — see the Phase 7a log). **Every cloud run
 now passes `ai.spend_guard.ensure_free_tier_run_allowed` at `ai.factory.create_provider` before an
 adapter exists**, and a refusal stops the run in a dialog rather than degrading to script-only.
+
+## Work Log — 2026-07-27 — Claude Code — Plan 2b Phase 8 (adopt decision, bug hunt, docs, release gate)
+
+Ran on HOME-PC. **Phase 8 is complete; Plan 2b is complete; the drop was deleted.** Four commits, one
+per logical piece, as instructed. `verify` **PASS — 1238 passed, 9 skipped**, from 1215 at Phase 7b.
+
+### Task 1 — the term-block investigation, and the one sanctioned prompt-layer change
+
+**Finding: the block is advisory and never was the protection.** `build_system_prompt` embedded the
+whole index and `AIEditor` sent it with every chunk. Under `ProtectionStrategy.MASK` — the shipped
+default and what every 7b run used — `mask_protected_terms` has already turned every occurrence into a
+`__WE_P_NNNNN__` placeholder before chunking, so a 1,435-term block was instructing the model to
+preserve words that were not in front of it. Protection is enforced by masking (the model never holds
+the term) and by the gate (which compares every occurrence against the **whole** index). Under
+`VERIFY` the text is unmasked, so the block is genuine guidance there — but only for terms the request
+contains.
+
+**Fix: two-pass scoping.** Pass A selects the terms present in the post-masking chapter and sizes the
+chunk budget from that prompt; pass B narrows again per chunk. A chunk is a substring of the chapter,
+so pass B is always a subset of pass A and a per-chunk prompt can never exceed what the budget was
+computed against — that monotonicity is what makes it safe, and it has its own test. "Present" reuses
+the masker's own occurrence rule. `lexicon_hash` still fingerprints the whole index via a new
+`lexicon_terms` argument, so run provenance did not become a per-chunk value.
+
+Measured through the real editor with a capture provider on the frozen 10-chapter sample, no cloud
+call (`files/qa-tools/scratch/index-build/measure_term_block_fix.py`):
+
+| novel | terms | block/request | mean/chapter before | after | cut |
+|---|---|---|---|---|---|
+| Renegade Immortal | 861 | 4,536 → 516 | 10,209 | **4,983** | −51% |
+| Reverend Insanity | 1,429 | 7,444 → 516 | 17,252 | **5,474** | −68% |
+
+Projected on 7b's provider-reported figures, both return to their zero-index cost — ~3,108 and ~2,972
+tokens/chapter, **32 and 33 chapters/day** on Groq's 100K ceiling, up from 15 and 10.
+
+**One honest negative:** chunk splitting did **not** improve (2/10 and 6/10 before and after).
+`safe_input_budget` returns `min(max_output_limit, available // 2)`, and with a 1M-token context the
+**output** cap of 4,096 is what binds, so the prompt's size never affected chunk count. Growing an
+index now costs nothing per request unless the terms are actually used.
+
+### Task 2 — batch review of the 240 flagged terms
+
+Built `review_batch.py` (gitignored, repeatable). The question per term is whether its lowercase form
+is ordinary English or this novel's own vocabulary, and the oracle is the corpora, per #062: an
+ordinary word turns up in every novel on the shelf, a cultivation term does not turn up in a
+magic-academy novel. Bar: 100+ capitalized uses, lowercase absent from ≥3 of the 4 other corpora,
+lowercase under 75% of capitalized use, **multi-word only**.
+
+That last constraint came from reading the first shortlist rather than from theory. A per-million rate
+passed "Venerable", "Warship", "Seeker", "Antiquity", "Paradise" and "Trench" as novel-specific — they
+are ordinary English, merely *rare* English, so they never reach a density floor in a 4-million-word
+novel. Switching to absolute presence caught most; restricting to phrases caught the rest. **Every
+false positive was a single word.**
+
+**Enabled 24/101 (Renegade Immortal) and 19/139 (Reverend Insanity)**, uncommented in place with their
+evidence intact, contexts spot-checked in the corpus first ("Star System" is *Alliance Star System*;
+"Reverse Flow" is *Reverse Flow River*). **197 stay commented.** Grouped for the author:
+
+| bucket | RI | RevIns | note |
+|---|---|---|---|
+| phrase, under 100 capitalized uses | 47 | 75 | the largest group; lowering the floor to ~25 would clear most on the same evidence |
+| lowercase is ordinary prose in 2+ other novels | 22 | 28 | correctly deferred — "Realm", "Immortal", "Masters", "Fairy" |
+| single word, frequent — the judgement call | 4 | 7 | "Dao" (3578/1684), "Yin", "Yang", "Venerable" (4017/693) |
+| lowercase use exceeds capitalized use | 4 | 4 | "Ancient God" (248/1931), "Refinement Path" (240/1316) |
+
+### Task 3 — the Gemini quota bug, and what the bug hunt found
+
+**Gemini's daily exhaustion was misclassified as per-minute**, costing ~35 minutes of futile retries in
+7b. Root cause is *not* the check: `str(APIError)` does contain the evidence, but Google's message plus
+its documentation URL runs ~250 characters and `_safe_message` truncates at 300, while `quotaId` sits
+near character 450. The input had been amputated. Now read structurally from
+`google.rpc.QuotaFailure` violations, with `RetryInfo.retryDelay` supplying an authoritative wait; plus
+a provider-neutral escalation for limits that never name a period. DECISIONS #068. A test asserts the
+truncation itself, so the premise cannot rot silently.
+
+**Second defect, found while reviewing the REVIEW block and more serious than the first.** 76 of
+Reverend Insanity's 2,334 extracted chapters lost their newlines as a literal "n", welding that letter
+onto the following word. The #062 build counted the results honestly and **indexed 25 of them** —
+`Butn`, `Thisn`, `Xiaon`, and `Gun`, which is "Gu", the novel's central concept, plus a stray letter.
+Twenty-four were inert (no real text contains them); `Gun` froze every ordinary "gun". All removed,
+with two regression tests across **every** shipped index, one a general guard against indexing a
+function word. **Renegade Immortal's corpus has zero garbled chapters and zero phantom terms.**
+
+Also noted, not changed: Shadow Slave (32) and Supreme Magus (48) contain hand-curated terms absent
+from their extracted corpora. Those are pre-existing author entries the #062 audit deliberately did not
+touch, not artifacts — a different thing that looks the same to this check.
+
+### Task 4 — release gate
+
+CHANGELOG at **v0.13.0**; BRIEFING refreshed with a v0.13.0 state section; **DECISIONS #063–#071**
+(term block, no-default provider, approved-model policy, key storage, consent, honest billing
+contract, quota classification, checkpoint semantics, provider-independent chunking); EDITING-RULES
+gained a provider-independence section; README rewritten for a non-technical reader with the four
+things that actually matter about cloud. Clean-room re-run identical.
+
+**Diff-verified byte-for-byte unchanged against the v0.12.0 baseline `72d68ca`:** `validation.py`
+(the gate), `models.py`, `errors.py`, `provider.py`, `chunking.py`, `core/protected_lexicon.py`.
+`editor.py` (+25/−3) and `prompt.py` (+87/−2) changed **only** for the sanctioned #063 scoping.
+
+**Needs the author:** a hands-on click-through and the explicit end-of-plan sign-off before merging to
+`main`. Also standing: 197 REVIEW terms, and `md-instructions/plan-2-ai-editor-integration.md` — an
+untracked Plan 2a drop left behind after that plan shipped, which I did not delete because it is not
+mine to remove.
 
 ## Work Log — 2026-07-27 — Claude Code — Author-ruled spelling rules + prompt-cost re-measure
 
@@ -3328,6 +3451,36 @@ summary record.
 ---
 
 ## Session Sync Log (newest first)
+
+### 2026-07-27 — HOME-PC — PUSHED (Plan 2b Phase 8: adopt decision, bug hunt, docs, release gate — PLAN COMPLETE, UNMERGED)
+- Branch: `feature/plan-2b-cloud-providers` (4 commits this session on top of `afd9280`)
+- Changed — product code:
+  - `scripts/Universal/ai/prompt.py` — `select_relevant_terms`, `lexicon_terms` on
+    `build_system_prompt`, `lexicon_term_count` on `PromptBundle` (DECISIONS #063)
+  - `scripts/Universal/ai/editor.py` — two-pass per-chapter / per-chunk term scoping
+  - `scripts/Universal/ai/providers/gemini.py` — `quota_period`, `retry_delay_seconds`, structured
+    429 classification (DECISIONS #068)
+  - `scripts/Universal/ai/rate_limits.py` — `limit_period_is_named`, unexplained-limit escalation
+  - `scripts/Universal/ai/cloud.py`, `config.toml` — `unnamed_limit_escalation_seconds = 600` for
+    both cloud providers
+- Changed — shipped data:
+  - `scripts/Universal/resources/novel-index/renegade-immortal.txt` — 24 REVIEW terms enabled
+    (837 → **861** active)
+  - `scripts/Universal/resources/novel-index/reverend-insanity.txt` — 19 enabled, **25 extraction
+    artifacts removed** plus 3 in the REVIEW block (1,435 → **1,429** active)
+- Changed — tests: `test_ai_editor.py` (+6), `test_ai_validation.py` (+7), `test_novel_profiles.py`
+  (+3), `test_rate_limiting.py` (+8), `test_gemini_provider.py` (+7), `test_cloud_keys_and_consent.py`
+  (+3)
+- Changed — docs: `CHANGELOG.md` (v0.13.0), `BRIEFING.md`, `DECISIONS.md` (#063–#071),
+  `EDITING-RULES.md`, `README.md`, `HANDOFF.md`
+- Deleted: `md-instructions/plan-2b-cloud-providers.md` (the plan's own final step)
+- Not committed (gitignored, local only): `files/qa-tools/scratch/index-build/review_batch.py`,
+  `measure_term_block_fix.py`, `review-batch.json`, `term-block-fix.json`
+- Not touched: `md-instructions/plan-2-ai-editor-integration.md` — an untracked leftover Plan 2a drop,
+  flagged for the author rather than deleted
+- Gates: `verify` **PASS — 1238 passed, 9 skipped**; clean-room run identical with `ollama`, `groq`,
+  `google.genai` import-blocked and all keys unset
+- **NOT merged to `main`.** Awaiting the author's click-through and end-of-plan sign-off.
 
 ### 2026-07-26 — HOME-PC — PUSHED (Plan 2b Phase 7b: frozen comparison run + report — 7b COMPLETE, PAUSED for decision)
 - Branch:  feature/plan-2b-cloud-providers (1 commit this session on top of d787c59)

@@ -1,5 +1,87 @@
 # Webnovel Editor — Changelog
 
+## v0.13.0 — 2026-07-27 — Optional Cloud AI Providers: Gemini and Groq (Plan 2b)
+
+**Status: complete on `feature/plan-2b-cloud-providers`, awaiting sign-off and merge.** Cloud editing
+is **opt-in per run, every run** — there is no default cloud provider, no persisted "last used"
+preference, and local Ollama remains the default editing path (DECISIONS #064). With the AI pass off,
+output is still byte-for-byte identical to the v0.11.0 deterministic baseline. Design reasoning is in
+DECISIONS.md #062–#070.
+
+### Added — two cloud adapters behind Plan 2a's unchanged contract (Phases 1–3)
+- **`GeminiProvider`** (`google-genai==2.14.0`) and **`GroqProvider`** (`groq==1.6.0`), both pinned,
+  neither SDK imported at package load or unless its adapter is actually constructed. Each implements
+  2a's four-method protocol and normalises its own finish reasons, usage figures, request IDs and
+  errors into the shared `CompletionResult` and error taxonomy. **2a's base contract needed no
+  change** — it was already cloud-shaped.
+- **An unrecognised finish reason fails closed** in both adapters: the candidate text is discarded,
+  never returned as a successful edit.
+- **Reviewed approved-model records** in `config.toml` (exact IDs, status, context/output limits,
+  review date, source URL, free-tier confidence). No `latest`-style alias anywhere, no substitution
+  when a model is retired, and `unknown` free-tier confidence is refused in strict free-only mode.
+
+### Added — the machinery free tiers actually require (Phases 1, 4–6)
+- **Per-user key storage** at `%LOCALAPPDATA%/WebNovelEditor/secrets.json` (never inside the repo),
+  with precedence environment variable → secrets file → session-only entry → provider greyed out.
+  **One redaction boundary**, asserted against logs, JSONL, manifests, tracebacks and the GUI.
+- **A versioned privacy + billing disclosure** that must be acknowledged before the first cloud
+  request. Only the acknowledged version is stored — never chapter text, never the key.
+- **Provider-specific rate limiting** off one shared limiter: header-driven for Groq (which returns
+  per-day request counters and per-minute token counters), conservative configured floors for Gemini
+  (which publishes neither limits nor headers). RPM/TPM/RPD/TPD are distinguished; a daily quota is
+  never inferred from every 429; backoff applies to transient faults only. Every wait is interruptible
+  by Stop and by window close.
+- **Checkpointed runs.** A daily quota writes an atomic run manifest and stops cleanly with
+  "resume tomorrow" instead of sleeping for days; the GUI offers **Resume incomplete run** on restart.
+  The manifest holds no key and no chapter text.
+- **GUI:** provider dropdown, per-provider status and approved-model picker, the disclosure dialog,
+  and an honest **ETA shown as a range before a run starts**, saying "unknown" where limits are unknown
+  rather than inventing precision.
+
+### Added — a pre-flight spend guard (Phase 7a)
+- Every cloud run passes `spend_guard.ensure_free_tier_run_allowed` at `ai.factory.create_provider`,
+  keyed on the provider name **before any adapter object exists**, so a cloud adapter cannot be
+  constructed unguarded. A refusal stops the run in a dialog rather than degrading silently. Nothing
+  in the codebase queries or infers billing state from a provider API.
+
+### Added — the first real cloud comparison run (Phase 7b)
+- `files/pilot/PROVIDER-COMPARISON.md`: the same 40 stratified chapters as the 2a pilot, same prompt
+  and gate versions, through `gemini-3.6-flash` and `llama-3.3-70b-versatile`. Aggregate metrics and
+  redacted snippets only; no chapter text or full diff is tracked.
+
+### Added — protected-term indexes for five novels
+- Built from measured corpus evidence (DECISIONS #062): **973 protected terms across three novels
+  became 4,364 across five.** Renegade Immortal (0 → 861) and Reverend Insanity (0 → 1,429) were built
+  from nothing; The Noble Queen (26 → 371), Shadow Slave (353 → 541) and Supreme Magus (594 → 890)
+  were audited. Three novels have no corpus and say so in their own files. Dual-use words are written
+  commented with their counts rather than enabled unilaterally; a batch review (Phase 8) promoted 43
+  of them and left 197 for the author.
+- **Two author-ruled spelling normalizations** in the special-fixes layer, applied by the scripted
+  pass before masking so neither the AI nor the gate ever sees the typo: `Kraii` → `Kraai`
+  (The Noble Queen) and `Ligou`/`Ligo` → `Liguo` (Renegade Immortal). Renegade Immortal was promoted
+  to a registered profile to scope them, behaviour-preservingly.
+
+### Changed — the protected-term prompt block is scoped to each request (Phase 8)
+- `build_system_prompt` embedded the whole novel index in the system prompt and `AIEditor` sent it
+  with **every chunk**, which became the dominant per-chapter cost once the indexes were populated.
+  The block is advisory — masking and the gate are what enforce protection — so it now lists only the
+  terms that occur in the text being sent. Mean input per chapter falls **10,209 → 4,983** tokens for
+  Renegade Immortal and **17,252 → 5,474** for Reverend Insanity, returning both to their zero-index
+  cost. Protection is unchanged: the gate still validates against the whole index. DECISIONS #063.
+
+### Fixed
+- **Gemini daily-quota exhaustion was misclassified as a per-minute limit**, so a run retried chapter
+  by chapter for ~35 minutes instead of checkpointing. The period is now read from the structured
+  `google.rpc.QuotaFailure` violations in the error body rather than from the length-bounded message,
+  which truncated before reaching the `quotaId`. `RetryInfo.retryDelay` now supplies an authoritative
+  wait. A provider-neutral escalation stops any run whose limit errors never name a period.
+- **25 extraction artifacts were removed from the Reverend Insanity index.** 76 of its 2,334 extracted
+  chapters lost their newlines as a literal "n", welding that letter onto the next word; the index
+  build counted the results honestly and protected `Butn`, `Thisn`, `Xiaon` and `Gun` — the last being
+  the novel's central concept plus a stray letter, which froze every ordinary "gun".
+- `gui.ai_settings` passed local-adapter constructor arguments to cloud adapters, which would have
+  crashed the first real cloud run at adapter construction (found and fixed in Phase 7a).
+
 ## v0.12.0 — 2026-07-24 — Optional Local AI Proofreading Pass (Plan 2a)
 
 **Status: released** — merged to `main` and tagged `v0.12.0` (the project's first release tag;

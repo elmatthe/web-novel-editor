@@ -9,6 +9,301 @@ its original decision date. New decisions continue to be appended here (newest o
 
 ---
 
+## 071 — The honest billing contract: fail-closed, and explicit about the limit of that — 2026-07-27 — Claude Code
+
+**Status:** Accepted. Retires the earlier promise that the app is "architecturally incapable of opting
+the user into paid usage."
+
+**Context:** That promise cannot be kept and should never have been made. A desktop application holding
+a user-supplied API key has no authoritative way to determine whether the project or organization
+behind that key is billed. Provider APIs do not expose it, and inferring it would be guessing about the
+user's money. Shipping an unkeepable guarantee is worse than shipping an honest limitation, because the
+user calibrates their trust to it.
+
+**Decision:** Ship this wording, in the GUI and here:
+
+> Cloud mode is conservative and fail-closed. The app never enables billing, never upgrades an
+> account, and never intentionally selects a paid-only or preview model. Provider APIs do not expose
+> enough authoritative billing information for a desktop app to guarantee that a user-supplied key can
+> never incur charges. Use a key from a project or organization with billing disabled, and confirm
+> that in the provider's own console.
+
+Backed by mechanisms rather than assurances: exact approved model IDs reviewed at release time and no
+`latest` alias ever (#065); no fallback from an approved model to an arbitrary available one; a
+first-use confirmation that the user has checked the provider's billing page, with a direct link
+(#067); never retrying a quota error as a different model or tier (#068, #069); and visible local
+usage counters **labelled as estimates**, with an explicit statement that they are not provider
+billing records.
+
+The standing product rule underneath all of it: **the tool must never cost the user money. If a run
+could leave the free tier, or the app cannot positively confirm it will not, the app stops and says
+why.** A stop is never traded for a charge — which is why a spend-guard refusal halts the batch
+outright rather than quietly degrading to script-only and running to completion having not done what
+was asked.
+
+**Nothing in the codebase queries, infers, or asserts billing state from a provider API**, and a test
+pins that (`test_the_guard_never_asks_a_provider_about_billing`). The user's own console observations
+are recorded in HANDOFF as observations, never as something code determined.
+
+**Alternatives considered:** Keeping the original promise and hoping — rejected. Attempting to detect
+billing from a 429 or from which models the key can see — rejected; both are inferences about the
+user's money from evidence that does not support them. Refusing to support cloud at all — rejected;
+the free tiers are genuinely usable for subsets and comparison runs, which is what Phase 7b measured.
+
+**Consequences:** The GUI tells the user something true and slightly uncomfortable instead of
+something reassuring and false. Google's own documentation supports the practical advice: to return to
+the free tier you **disable billing** on the project; while billing is enabled, calls bill from the
+first token rather than consuming free quota. (The earlier draft's claim that enabling billing
+"permanently deletes" a project's free tier is false and was removed.) Tier is set at the billing
+account, quota is enforced per project, and neither is per API key; Gemini's RPD resets at midnight
+Pacific.
+
+---
+
+## 070 — Cloud runs reuse 2a's paragraph-safe chunking unchanged; no provider gets its own — 2026-07-27 — Claude Code
+
+**Status:** Accepted
+
+**Context:** Each provider reports a different context window (Gemini 1,048,576 input / 65,536 output;
+Groq 131,072 / 32,768) and different output caps. The obvious move is per-provider chunking tuned to
+each. Plan 2b's scope explicitly forbids it, and the reason is worth recording because a later phase
+will be tempted again.
+
+**Decision:** Chunking stays provider-neutral. `plan_chunks` splits only between complete paragraphs,
+never inside one, and asserts byte-exact reassembly before returning. Providers influence chunking
+through exactly one number — the `safe_input_budget` computed from the capabilities they report — and
+through nothing else. **Adapters must not split text themselves.**
+
+**Alternatives considered:** Per-provider chunkers — rejected. Chunk boundaries decide what the model
+sees as context, so different boundaries mean different edits, which would make the Phase 7b
+comparison measure the chunker rather than the provider, and would make a resumed run's output depend
+on which provider served which day. Larger chunks for large-context providers — rejected for the same
+reason, and because output tokens, not input, are the binding constraint on a free tier.
+
+**Consequences:** One chunker version (`1.0`) covers every provider, and the per-chunk gate, the
+exact ordered reassembly, the chapter-atomic fallback and the whole-chapter gate are literally the
+same code for cloud as for local. A provider added later inherits all of it. Note the practical
+effect of `safe_input_budget` returning `min(max_output_limit, available // 2)`: with cloud context
+windows this large, the **output** cap is what sets chunk size, so a 1M-token context window does not
+produce 1M-token chunks — an important thing not to "fix".
+
+---
+
+## 069 — Checkpoint on a daily quota; never sleep through it — 2026-07-27 — Claude Code
+
+**Status:** Accepted. Reverses Plan 1's session-only decision **for cloud runs specifically**; Plan 1's
+pause semantics and all local-run behaviour are untouched.
+
+**Context:** Plan 2b's first draft had the app sleep through daily quota resets, asking the user to
+leave the GUI open for roughly twelve days. That does not survive a Windows update, a laptop sleep, a
+network drop, or an accidental close — and Phase 7b measured the real numbers that make the wait
+unavoidable: a 40-chapter pass costs ~243,000 tokens against Groq's 100,000/day.
+
+**Decision:** Waits are split by duration, not by error code.
+- **Seconds to minutes (RPM/TPM):** pause in session with a visible countdown and resume automatically.
+- **Daily (RPD/TPD):** write the run manifest, say "Daily free quota reached — you can close the app
+  and resume tomorrow", and stop. No background loop, no multi-day open window.
+- **Unknown reset time:** say so, show the provider's limits page, offer Retry. Never guess midnight
+  or a provider timezone.
+
+Checkpoints are **file-boundary only** — a partial chapter or a partial chunk sequence is never
+persisted or resumed. The manifest records source identity and completion, provider, exact model ID,
+prompt and gate versions, accepted/fallback status, output path and next queue index; it contains **no
+API key and no chapter text**, and a test asserts that. On restart the GUI offers "Resume incomplete
+run"; declining, or an unreadable manifest, starts a fresh numbered output folder rather than guessing.
+
+All durations are measured against the **monotonic** clock and only displayed from the wall clock, so
+a daylight-saving change, an NTP correction or a suspend/resume cannot corrupt a countdown.
+
+**Alternatives considered:** Sleeping through the reset (the original draft) — rejected as
+unsurvivable. Persisting mid-chapter progress — rejected: the chapter is the atomic unit everywhere
+else in this app, and a resumed half-chapter could not be gated as a whole. Guessing the reset time
+from the provider's documented timezone — rejected; Gemini publishes no free-tier table at all, so the
+guess would be fiction dressed as precision.
+
+**Consequences:** A long cloud run is a sequence of short sessions the user controls. Phase 7b
+exercised this for real: Groq's correctly-classified daily exhaustion latched and refused every
+subsequent chapter in 0.0 s with no network call, which is exactly the intended behaviour, and is what
+made Gemini's misclassification visible by contrast (fixed in #068).
+
+---
+
+## 068 — Read Gemini's quota period from the structured error body, not the message — 2026-07-27 — Claude Code
+
+**Status:** Accepted
+
+**Context:** Phase 7b measured Gemini spending **~35 minutes retrying chapter by chapter** after its
+daily quota was gone, silently producing script-only output, where Groq latched immediately and
+refused the rest of the run in 0.0 s. `classify_limit` and the adapter both tested for "per day"
+wording in the error text and never found it.
+
+**Decision:** The period is read **structurally**. A Gemini 429 body carries a
+`google.rpc.QuotaFailure` whose violations name the exact quota (`quotaId` values such as
+`GenerateRequestsPerDayPerProjectPerModel-FreeTier`), plus a `google.rpc.RetryInfo` with a
+`retryDelay`; the SDK keeps the whole parsed body on `APIError.details`. The adapter now walks that
+structure. Per-day wins when a body names both periods — the fail-closed direction, since waiting a
+minute for a quota that resets tomorrow burns the run while the converse costs one resumable stop.
+`RetryInfo.retryDelay` is surfaced as `retry_after_seconds`, which Phase 4's limiter already prefers
+over its configured floor; Gemini was previously floored on every 429 for want of anywhere to read it.
+
+**The root cause is worth recording exactly, because the obvious diagnosis is wrong.** The string
+check was correct. `str(APIError)` is `f"{code} {status}. {details}"`, so the evidence *was* in the
+text — but Google's human-readable message plus its documentation URL runs ~250 characters, and
+`_safe_message` truncates at 300 to bound what reaches a log. `quotaId` sits near character 450. The
+input to the check had been amputated before it ran. Widening the truncation would only have made the
+bug less likely; a test now asserts the truncation directly so the premise cannot silently rot.
+
+Beneath that sits a **provider-neutral floor**: consecutive limit errors that never name a period,
+persisting past `unnamed_limit_escalation_seconds` (600, configurable, 0 disables) with no successful
+request in between, escalate to `DAILY_UNSPECIFIED` and take the existing checkpoint path. A *named*
+per-minute limit never escalates however long it runs, a success clears the streak, and a transient
+network fault is never escalated into a quota stop.
+
+**Alternatives considered:** Raising `_MAX_ERROR_CHARS` — rejected; it treats a symptom and re-breaks
+the moment Google lengthens a message. Treating every sustained Gemini 429 as daily without reading
+the body — rejected as exactly the "never infer daily exhaustion from every 429" rule this plan sets;
+the escalation window is the bounded version of that idea and applies only where there is no evidence
+at all. Parsing the stringified body with a longer regex — rejected; the structure is right there.
+
+**Consequences:** Escalating is not a claim the daily quota is gone. It produces a clean stop with
+`reset_known = False`, which Phase 6 already renders as "reset time unknown — see the provider's
+limits page", and resuming is one click. Being wrong costs a stop the user can undo; being wrong the
+other way costs the run.
+
+---
+
+## 067 — Cloud privacy and billing consent is explicit, versioned, and records only the version — 2026-07-27 — Claude Code
+
+**Status:** Accepted
+
+**Context:** Local editing keeps the user's text on their machine. Cloud editing does not, and that is
+a decision the user is entitled to make deliberately rather than discover. Free-tier data handling
+also commonly differs from paid-tier handling.
+
+**Decision:** Before the **first** cloud request ever made, a dialog states plainly that chapter text
+will leave this computer, which provider receives it, that the provider's terms and data-use policies
+apply and may differ on the free tier, and links the provider's billing/limits page with a request to
+confirm billing is disabled. It offers "cancel and use local/script-only editing instead". The
+acknowledgement is stored as **the disclosure version and nothing else** — never chapter content,
+never the key. Materially changing the disclosure text bumps the version and re-asks.
+
+**Alternatives considered:** A one-time checkbox in settings — rejected; consent buried in a settings
+pane is not consent at the moment it matters. Recording *what* was sent for an audit trail — rejected
+outright; that would put chapter text in a settings file to prove chapter text was handled carefully.
+
+**Consequences:** `disclosure.py` owns the text and the version; the spend guard treats an
+unacknowledged or stale acknowledgement as a refusal, so consent is enforced on the same choke point
+as every other rail rather than by the GUI remembering to ask. Phase 7b's pre-flight showed this
+working before any key existed: all nine approved models reported `disclosure_not_acknowledged`.
+
+---
+
+## 066 — Keys live in a per-user file outside the repo, with a fixed precedence — 2026-07-27 — Claude Code
+
+**Status:** Accepted. Supersedes the earlier plan to use a repo-root `.env`.
+
+**Context:** A root `.env` is gitignored but still physically inside the folder the user downloaded,
+unzipped, and may well copy, sync or share. That is the wrong place for a credential regardless of
+what git does with it.
+
+**Decision:** Precedence, in order: (1) process **environment variable** (`GEMINI_API_KEY` /
+`GROQ_API_KEY`) — the providers' own guidance and the developer path; (2) a **per-user secrets file**
+at `%LOCALAPPDATA%/WebNovelEditor/secrets.json` or
+`~/Library/Application Support/WebNovelEditor/secrets.json`, written atomically with permissions
+restricted as far as the OS allows; (3) a **session-only key** entered through a masked dialog and
+held in memory only; (4) otherwise the provider is greyed out with a plain-English reason. A repo-root
+`.env` may still be *read* as a documented developer override, but **no code path writes one**.
+
+The path logic and the atomic write are 2a's `runtime_dir()` and `write_settings_atomic()`, reused
+rather than reimplemented.
+
+**One redaction boundary.** All logging routes through a single redactor, and tests inject
+recognisable fake keys and assert they never appear in the GUI log, the JSONL, setup logs, exception
+text, tracebacks, run manifests, subprocess arguments or test snapshots. This is not decoration for
+Gemini specifically: Google routinely puts the API key in the request URL, and that URL routinely
+lands in the exception text, so the redactor is the only thing between a 403 and a key in the log.
+
+**Alternatives considered:** The OS keychain — deferred, not rejected; it needs a dependency and a
+per-platform story that Plan 2c is better placed to own, and the app must degrade gracefully when it
+is unavailable anyway. Encrypting the secrets file with a key stored beside it — rejected as security
+theatre.
+
+**Consequences:** Deleting the app folder does not delete the key, and re-downloading does not lose
+it. The GUI reports key **presence only**, never a prefix or a masked value.
+
+---
+
+## 065 — The approved-model list is a guard against accident, not a security boundary — 2026-07-27 — Claude Code
+
+**Status:** Accepted. Cancels the earlier "detect models at runtime and default to the newest".
+
+**Context:** The original design would list a provider's models, sort by version and pick the newest
+qualifying one. Three things are wrong with that: a model-list endpoint reports technical
+availability, not free-tier eligibility for *this* account; `latest`-style aliases hot-swap and can
+resolve to preview models, which typically require billing; and lexical "newest" across
+`gemini-3.6-flash`, `llama-3.3-70b-versatile` and `openai/gpt-oss-120b` is not a real ordering.
+
+**Decision:** Ship a **reviewed record per approved model** in `config.toml` — exact `id` (never an
+alias), `provider`, `status`, `context_limit`, `output_limit`, `reviewed_on`, `source_url`,
+`free_tier_confidence`, `pilot_status` — so the list is updated without a code change. At startup the
+provider's model list is queried **only** to confirm the configured exact ID is still offered. Other
+discovered models may be shown as advanced choices **only if they are also in the approved set**. A
+model that has disappeared makes the provider unavailable with "this model was retired — update the
+approved list"; **no replacement is ever selected**. `free_tier_confidence` of `unknown` is refused in
+strict free-only mode, which is the default.
+
+**Be honest about what this is.** It is user-editable TOML in a desktop app. It is a conservative
+guard against *accidentally* calling something expensive, and it must never be described as a security
+or billing boundary. Two things make it more than a comment: the spend guard requires
+`strict_free_tier_only` to be **exactly the boolean `True`** (truthiness fails in both directions —
+`bool("false")` is `True`), and it asserts post-conditions on the returned record (ID identical,
+status stable, confidence confirmed) so loosening a rule upstream cannot silently propagate.
+
+`free_tier_confidence` records **eligibility only and never a known quota**. Google publishes no
+free-tier limits table at all — its rate-limits page defers entirely to AI Studio — so "free of
+charge" is confirmable while the quota is genuinely unknowable from documentation. Collapsing those
+two would be inventing a number.
+
+**Alternatives considered:** Newest-model auto-selection — cancelled, above. Hardcoding limits in
+code — rejected; every published figure in this space goes stale, and Phase 7b's measured ceilings
+already differ from what third-party aggregators claim.
+
+**Consequences:** Adding a model is a deliberate review with a date and a source URL, not a
+side effect of a provider's release. Nine approved records ship; every `pilot_status` remains
+`not-piloted` because no default has been adopted (#064).
+
+---
+
+## 064 — No default cloud provider; cloud is opt-in per run, every run — 2026-07-27 — Claude Code
+
+**Status:** Accepted — the author's decision after reading the Phase 7b comparison.
+
+**Context:** Phase 7b compared `gemini-3.6-flash` and `llama-3.3-70b-versatile` on the same 40 frozen
+chapters and stopped for a decision. On the 14 chapters both served, Gemini accepted 14/14 with 10
+faithful echoes and 1 `proper_noun_changed`; Groq accepted 12/14 with 8 faithful echoes and 5. Neither
+produced a single `in_token_punctuation` change. Coverage was uneven — Gemini managed 38/40, Groq 14/40
+before its tokens-per-day ceiling latched — so the comparison is real but thin, and both providers cost
+real quota the user is paying for in scarcity rather than money.
+
+**Decision:** **No cloud provider is wired as a default.** Local Ollama remains the default editing
+path. Cloud is selected deliberately for each run, and nothing about that selection is remembered: no
+persisted "last used provider", no quick-switch, no preference carried across sessions. `config.toml`
+ships `[ai] enabled = false`, `provider = "ollama"`, and both cloud subtables `enabled = false`,
+`model = ""`.
+
+**Alternatives considered:** Adopting Gemini as the cloud default on its better 7b showing — rejected
+by the author. A remembered "last used cloud provider" for convenience — rejected: a run that sends
+the user's text to a third party and consumes a scarce daily quota should be a decision each time, not
+a default inherited from a session weeks ago. Speed as a tiebreaker — explicitly out of bounds; the
+plan requires quality and over-edit rate to dominate, and speed alone never wires a default.
+
+**Consequences:** The only persisted cloud state is the disclosure acknowledgement and the API keys —
+a test asserts no provider preference reaches `settings.json`. Selecting a cloud provider costs a few
+clicks every run, which is the intended friction. Every `pilot_status` in the approved records stays
+`not-piloted`, accurately: nothing has been adopted.
+
+---
+
 ## 063 — The protected-term prompt block is scoped to the terms present in each request — 2026-07-27 — Claude Code
 
 **Status:** Accepted. Supersedes the unscoped block shipped since Plan 2a Phase 4.

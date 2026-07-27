@@ -53,6 +53,29 @@ only (there is no macOS-exclusive code today).
 
 ## Status
 
+**v0.13.0 — complete, awaiting final sign-off.** This version lets the optional AI proofreading pass
+run on a **cloud** model (Google Gemini or Groq) instead of your own machine, if you want it to. Four
+things are worth knowing before you do:
+
+- **It is opt-in every single time.** There is no default cloud provider and the app does not remember
+  the one you used last. Local stays the normal path, and the AI pass as a whole is still off unless
+  you switch it on.
+- **Your chapter text leaves your computer** when you use a cloud provider. The app asks you to
+  confirm that once, in plain language, before the first cloud request it ever makes, and offers to
+  cancel and stay local instead.
+- **It is built to avoid costing you money, and it tells you the truth about that.** The app never
+  enables billing, never upgrades an account, and never intentionally picks a paid or preview model —
+  it only calls exact models reviewed and listed in `config.toml`. But no desktop app can *guarantee*
+  a key you supply can never be charged, so use a key from a project with billing disabled and confirm
+  it in the provider's own console. If the app cannot confirm a run will stay free, it stops and says
+  why rather than proceeding.
+- **Free tiers are small.** Roughly thirty chapters a day on Groq's free plan. When the daily quota
+  runs out the app saves its place, tells you so, and you can close it and pick up tomorrow with
+  **Resume incomplete run**. For a whole novel, the local option is still the practical one.
+
+Your protected names and the chapter structure are guaranteed byte-for-byte by exactly the same strict
+gate whichever engine you choose — the cloud path is not a looser path.
+
 **Shipped: v0.12.0.** This version adds an **optional local AI proofreading pass** that runs after the
 scripted editing and before the PDF is written. It is **opt-in and OFF by default** — with it off, the
 output is exactly the same as the scripted result in v0.11.0. When switched on it runs entirely on your

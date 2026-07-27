@@ -17,10 +17,12 @@ import json
 import os
 import stat
 import sys
+from pathlib import Path
 
 import pytest
 
 from ai import redaction
+from ai.config import load_config
 from ai.approved_models import (
     ApprovedModel,
     ensure_model_approved,
@@ -654,3 +656,44 @@ def test_script_only_output_is_byte_identical_with_the_cloud_layer_present(paths
     outcome = editor.edit(baseline)
     assert outcome.text == baseline
     assert outcome.used_ai is False
+
+
+# ---------------------------------------------------------------------------
+# Phase 8 — no default cloud provider, and no remembered one
+#
+# The author's decision: local stays the default editing path and cloud is opt-in per
+# run, every run. No persisted "last used provider", no preference carried across
+# sessions. These pin it as shipped behaviour rather than a claim in a document.
+# ---------------------------------------------------------------------------
+_REPO_ROOT = Path(__file__).resolve().parents[2]
+_CONFIG = _REPO_ROOT / "config.toml"
+
+
+def test_the_shipped_config_defaults_to_local_and_enables_no_cloud_provider():
+    ai_table = load_config(_CONFIG)
+    assert ai_table.get("enabled") is False, "the AI pass itself must ship off"
+    assert ai_table.get("provider") == "ollama", "the default path must be local"
+    for provider in ("gemini", "groq"):
+        section = ai_table.get(provider)
+        assert section.get("enabled") is False, f"[ai.{provider}] must ship disabled"
+        assert section.get("model") == "", f"[ai.{provider}] must ship with no model"
+
+
+def test_no_shipped_approved_model_is_marked_piloted_as_a_default():
+    """A wired default would show up here first; nothing has been adopted."""
+    models = load_config(_CONFIG).get("approved_models") or []
+    assert models, "the approved list must not be empty"
+    assert not any(m.get("is_default") for m in models)
+
+
+def test_the_persisted_settings_file_never_records_a_provider_choice(tmp_path):
+    """Only the disclosure acknowledgement and keys are persisted — never a preference."""
+    settings_file = tmp_path / "settings.json"
+    record_acknowledgement("gemini", settings_file=settings_file)
+    store_api_key("gemini", "AIzaFAKEKEYFORTESTS", path=tmp_path / "secrets.json")
+
+    document = json.loads(settings_file.read_text(encoding="utf-8"))
+    flat = json.dumps(document).lower()
+    for forbidden in ("last_provider", "last_used", "preferred_provider", "default_provider"):
+        assert forbidden not in flat, f"{forbidden} would survive across sessions"
+    assert "aizafakekeyfortests" not in flat
