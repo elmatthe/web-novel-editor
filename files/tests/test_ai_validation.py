@@ -4,7 +4,8 @@ import json
 
 import pytest
 
-from ai.prompt import LEXICON_VERSION, build_system_prompt
+from ai.prompt import LEXICON_VERSION, build_system_prompt, select_relevant_terms
+from core.protected_lexicon import ProtectedLexicon, mask_protected_terms
 from ai.provenance import MAX_SNIPPET, build_provenance
 from ai.validation import RejectionReason as R
 from ai.validation import validate_candidate
@@ -151,3 +152,60 @@ def test_adjacent_tiny_grammar_correction_keeps_positional_identity():
     baseline = "Chapter 1: Place.\n\nAfter sunset, Sunny walk quietly toward home."
     fixed = "Chapter 1: Place.\n\nAfter sunset, Sunny walks quietly toward home."
     assert validate_candidate(baseline, fixed, protected_terms=("Sunny",)).accepted
+
+
+# --- Phase 8 Task 1: which terms count as "present" in a request ---
+#
+# `select_relevant_terms` deliberately reuses `mask_protected_terms`' notion of an
+# occurrence: a term the masker would replace is exactly the term the model could
+# otherwise have altered. These tests pin that equivalence rather than the regex.
+
+
+def test_only_terms_that_actually_occur_are_selected():
+    text = "Sunny walked past the gate while Nephis waited."
+    assert select_relevant_terms(text, ("Sunny", "Cassie", "Nephis")) == (
+        "Sunny",
+        "Nephis",
+    )
+
+
+def test_selection_preserves_the_callers_ordering():
+    text = "Wang Lin met Xu Liguo."
+    ordered = ("Wang Lin", "Xu Liguo", "Wang", "Lin")
+    assert select_relevant_terms(text, ordered) == ordered
+
+
+@pytest.mark.parametrize(
+    "text", ["Sunny's blade.", "Sunny’s blade.", "The Sunnys gathered.", "(Sunny)"]
+)
+def test_possessive_plural_and_adjacent_punctuation_all_count_as_present(text):
+    assert select_relevant_terms(text, ("Sunny",)) == ("Sunny",)
+
+
+def test_a_term_buried_inside_a_longer_word_is_not_present():
+    # The masker would not touch it either, so telling the model to preserve "Lin"
+    # here would be noise about a word that is not the protected term.
+    assert select_relevant_terms("He walked to Lindenwood.", ("Lin",)) == ()
+
+
+def test_a_phrase_split_across_a_line_break_is_still_present():
+    assert select_relevant_terms("Wang\nLin spoke.", ("Wang Lin",)) == ("Wang Lin",)
+
+
+def test_masked_text_selects_nothing_which_is_the_whole_point():
+    lexicon = ProtectedLexicon(("Sunny", "Nephis"), frozenset({"sunny", "nephis"}))
+    masked, mapping = mask_protected_terms("Sunny met Nephis at dusk.", lexicon)
+    assert mapping  # something really was masked
+    assert select_relevant_terms(masked, lexicon.terms) == ()
+
+
+def test_scoping_the_block_does_not_change_the_lexicon_fingerprint(tmp_path):
+    resource = tmp_path / "prompt.md"
+    resource.write_text("PROMPT VERSION: 1.0\nMechanical only.", encoding="utf-8")
+    full = ("Sunny", "Nephis", "Cassie")
+    whole = build_system_prompt(full, resource=resource)
+    scoped = build_system_prompt(("Sunny",), resource=resource, lexicon_terms=full)
+    assert scoped.lexicon_hash == whole.lexicon_hash
+    assert scoped.protected_term_count == 1
+    assert scoped.lexicon_term_count == 3
+    assert "Cassie" not in scoped.system_prompt

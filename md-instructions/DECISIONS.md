@@ -9,6 +9,69 @@ its original decision date. New decisions continue to be appended here (newest o
 
 ---
 
+## 063 — The protected-term prompt block is scoped to the terms present in each request — 2026-07-27 — Claude Code
+
+**Status:** Accepted. Supersedes the unscoped block shipped since Plan 2a Phase 4.
+
+**Context:** `build_system_prompt` embedded the entire novel index in the system prompt, and
+`AIEditor` sends that system prompt with **every chunk**. That was invisible while five indexes
+were empty. Once they were built (#062) it became the dominant per-chapter cost: 4,536 tokens
+per request for Renegade Immortal's 837 terms and 7,444 for Reverend Insanity's 1,435, charged
+again for every chunk — 2.10× and 3.24× the pre-index cost, against a Groq free ceiling of
+100,000 tokens per day.
+
+The investigation asked what the block is *for*, and the answer is that it is **advisory, and
+was never the protection**. Protection is enforced twice, in neither place by the prompt:
+
+1. **Masking.** Under `ProtectionStrategy.MASK` — the shipped default and what every Phase 7b
+   run used — `mask_protected_terms` replaces every occurrence with a `__WE_P_NNNNN__`
+   placeholder *before* chunking, and `unmask_placeholders` restores it from an exact-substring
+   map afterwards. The model never holds the term, so it cannot corrupt it. The old block was
+   therefore instructing the model to preserve 1,435 words that were not in front of it.
+2. **The gate.** `validate_candidate` compares the exact spelling and the paragraph/sentence/word
+   ordinal of every occurrence against the **whole** index — per chunk under `VERIFY`, and always
+   for the finished chapter.
+
+Under `VERIFY` the text is not masked, so the block is genuine guidance there — but only for the
+terms the request actually contains.
+
+**Decision:** Scope the block to the terms that occur in the text being sent, in two passes.
+Pass A selects the terms present in the whole (post-masking) chapter and sizes the chunk budget
+from that prompt; pass B narrows again to each chunk. Because a chunk is a substring of the
+chapter, pass B's term set is always a **subset** of pass A's, so a per-chunk prompt can never be
+larger than the one the budget was computed against — that monotonicity is what makes the scheme
+safe against context overflow, and it has its own test.
+
+"Present" reuses `mask_protected_terms`' own notion of an occurrence (letter boundaries,
+case-insensitive, flexible whitespace inside phrases, possessive/plural tail), because a term the
+masker would replace is exactly the term the model could otherwise have altered.
+
+`lexicon_hash` continues to fingerprint the **whole** index via the new `lexicon_terms` argument.
+It is a run-level reproducibility record; letting it follow the scoped subset would have turned it
+into a per-chunk value identifying nothing.
+
+**Alternatives considered:** Trimming terms from the indexes — rejected outright; that reduces
+real protection to save tokens, which is the wrong trade in this project. Dropping the block
+entirely — rejected; it is load-bearing under `VERIFY`. Caching the block provider-side — not
+available on either free tier at these volumes. Widening the block only when unmasked — rejected
+as a special case where a general rule (send what is present) is simpler and correct for both
+strategies.
+
+**Consequences:** Measured on the frozen 10-chapter sample with the real editor and a capture
+provider: mean input per chapter falls **10,209 → 4,983** tokens for Renegade Immortal (−51%) and
+**17,252 → 5,474** for Reverend Insanity (−68%). Projected against Phase 7b's provider-reported
+figures, cost returns to the zero-index baseline exactly — ~3,108 and ~2,972 tokens/chapter, or
+**32 and 33 chapters/day** on Groq free, up from 15 and 10. Growing an index now costs nothing per
+request unless the terms are actually used, which removes the standing tension between protecting
+more names and affording to run.
+
+This is the **one sanctioned change to the prompt layer** in Plan 2b; the plan's Definition of Done
+otherwise requires it unchanged. `validation.py` (the gate), `models.py`, `errors.py`,
+`provider.py` and `chunking.py` are byte-for-byte unchanged, which is what makes "no loss of
+protection" a structural claim rather than an assurance.
+
+---
+
 ## 062 — Protected-term indexes are built from measured corpus evidence; dual-use words are flagged, never enabled unilaterally — 2026-07-26 — Claude Code
 
 **Status:** Accepted

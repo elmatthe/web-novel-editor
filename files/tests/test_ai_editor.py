@@ -455,3 +455,129 @@ def test_ai_required_gate_rejection_raises_but_provider_remains_available():
         instance.edit(rejected)
     assert instance.run_state is ProviderRunState.AVAILABLE
     assert instance.edit(next_text).used_ai
+
+
+# --- Phase 8 Task 1: the protected-term block is scoped to what is actually sent ---
+#
+# The block is advisory. Protection lives in masking (the model never receives the term)
+# and in the gate (which always compares against the WHOLE index). These tests pin both
+# halves: that the block shrinks to what the request contains, and that shrinking it
+# changes no protection outcome. See DECISIONS #063.
+
+# One name per paragraph, so paragraph packing decides which chunk each lands in.
+_SCOPED_TEXT = (
+    "Sunny walked to the gate that evening and waited.\n\n"
+    "Nephis answered him with the same calm as always.\n\n"
+    "Cassie said nothing at all, which was answer enough."
+)
+_SCOPED_TERMS = ("Sunny", "Nephis", "Cassie", "Effie", "Mordret", "Jet", "Kai")
+
+
+def _sent_blocks(provider):
+    """The protected-term block of every request, as a list of term lists."""
+    blocks = []
+    for call in provider.calls:
+        tail = call.system_prompt.split("PROTECTED TERMS — preserve exactly:\n", 1)[1]
+        blocks.append([line[2:] for line in tail.strip().splitlines()])
+    return blocks
+
+
+def test_masked_runs_send_no_term_block_because_the_model_receives_no_terms():
+    provider = FakeProvider()
+    outcome = editor(provider, strategy=ProtectionStrategy.MASK).edit(
+        _SCOPED_TEXT, protected_terms=_SCOPED_TERMS
+    )
+    assert outcome.status == "accepted"
+    # Every occurrence is a placeholder by the time the request is built, so listing
+    # any term at all would be instructing the model about words it cannot see.
+    assert _sent_blocks(provider) == [["(none)"]]
+    for call in provider.calls:
+        assert "__WE_P_" in call.text
+        for term in _SCOPED_TERMS:
+            assert term not in call.system_prompt
+
+
+def test_verify_runs_send_the_present_terms_and_omit_the_absent_ones():
+    provider = FakeProvider()
+    outcome = editor(provider, strategy=ProtectionStrategy.VERIFY).edit(
+        _SCOPED_TEXT, protected_terms=_SCOPED_TERMS
+    )
+    assert outcome.status == "accepted"
+    sent = set(_sent_blocks(provider)[0])
+    assert sent == {"Sunny", "Nephis", "Cassie"}
+    assert not sent & {"Effie", "Mordret", "Jet", "Kai"}
+
+
+def test_each_chunk_is_told_only_about_its_own_terms():
+    provider = FakeProvider(context=5000, output=30)
+    instance = AIEditor(
+        lambda: provider,
+        EditorOptions(
+            "fake-1",
+            RunPolicy.PREFER_AI,
+            ProtectionStrategy.VERIFY,
+            request_overhead_tokens=0,
+            safety_margin_tokens=0,
+        ),
+    )
+    assert instance.edit(_SCOPED_TEXT, protected_terms=_SCOPED_TERMS).status == "accepted"
+    blocks = _sent_blocks(provider)
+    assert len(blocks) > 1, "this test is meaningless unless the chapter really splits"
+    for block, call in zip(blocks, provider.calls):
+        assert set(block) == {t for t in _SCOPED_TERMS if t in call.text}
+
+
+def test_a_chunks_block_never_exceeds_the_one_the_budget_was_sized_from():
+    """Monotonicity is what makes two-pass scoping safe against context overflow."""
+    provider = FakeProvider(context=5000, output=30)
+    instance = AIEditor(
+        lambda: provider,
+        EditorOptions(
+            "fake-1",
+            RunPolicy.PREFER_AI,
+            ProtectionStrategy.VERIFY,
+            request_overhead_tokens=0,
+            safety_margin_tokens=0,
+        ),
+    )
+    instance.edit(_SCOPED_TEXT, protected_terms=_SCOPED_TERMS)
+    chapter_terms = {"Sunny", "Nephis", "Cassie"}
+    for block in _sent_blocks(provider):
+        assert set(block) <= chapter_terms
+
+
+def test_the_provenance_lexicon_hash_still_identifies_the_whole_index():
+    """Scoping must not turn a run-level reproducibility record into a per-chunk one."""
+    dense = FakeProvider()
+    sparse = FakeProvider()
+    editor(dense, strategy=ProtectionStrategy.VERIFY).edit(
+        _SCOPED_TEXT, protected_terms=_SCOPED_TERMS
+    )
+    editor(sparse, strategy=ProtectionStrategy.VERIFY).edit(
+        "Cassie said nothing at all, which was answer enough.",
+        protected_terms=_SCOPED_TERMS,
+    )
+    outcome = editor(FakeProvider(["mangled"] * 2), strategy=ProtectionStrategy.VERIFY).edit(
+        _SCOPED_TEXT, protected_terms=_SCOPED_TERMS
+    )
+    hashes = {record["lexicon_hash"] for record in outcome.provenance}
+    assert len(hashes) == 1
+    # Different chapters, different blocks sent, same index fingerprint.
+    other = editor(FakeProvider(["mangled"] * 2), strategy=ProtectionStrategy.VERIFY).edit(
+        "Cassie said nothing at all, which was answer enough.",
+        protected_terms=_SCOPED_TERMS,
+    )
+    assert {r["lexicon_hash"] for r in other.provenance} == hashes
+
+
+def test_scoping_the_block_did_not_weaken_the_gate():
+    """A term the block never mentioned is still protected, because the gate is unscoped."""
+    text = "Cassie said nothing at all, which was answer enough."
+    corrupted = text.replace("Cassie", "Cassia")
+    provider = FakeProvider([corrupted, corrupted])
+    outcome = editor(provider, strategy=ProtectionStrategy.VERIFY).edit(
+        text, protected_terms=_SCOPED_TERMS
+    )
+    assert outcome.status == "fallback"
+    assert "protected_term_changed_or_moved" in outcome.rejection_reasons
+    assert outcome.text == text

@@ -30,7 +30,12 @@ from .models import (
     ProviderStatus,
     RunPolicy,
 )
-from .prompt import PromptBundle, build_retry_prompt, build_system_prompt
+from .prompt import (
+    PromptBundle,
+    build_retry_prompt,
+    build_system_prompt,
+    select_relevant_terms,
+)
 from .provenance import build_provenance
 from .provider import AIProvider
 from .validation import GATE_VERSION, RejectionReason, validate_candidate
@@ -167,7 +172,6 @@ class AIEditor:
 
         terms = tuple(protected_terms)
         lexicon = _lexicon_from_terms(terms)
-        prompt = build_system_prompt(lexicon.terms)
         try:
             provider = self._provider_for_run()
             capabilities = self._capabilities
@@ -182,6 +186,14 @@ class AIEditor:
             protected_map: dict[str, str] = {}
             if self.options.protection_strategy is ProtectionStrategy.MASK:
                 working_baseline, protected_map = mask_protected_terms(baseline, lexicon)
+            # Pass A of the two-pass scoping: the terms present in the text that will
+            # actually be sent. Under MASK that is nearly none — every occurrence is
+            # already a placeholder — which is precisely why the block was pure cost.
+            # This prompt sizes the budget, so the per-chunk prompts built below (always
+            # a SUBSET of these terms, because a chunk is a substring of this text) can
+            # only ever be smaller than what the budget was computed against.
+            chapter_terms = select_relevant_terms(working_baseline, lexicon.terms)
+            prompt = build_system_prompt(chapter_terms, lexicon_terms=lexicon.terms)
             budget = safe_input_budget(
                 context_limit=capabilities.context_limit,
                 max_output_limit=capabilities.max_output_tokens,
@@ -200,13 +212,23 @@ class AIEditor:
         retry_total = 0
         failure_reasons: tuple[str, ...] = ()
         for chunk in plan.chunks:
+            # Pass B: narrow again to this chunk. Never larger than `prompt`, so the
+            # budget above stays a valid upper bound on every request this loop sends.
+            chunk_terms = select_relevant_terms(chunk.text, chapter_terms)
+            chunk_prompt = (
+                prompt
+                if chunk_terms == chapter_terms
+                else build_system_prompt(chunk_terms, lexicon_terms=lexicon.terms)
+            )
             chunk_accepted = False
             stricter_retry = False
             provider_outage: BaseException | None = None
             for attempt_index in range(2):
                 if attempt_index:
                     retry_total += 1
-                attempt_prompt = build_retry_prompt(prompt) if stricter_retry else prompt
+                attempt_prompt = (
+                    build_retry_prompt(chunk_prompt) if stricter_retry else chunk_prompt
+                )
                 request = CompletionRequest(
                     text=chunk.text,
                     system_prompt=attempt_prompt.system_prompt,
