@@ -7,7 +7,18 @@ project has ever made were issued on 2026-07-25/26 and `files/pilot/PROVIDER-COM
 committed.** Gemini measured **38/40** frozen chapters; Groq measured **14/40** before its free
 tokens-per-day ceiling latched, so the Groq column is materially thinner and the report's
 like-for-like table (the 14 chapters both served) is the only directly comparable view. **Nothing
-is wired as a default and Phase 8 has not started.** Working branch
+is wired as a default and Phase 8 has not started.**
+
+**Since then, and independent of the phase sequence, the protected-term indexes were built and
+audited across all 8 novels (2026-07-26): 973 terms across 3 novels became 4,074 across 5.** Renegade
+Immortal (0→837) and Reverend Insanity (0→1435) were built from nothing; The Noble Queen (26→371),
+Shadow Slave (353→541) and Supreme Magus (594→890) were audited; Circle of Inevitability, Lord of the
+Mysteries and Re:Monster **cannot** be built — no corpus exists for them — and now say so in their own
+files. Index data only: no editing logic, pipeline, gate, provider or config was touched. A further
+410 dual-use candidates sit commented out awaiting the author's call. See that work log below and
+DECISIONS #062.
+
+Working branch
 **`feature/plan-2b-cloud-providers`**, cut from the approved
 merged release commit **`72d68ca`** (`main`, tag `v0.12.0`). Baseline `verify.py` at branch creation:
 **688 passed / 8 skipped**; after Phase 1: **739 / 8**; after Phase 2: **801 / 9**; after Phase 3:
@@ -28,6 +39,72 @@ first phase that makes a real cloud call, so it needs a key and the billing/plan
 manually in the provider's own console (done 2026-07-25 — see the Phase 7a log). **Every cloud run
 now passes `ai.spend_guard.ensure_free_tier_run_allowed` at `ai.factory.create_provider` before an
 adapter exists**, and a refusal stops the run in a dialog rather than degrading to script-only.
+
+## Work Log — 2026-07-26 — Claude Code — Protected-term index build and audit (all 8 novels)
+
+Ran on HOME-PC, on `feature/plan-2b-cloud-providers`, **after** Phase 7b and independent of it.
+No editing logic, pipeline, gate, provider or config was touched — this changed **index data only**
+(`scripts/Universal/resources/novel-index/*.txt`). Phase 8 was not started and no default was wired.
+
+**Why.** Phase 7b caught a cloud model renaming an unprotected character (`Kraii` → `Kraai`). Five of
+the eight indexes were empty placeholders and The Noble Queen held 26 terms against Shadow Slave's
+353, so the exposure was structural, not a one-off.
+
+**Result — 973 protected terms across 3 novels became 4,074 across 5:**
+
+| novel | before | after | added | flagged for review |
+|---|---|---|---|---|
+| Renegade Immortal | 0 | **837** | 837 | 101 |
+| Reverend Insanity | 0 | **1435** | 1435 | 139 |
+| The Noble Queen | 26 | **371** | 343 (62 shared SS canon + 281 own) | 73 |
+| Shadow Slave | 353 | **541** | 188 | 92 |
+| Supreme Magus | 594 | **890** | 296 | 105 |
+| Circle of Inevitability / Lord of the Mysteries / Re:Monster | 0 | **0** | — | — |
+
+**Method — the corpus is the only authority.** Every term was counted in that novel's own extracted
+chapters at the exact spelling listed before being written, and the count ships in the file as a
+trailing comment. Candidates came from capitalization statistics, a local **qwen3:14b** pass over 80
+sampled chapters per novel, and (for The Noble Queen) a cross-check of all 353 Shadow Slave terms.
+qwen only ever proposed: **132 of its 3,878 proposals (3.4%) were rejected** as absent from the
+corpus at the spelling given — including `Kraii` offered for two novels it does not occur in.
+
+**Dual-use words are flagged, not enabled.** `mask_protected_terms` is case-insensitive, so indexing
+"Song" freezes every "song". Terms whose lowercase use exceeds 5% of their capitalized use (1% for
+the Shadow Slave and Supreme Magus audits) are written **commented out** with their counts. 410 terms
+sit in those REVIEW blocks; comments are stripped by the loader so they change behaviour by nothing.
+
+**The Noble Queen / Shadow Slave shared universe.** Confirmed: The Noble Queen is a Shadow Slave
+fanfic (webnovel.com). 135 of Shadow Slave's 353 terms occur in Noble Queen's text at all; **62**
+cleared the bar and were adopted. Nothing was copied across for being in the other novel.
+
+**Author ground truth applied** (Renegade Immortal): `Wang Lin` canonical, never shortened to `Wan`
+(`Wang Lin`, `Wang`, `Lin` all indexed; longest-first masking takes the full name as one unit).
+`Liguo` canonical for Xu Liguo. `Ligou` (38x) and `Ligo` (1x) are left **unindexed on purpose** —
+indexing them would freeze the errors; they need a deliberate replacement rule.
+
+**Two defects the build found in itself.** (1) OCR garble `Ragnar?k` in the Supreme Magus corpus made
+a phantom "Ragnar" token look like a frequent name; indexing it masked the first six letters of every
+`Ragnar?k` and broke the `special_fixes` repair rule —
+`test_sm_special_fixes_apply_in_sm_mode_and_are_logged` caught it. Tokenization is now Unicode-aware
+and prefix-fragments welded to more text are dropped. (2) `git checkout <ref> -- <path>` stages the
+restored file, which silently swept a Noble Queen revert into a Renegade Immortal commit; the commit
+series was rebuilt so each commit touches exactly one novel.
+
+**Open items for the author** (none blocking): the 410 commented REVIEW terms; the `Ligou`/`Ligo`
+replacement rule; `Kraai` (30x) vs `Kraii` (5x) in The Noble Queen — both protected, since the source
+is inconsistent and harmonizing is an editorial call; and a pre-existing duplicate `Immortal Flame`
+in the hand-curated part of shadow-slave.txt (harmless, the loader de-duplicates; left alone because
+this pass promised not to modify existing content).
+
+**Gates.** `scripts/verify.py` **PASS — 1188 passed, 8 skipped** (1196 collected, 0 failed). Indexes
+remain supersets of `NQ_CANONICAL_NAMES` and `SM_CANONICAL_NAMES`; the three corpus-less files still
+load to exactly zero terms, so the Lord of the Mysteries universal-fallback seam test is untouched.
+Masking costs 192–505ms per chapter, in line with the pre-existing Supreme Magus baseline of 419ms.
+
+**Reproducing it:** the harness is local and gitignored at `files/qa-tools/scratch/index-build/`
+(`extract_current_corpora.py` → `qwen_candidates.py` → `build_all.py`, plus `write_placeholders.py`).
+Rebuilds are deterministic; append-mode novels need their tracked file checked out to the pre-audit
+state first, which `write_index.append` now refuses to do twice.
 
 ## Work Log — 2026-07-26 — Claude Code — Plan 2b Phase 7b (Frozen comparison run + report)
 
@@ -1468,6 +1545,19 @@ key storage, no consent dialog, no rate limiter, no GUI change, no dependency ad
 CHANGELOG/BRIEFING/DECISIONS entry (v0.13.0 docs belong to Phase 8), no merge, no tag, no PR.
 
 ### Session Sync Log
+- 2026-07-26 — HOME-PC — Protected-term index build + audit, all 8 novels, verify **1188 passed / 8
+  skipped** (1196 collected) on `feature/plan-2b-cloud-providers`. **Index data only.** Changed:
+  `scripts/Universal/resources/novel-index/` — `renegade-immortal.txt` (0→837), `reverend-insanity.txt`
+  (0→1435), `the-noble-queen.txt` (26→371, incl. the standalone `Kraai`/`Kraii` fix committed first),
+  `shadow-slave.txt` (353→541), `supreme-magus.txt` (594→890), and comment-only status headers for
+  `circle-of-inevitability.txt`, `lord-of-the-mysteries.txt`, `re-monster.txt` (still 0 active terms
+  each — no corpus exists to measure). Plus `md-instructions/DECISIONS.md` (#062) and this file.
+  **No editing logic touched** — no change to `editor.py`, `validation.py`, `prompt.py`,
+  `chunking.py`, `protected_lexicon.py`, any pipeline or profile, any provider, `spend_guard.py`, or
+  `config.toml`. No new dependency; no cloud call (candidate generation ran on local Ollama
+  qwen3:14b, which proposed 3,878 terms of which 132 (3.4%) were rejected as absent from the corpus).
+  410 dual-use candidates left commented out for the author. Seven commits, one novel each.
+  Next: unchanged — Plan 2b still pauses for the provider decision; Phase 8 not started.
 - 2026-07-25 — HOME-PC — Plan 2b Phase 5 (checkpointed runs), verify 1042/10 (1052 collected) on
   `feature/plan-2b-cloud-providers`. Changed: `scripts/Universal/core/run_manifest.py` (new, 436
   lines — `RunCheckpoint`, `load_manifest`, `ResumeOffer`, `find_resumable_run`, `plan_resume`),

@@ -9,6 +9,57 @@ its original decision date. New decisions continue to be appended here (newest o
 
 ---
 
+## 062 — Protected-term indexes are built from measured corpus evidence; dual-use words are flagged, never enabled unilaterally — 2026-07-26 — Claude Code
+
+**Status:** Accepted
+
+**Context:** Five of the eight novel indexes were empty placeholders, and a sixth (The Noble Queen)
+held 26 terms against Shadow Slave's 353 despite being a fanfic set in the same world. Phase 7b had
+just caught a cloud model renaming an unprotected character (`Kraii` → `Kraai`), which made the gap
+concrete rather than theoretical: an unindexed name is a name the AI editor may rewrite. The indexes
+had to be built from *something*, and the two obvious sources — a model's recall of the novel, and
+fan wikis — both produce plausible spellings rather than the spellings in **this** user's PDFs. A
+protected term that does not match the source byte-for-byte masks nothing while appearing to.
+
+**Decision:** Every indexed term is counted in that novel's own extracted corpus first, at the exact
+spelling listed, and nothing enters an index without that count. Candidates may come from anywhere —
+capitalization statistics, a local qwen3:14b pass, a cross-novel term list — but they are proposals
+only; **the corpus decides**. Measured counts ship in the file as trailing comments (the loader
+strips them), so the evidence travels with the data.
+
+Two rules follow from how `mask_protected_terms` actually behaves:
+
+- **Case-insensitivity forces a dual-use bar.** Masking is `re.IGNORECASE`, so indexing "Song"
+  freezes every "song". A term is enabled only where its lowercase use is under **5%** of its
+  capitalized use — tightened to **1%** when auditing the large hand-curated Shadow Slave and Supreme
+  Magus indexes. Everything else is written as a COMMENTED line carrying its counts: a worklist for
+  the author that changes runtime behaviour by nothing, and where enabling a term is deleting a `# `.
+- **Fragments are actively harmful.** Tokenizing splits on non-letters, so OCR garble already in the
+  corpus manufactures fragments that look like frequent proper nouns. `Ragnar?k` in Supreme Magus
+  produced 215 sightings of "Ragnar"; indexing it masked the first six letters of every `Ragnar?k`
+  and broke the `special_fixes` rule written to repair exactly that string. Tokenization is now
+  Unicode-aware, and candidates that are a prefix of another term and are welded to more text in over
+  half their occurrences are dropped.
+
+Author rulings override the automatic bar: "Wang Lin" and "Liguo" are indexed on the user's explicit
+instruction, including where the heuristic would have deferred them.
+
+**Alternatives considered:** Populating indexes from web research or model recall — rejected because
+it fails byte-for-byte matching *silently*; the three novels with no corpus were left empty and
+documented instead of guessed at. Copying Shadow Slave's list wholesale into The Noble Queen on the
+strength of the shared setting — rejected; only 135 of its 353 terms occur in Noble Queen at all, so
+most would have been dead weight, and each of the 62 adopted was confirmed in Noble Queen's own text.
+Enabling every dual-use word for maximum protection — rejected; it freezes ordinary prose against the
+legitimate repairs the editor exists to make.
+
+**Consequences:** Indexes are reproducible from the corpus via
+`files/qa-tools/scratch/index-build/build_all.py` and carry their own evidence. Protected terms went
+from 973 across three novels to **4,074 across five**. The commented REVIEW blocks (410 terms) are a
+standing author worklist. Three novels remain unbuilt for want of a corpus and say so in their own
+files. The qwen gate rejected 132 of 3,878 proposals (3.4%) as absent from the corpus at the spelling
+given — including "Kraii" proposed for two novels it does not appear in, which is precisely the
+failure mode the gate exists to catch.
+
 ## 061 — v0.12.0 is the first git-tagged release; merge-commit strategy and branch retention follow existing practice — 2026-07-24 — Claude Code
 
 **Status:** Accepted; the user's explicit call at the release gate. **This establishes a new convention:
