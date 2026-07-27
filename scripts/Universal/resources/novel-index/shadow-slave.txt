@@ -395,3 +395,312 @@ Twilight
 Twilight Sea
 Twisted Rock Island
 Altar Island
+
+# ============================================================
+# 2026-07-26 AUDIT — additions found by corpus frequency analysis
+# ============================================================
+# Gap-check over 3105 extracted chapters of this novel's own corpus
+# (files/pdf-example-chapters/shadow-slave-1/). Nothing above this line was changed,
+# removed or reordered; this block is additive only.
+#
+# Every term below was COUNTED in this novel's own text at the exact spelling shown:
+# at least 40 occurrences across at least 15 chapters, capitalized
+# mid-sentence, with this novel's lowercase use of it under 5% of its capitalized use.
+# Candidates came from capitalization statistics and from a local qwen3
+# pass over sampled chapters; qwen only proposed, the corpus decided.
+#
+# Trailing "# n=... in ... chapters" is the measured evidence, stripped at load.
+# ============================================================
+
+# --- SHADOW SLAVE — names and single-word terms (by corpus frequency) ---
+Dreamspawn  # n=503 in 198 chapters
+Breaker  # n=502 in 186 chapters
+Keepers  # n=488 in 224 chapters
+Sovereigns  # n=467 in 256 chapters
+Sleepers  # n=435 in 246 chapters
+Thieving  # n=396 in 85 chapters
+Reaper  # n=389 in 210 chapters
+Condemnation  # n=291 in 87 chapters
+Academy  # n=262 in 158 chapters
+Scott  # n=250 in 146 chapters
+NQSC  # n=246 in 168 chapters
+Falcon  # n=239 in 146 chapters
+Stormsea  # n=219 in 122 chapters
+PTV  # n=178 in 77 chapters
+Emporium  # n=173 in 95 chapters
+Defilement  # n=154 in 87 chapters
+Dreamscape  # n=150 in 66 chapters
+Seeker  # n=146 in 81 chapters
+Covetous  # n=141 in 103 chapters
+Dutchman  # n=135 in 42 chapters
+Stealer  # n=121 in 55 chapters
+APC  # n=118 in 72 chapters
+Skinwalker  # n=116 in 60 chapters
+Castellan  # n=95 in 30 chapters
+Archon  # n=92 in 16 chapters
+Legacies  # n=89 in 77 chapters
+Singer  # n=89 in 48 chapters
+Nihilist  # n=87 in 34 chapters
+Erebus  # n=79 in 41 chapters
+Harus  # n=76 in 32 chapters
+Thorn  # n=71 in 43 chapters
+Transcendence  # n=67 in 57 chapters
+Rivergate  # n=66 in 36 chapters
+Apotheosis  # n=64 in 39 chapters
+Devourer  # n=63 in 40 chapters
+Huntsman  # n=53 in 17 chapters
+Moonriver  # n=51 in 38 chapters
+CEO  # n=51 in 29 chapters
+America  # n=49 in 32 chapters
+MWPs  # n=42 in 27 chapters
+
+# --- SHADOW SLAVE — multi-word names, places and in-world terms ---
+Nightmare Spell  # n=677 in 422 chapters
+Lord of Shadows  # n=676 in 320 chapters
+Nightmare Creature  # n=517 in 401 chapters
+Sin of Solace  # n=493 in 224 chapters
+Chain Breaker  # n=479 in 181 chapters
+Thieving Bird  # n=341 in 73 chapters
+Shadow Legion  # n=320 in 143 chapters
+Shadow Realm  # n=299 in 139 chapters
+King of Swords  # n=298 in 196 chapters
+Sword Army  # n=281 in 128 chapters
+Clan Valor  # n=275 in 197 chapters
+Master Sunless  # n=258 in 130 chapters
+Ivory Island  # n=249 in 157 chapters
+Cruel Sight  # n=239 in 134 chapters
+Prince of Nothing  # n=235 in 127 chapters
+Human Domain  # n=223 in 123 chapters
+Sword Domain  # n=221 in 151 chapters
+Sky Below  # n=210 in 131 chapters
+Shadow Dance  # n=209 in 130 chapters
+Song Army  # n=206 in 103 chapters
+Soul Reaper  # n=204 in 136 chapters
+Midnight Shard  # n=203 in 115 chapters
+Master Jet  # n=192 in 118 chapters
+Second Nightmare  # n=185 in 144 chapters
+Nightmare Desert  # n=180 in 112 chapters
+Shadow Step  # n=176 in 146 chapters
+Vile Thieving  # n=175 in 68 chapters
+Dream Gate  # n=165 in 86 chapters
+Mirage City  # n=165 in 77 chapters
+Lady Nephis  # n=160 in 113 chapters
+Song Domain  # n=158 in 111 chapters
+Chain of Nightmares  # n=158 in 134 chapters
+Third Nightmare  # n=156 in 133 chapters
+Brilliant Emporium  # n=150 in 84 chapters
+Vile Thieving Bird  # n=144 in 56 chapters
+Aspect Ability  # n=137 in 116 chapters
+King of Nothing  # n=134 in 69 chapters
+Covetous Coffer  # n=129 in 92 chapters
+Saint Tyris  # n=125 in 92 chapters
+Mantle of the Underworld  # n=122 in 84 chapters
+Shadow Lantern  # n=106 in 62 chapters
+Flesh of Kanakht  # n=106 in 34 chapters
+Guiding Light  # n=105 in 57 chapters
+Nightmare Gate  # n=104 in 76 chapters
+Quiet Dancer  # n=98 in 76 chapters
+Blood Weave  # n=97 in 82 chapters
+Aspect Legacy  # n=95 in 55 chapters
+Endless Spring  # n=93 in 68 chapters
+Red Colosseum  # n=93 in 69 chapters
+Clan Song  # n=93 in 75 chapters
+Ascended Ability  # n=91 in 70 chapters
+Jade Titan  # n=90 in 25 chapters
+Valor Group  # n=89 in 40 chapters
+Aspect Abilities  # n=88 in 83 chapters
+Hunger Domain  # n=88 in 54 chapters
+Death Zone  # n=85 in 70 chapters
+Demon of Dread  # n=84 in 61 chapters
+Professor Obel  # n=83 in 55 chapters
+Doom War  # n=83 in 64 chapters
+Dark Wing  # n=81 in 52 chapters
+Carapace Demon  # n=81 in 32 chapters
+Cursed Demon  # n=81 in 34 chapters
+Dark Castle  # n=80 in 48 chapters
+Awakened Ability  # n=78 in 66 chapters
+Fall of Falcon  # n=78 in 78 chapters
+Undying Chain  # n=77 in 54 chapters
+Cursed Terror  # n=77 in 39 chapters
+Dormant Ability  # n=76 in 61 chapters
+Lady Cassia  # n=72 in 36 chapters
+Reaper Jet  # n=71 in 62 chapters
+Devouring Cloud  # n=69 in 33 chapters
+Bright Lord  # n=69 in 35 chapters
+Seed of Nightmare  # n=69 in 58 chapters
+Crown of Twilight  # n=69 in 51 chapters
+Gate Guardian  # n=68 in 34 chapters
+Serpent King  # n=68 in 50 chapters
+Snow Tyrant  # n=68 in 28 chapters
+Path of Ascension  # n=67 in 54 chapters
+Shadow Manifestation  # n=66 in 56 chapters
+Teacher Julius  # n=65 in 44 chapters
+Lord Shadow  # n=65 in 40 chapters
+Queen of Worms  # n=65 in 58 chapters
+Moonlight Shard  # n=63 in 50 chapters
+Prowling Thorn  # n=63 in 39 chapters
+Longing Domain  # n=63 in 46 chapters
+Shrine of Truth  # n=63 in 31 chapters
+Red Hill  # n=62 in 20 chapters
+Dawn Shard  # n=61 in 38 chapters
+Mirror of Truth  # n=61 in 29 chapters
+Army Command  # n=60 in 41 chapters
+Corrupted Tyrant  # n=60 in 43 chapters
+Fourth Nightmare  # n=60 in 40 chapters
+Ebony Island  # n=60 in 20 chapters
+Jade Mantle  # n=60 in 49 chapters
+Star of the Immortal  # n=60 in 59 chapters
+Demon of Destiny  # n=60 in 44 chapters
+Shipwreck Island  # n=59 in 38 chapters
+Corrupted Titan  # n=58 in 43 chapters
+Shadow Bond  # n=58 in 38 chapters
+Onyx Mantle  # n=58 in 45 chapters
+Mirror Lake  # n=58 in 43 chapters
+Battle of the Black  # n=57 in 55 chapters
+Lady Changing Star  # n=57 in 49 chapters
+Bone Weave  # n=56 in 49 chapters
+Prince of the Underworld  # n=56 in 38 chapters
+Crown of Dawn  # n=56 in 38 chapters
+Detective Sunless  # n=56 in 24 chapters
+Dying Wish  # n=55 in 40 chapters
+Estuary Key  # n=55 in 28 chapters
+River of Tears  # n=55 in 38 chapters
+Obsidian Wasps  # n=54 in 32 chapters
+Palace of Imagination  # n=54 in 33 chapters
+Saints of Night  # n=54 in 42 chapters
+Irregular Company  # n=53 in 43 chapters
+Enchantment Description  # n=53 in 22 chapters
+Little Ling  # n=53 in 26 chapters
+Breastbone Reach  # n=53 in 31 chapters
+War Maiden  # n=53 in 23 chapters
+Sanctuary of Noctis  # n=53 in 45 chapters
+Soul Reaper Jet  # n=51 in 48 chapters
+Sir Gilead  # n=51 in 28 chapters
+Divine Aspect  # n=50 in 46 chapters
+Fifth Nightmare  # n=50 in 26 chapters
+Cursed Beast  # n=50 in 25 chapters
+Ash Castle  # n=49 in 23 chapters
+Transformation Ability  # n=48 in 39 chapters
+Attribute Description  # n=47 in 22 chapters
+Morgan of Valor  # n=47 in 38 chapters
+Demon of Imagination  # n=47 in 29 chapters
+Lady Morgan  # n=47 in 31 chapters
+Twisted Rock  # n=45 in 17 chapters
+Feather of Truth  # n=45 in 37 chapters
+Graceless Dusk  # n=44 in 33 chapters
+Vanishing Lake  # n=44 in 33 chapters
+Palace Island  # n=44 in 25 chapters
+Glass Hell  # n=44 in 20 chapters
+Princess of War  # n=44 in 40 chapters
+Marble Shell  # n=43 in 31 chapters
+Dark Times  # n=43 in 38 chapters
+Supreme Titan  # n=43 in 39 chapters
+Seventh Legion  # n=43 in 28 chapters
+Demon of Desire  # n=43 in 40 chapters
+Sailor Dolls  # n=42 in 27 chapters
+Knights of Valor  # n=42 in 33 chapters
+Azure Blade  # n=42 in 19 chapters
+Legacy Clans  # n=41 in 39 chapters
+Death Game  # n=41 in 24 chapters
+Rat King  # n=40 in 21 chapters
+
+# ============================================================
+# REVIEW — dual-use words, NOT enabled
+# ============================================================
+# Each of these is used in this novel BOTH as a name/term and as an ordinary word.
+# Because masking is case-insensitive, uncommenting one freezes the ordinary word too
+# (protecting "Rain" also stops any repair to the weather). Uncomment only the ones
+# where that trade is right for this novel.
+# ============================================================
+# Awakened  # capitalized 3218x in 1404 chapters, but also lowercase 104x
+# Shadow  # capitalized 3016x in 1182 chapters, but also lowercase 3675x
+# Spell  # capitalized 1848x in 891 chapters, but also lowercase 46x
+# Song  # capitalized 1624x in 622 chapters, but also lowercase 51x
+# Memory  # capitalized 1586x in 717 chapters, but also lowercase 400x
+# Lord  # capitalized 1424x in 659 chapters, but also lowercase 75x
+# Domain  # capitalized 1348x in 577 chapters, but also lowercase 65x
+# Valor  # capitalized 1323x in 587 chapters, but also lowercase 23x
+# Aspect  # capitalized 1297x in 769 chapters, but also lowercase 31x
+# Memories  # capitalized 1282x in 632 chapters, but also lowercase 525x
+# Transcendent  # capitalized 978x in 632 chapters, but also lowercase 38x
+# Ascended  # capitalized 962x in 595 chapters, but also lowercase 79x
+# Supreme  # capitalized 905x in 529 chapters, but also lowercase 18x
+# Fallen  # capitalized 808x in 478 chapters, but also lowercase 540x
+# Citadel  # capitalized 769x in 390 chapters, but also lowercase 40x
+# Gate  # capitalized 742x in 314 chapters, but also lowercase 200x
+# Serpent  # capitalized 710x in 352 chapters, but also lowercase 255x
+# Tyrant  # capitalized 668x in 266 chapters, but also lowercase 181x
+# Legacy  # capitalized 590x in 323 chapters, but also lowercase 51x
+# Tower  # capitalized 566x in 283 chapters, but also lowercase 402x
+# Rank  # capitalized 555x in 412 chapters, but also lowercase 125x
+# Tomb  # capitalized 535x in 275 chapters, but also lowercase 44x
+# Echo  # capitalized 532x in 236 chapters, but also lowercase 59x
+# Terror  # capitalized 527x in 265 chapters, but also lowercase 227x
+# Weave  # capitalized 502x in 270 chapters, but also lowercase 366x
+# Underworld  # capitalized 473x in 229 chapters, but also lowercase 6x
+# Masters  # capitalized 464x in 355 chapters, but also lowercase 76x
+# Flaw  # capitalized 452x in 273 chapters, but also lowercase 34x
+# Queen  # capitalized 427x in 225 chapters, but also lowercase 24x
+# Slayer  # capitalized 403x in 175 chapters, but also lowercase 54x
+# Mantle  # capitalized 377x in 261 chapters, but also lowercase 172x
+# Corruption  # capitalized 351x in 208 chapters, but also lowercase 50x
+# Estuary  # capitalized 336x in 131 chapters, but also lowercase 40x
+# Spire  # capitalized 328x in 169 chapters, but also lowercase 25x
+# Echoes  # capitalized 317x in 195 chapters, but also lowercase 46x
+# Defiled  # capitalized 314x in 150 chapters, but also lowercase 8x
+# Rhino  # capitalized 296x in 115 chapters, but also lowercase 6x
+# Shell  # capitalized 291x in 131 chapters, but also lowercase 231x
+# Isles  # capitalized 287x in 173 chapters, but also lowercase 17x
+# Deathless  # capitalized 271x in 35 chapters, but also lowercase 9x
+# Attribute  # capitalized 253x in 136 chapters, but also lowercase 11x
+# Gateway  # capitalized 252x in 133 chapters, but also lowercase 15x
+# Ebony  # capitalized 242x in 96 chapters, but also lowercase 19x
+# Fiend  # capitalized 240x in 156 chapters, but also lowercase 281x
+# Seed  # capitalized 236x in 132 chapters, but also lowercase 62x
+# Soul Sea  # capitalized 232x in 161 chapters, but also lowercase 6x
+# Sacred  # capitalized 232x in 113 chapters, but also lowercase 178x
+# Sanctuary  # capitalized 227x in 124 chapters, but also lowercase 10x
+# Mongrel  # capitalized 224x in 87 chapters, but also lowercase 15x
+# Quadrant  # capitalized 218x in 144 chapters, but also lowercase 3x
+# Dusk  # capitalized 205x in 132 chapters, but also lowercase 71x
+# Lake  # capitalized 204x in 126 chapters, but also lowercase 639x
+# Dormant  # capitalized 195x in 155 chapters, but also lowercase 62x
+# True Name  # capitalized 193x in 127 chapters, but also lowercase 5x
+# Puppeteer  # capitalized 185x in 63 chapters, but also lowercase 6x
+# Coffer  # capitalized 180x in 103 chapters, but also lowercase 3x
+# Reflections  # capitalized 176x in 74 chapters, but also lowercase 156x
+# Nine  # capitalized 168x in 72 chapters, but also lowercase 48x
+# Supremacy  # capitalized 158x in 103 chapters, but also lowercase 3x
+# Ascension  # capitalized 157x in 114 chapters, but also lowercase 10x
+# Blessing  # capitalized 141x in 88 chapters, but also lowercase 91x
+# Colosseum  # capitalized 134x in 85 chapters, but also lowercase 11x
+# Professor  # capitalized 133x in 70 chapters, but also lowercase 7x
+# Plagues  # capitalized 123x in 61 chapters, but also lowercase 4x
+# Forgotten God  # capitalized 122x in 46 chapters, but also lowercase 3x
+# Azure Serpent  # capitalized 119x in 36 chapters, but also lowercase 27x
+# Wasps  # capitalized 116x in 40 chapters, but also lowercase 7x
+# Dreamer  # capitalized 105x in 74 chapters, but also lowercase 3x
+# Cursed Tyrant  # capitalized 104x in 58 chapters, but also lowercase 3x
+# Black Knight  # capitalized 99x in 40 chapters, but also lowercase 3x
+# Warden  # capitalized 96x in 40 chapters, but also lowercase 3x
+# Heaven  # capitalized 93x in 53 chapters, but also lowercase 42x
+# Stalker  # capitalized 91x in 58 chapters, but also lowercase 4x
+# Repose  # capitalized 91x in 52 chapters, but also lowercase 4x
+# Black Turtle  # capitalized 83x in 37 chapters, but also lowercase 10x
+# Black Skull  # capitalized 81x in 65 chapters, but also lowercase 9x
+# The Fall  # capitalized 78x in 78 chapters, but also lowercase 50x
+# Drowned  # capitalized 76x in 30 chapters, but also lowercase 276x
+# Desire  # capitalized 73x in 71 chapters, but also lowercase 461x
+# Abundance  # capitalized 73x in 36 chapters, but also lowercase 9x
+# Maidens  # capitalized 67x in 24 chapters, but also lowercase 5x
+# Shipwreck  # capitalized 66x in 40 chapters, but also lowercase 4x
+# Destiny  # capitalized 65x in 47 chapters, but also lowercase 7x
+# Wanderer  # capitalized 63x in 16 chapters, but also lowercase 4x
+# Messenger  # capitalized 63x in 33 chapters, but also lowercase 22x
+# Silver Bell  # capitalized 58x in 31 chapters, but also lowercase 16x
+# Sailor  # capitalized 57x in 31 chapters, but also lowercase 3x
+# Shadow Shell  # capitalized 57x in 38 chapters, but also lowercase 10x
+# Shadow Core  # capitalized 54x in 44 chapters, but also lowercase 11x
+# Strings of Fate  # capitalized 54x in 31 chapters, but also lowercase 31x
+# Abyss  # capitalized 54x in 29 chapters, but also lowercase 374x
+# Dragon  # capitalized 49x in 31 chapters, but also lowercase 367x
