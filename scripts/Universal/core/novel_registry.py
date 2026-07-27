@@ -46,7 +46,14 @@ from pathlib import Path
 from typing import Callable, Optional
 
 from core.edit_details import _norm_key
-from pipelines import lord_of_mysteries, shadow_slave, supreme_magus, the_noble_queen
+from pipelines import (
+    lord_of_mysteries,
+    renegade_immortal,
+    shadow_slave,
+    supreme_magus,
+    the_noble_queen,
+)
+from profiles.renegade_immortal.canonical_names import RI_CANONICAL_NAMES
 from profiles.shadow_slave.canonical_names import SS_CANONICAL_NAMES
 from profiles.supreme_magus.canonical_names import SM_CANONICAL_NAMES
 from profiles.the_noble_queen.canonical_names import NQ_CANONICAL_NAMES
@@ -197,6 +204,19 @@ _REGISTRY: dict[str, NovelDispatch] = {
         run_pipeline=supreme_magus.run_pipeline,
         canonical_names=SM_CANONICAL_NAMES,
         index_filename="supreme-magus.txt",
+        has_profile=True,
+    ),
+    # Registered 2026-07-26 solely to give this novel its own forced-substitution map
+    # (Ligou/Ligo -> Liguo, the author's canonical ruling). Forced substitutions are
+    # per-profile data and the universal fallback's map is shared by every profile-less
+    # novel, so a registration was the only way to scope the fix to this novel.
+    # Its floor is empty and its pipeline mirrors the universal one stage-for-stage, so
+    # protection and output are otherwise unchanged from the pre-promotion behaviour.
+    _norm_key("Renegade Immortal"): NovelDispatch(
+        display_name="Renegade Immortal",
+        run_pipeline=renegade_immortal.run_pipeline,
+        canonical_names=RI_CANONICAL_NAMES,
+        index_filename="renegade-immortal.txt",
         has_profile=True,
     ),
 }

@@ -6,8 +6,9 @@ Committed proof (per the Phase-5 plan) that goes beyond inspecting final text:
     fallback, and they do so BECAUSE the registry says so: registration is the deciding
     factor, not an accident of index-file contents. (Originally proven with The Noble
     Queen / Supreme Magus; Phase 5b registered those two real profiles, so the fallback
-    proof now uses Renegade Immortal / Reverend Insanity — the two placeholders the user
-    decided stay unauthored.)
+    proof now uses Reverend Insanity. Renegade Immortal filled this role until 2026-07-26,
+    when it was registered to carry its own Ligou/Ligo -> Liguo substitution; Reverend
+    Insanity remains unregistered and is now the profile-less fixture.)
   * A bait string matching an `SS_SPECIAL_FIXES` entry is changed in Shadow Slave mode
     and left untouched in a profile-less run, exercised through the full `run_batch`
     seam (not just the pipeline function).
@@ -40,8 +41,9 @@ from pipelines import lord_of_mysteries, shadow_slave
 @pytest.mark.parametrize(
     "name, index_filename",
     [
-        ("Renegade Immortal", "renegade-immortal.txt"),
         ("Reverend Insanity", "reverend-insanity.txt"),
+        ("Circle of Inevitability", "circle-of-inevitability.txt"),
+        ("Re Monster", "re-monster.txt"),
     ],
 )
 def test_unauthored_placeholder_novels_resolve_to_universal_fallback(
@@ -100,13 +102,16 @@ _BAIT_TEXT = (
 )
 
 
-def _make_bait_pdf(tmp_path: Path) -> str:
+def _make_bait_pdf(tmp_path: Path, *, body: str | None = None,
+                   name: str = "bait_input.pdf") -> str:
+    """Build a one-chapter input PDF. Defaults to the provenance bait text."""
     pytest.importorskip("pdfplumber")
     reportlab = pytest.importorskip("reportlab")  # noqa: F841
     from pdf.builder import build_pdf
 
-    src = tmp_path / "bait_input.pdf"
-    build_pdf(_BAIT_TEXT, str(src))
+    text = _BAIT_TEXT if body is None else f"Chapter 1: The Probe.\n\n{body}"
+    src = tmp_path / name
+    build_pdf(text, str(src))
     return str(src)
 
 
@@ -148,7 +153,7 @@ def test_bait_string_changed_in_shadow_slave_mode_via_run_batch(tmp_path: Path) 
 
 
 def test_bait_string_untouched_in_universal_mode_via_run_batch(tmp_path: Path) -> None:
-    _, _, text, jsonl = _run(tmp_path, "Renegade Immortal", "out_ri")
+    _, _, text, jsonl = _run(tmp_path, "Reverend Insanity", "out_ri")
     assert "Almanach" in text          # SS's forced fix did NOT run
     assert "carcassess" in text
     assert all(e.get("rule") != "special_fixes" for e in jsonl)
@@ -172,7 +177,7 @@ def test_ss_special_fix_code_not_called_in_universal_mode(
 
     monkeypatch.setattr(shadow_slave, "_apply_special_fixes", spy)
 
-    _run(tmp_path, "Renegade Immortal", "out_spy_ri")
+    _run(tmp_path, "Reverend Insanity", "out_spy_ri")
     assert calls == []                 # universal-only run never touched SS fix code
 
     _run(tmp_path, "Shadow Slave", "out_spy_ss")
@@ -181,7 +186,7 @@ def test_ss_special_fix_code_not_called_in_universal_mode(
 
 # -- no __WE_ placeholder leaks in either mode --------------------------------------------
 
-@pytest.mark.parametrize("novel_name", ["Shadow Slave", "Renegade Immortal"])
+@pytest.mark.parametrize("novel_name", ["Shadow Slave", "Reverend Insanity"])
 def test_no_placeholder_leaks_in_output_logs_or_jsonl(tmp_path: Path, novel_name) -> None:
     _, logs, text, jsonl = _run(tmp_path, novel_name, "out_leak")
     assert "__WE_" not in text
@@ -196,8 +201,8 @@ def test_run_summary_records_dispatch_metadata(tmp_path: Path) -> None:
     assert ss_summary["novel"] == "Shadow Slave"
     assert ss_summary["profile_applied"] is True
 
-    ri_summary, _, _, _ = _run(tmp_path, "Renegade Immortal", "out_meta_ri")
-    assert ri_summary["novel"] == "Renegade Immortal"
+    ri_summary, _, _, _ = _run(tmp_path, "Reverend Insanity", "out_meta_ri")
+    assert ri_summary["novel"] == "Reverend Insanity"
     assert ri_summary["profile_applied"] is False
 
 
@@ -211,10 +216,10 @@ def test_jsonl_first_line_is_run_metadata_header_in_both_modes(tmp_path: Path) -
     # Replacement entries follow the header and are untouched by it.
     assert any(e.get("rule") == "special_fixes" for e in ss_jsonl[1:])
 
-    _, _, _, ri_jsonl = _run(tmp_path, "Renegade Immortal", "out_hdr_ri")
+    _, _, _, ri_jsonl = _run(tmp_path, "Reverend Insanity", "out_hdr_ri")
     header = ri_jsonl[0]
     assert header["record"] == "run_metadata"
-    assert header["novel"] == "Renegade Immortal"
+    assert header["novel"] == "Reverend Insanity"
     assert header["mode"] == "universal-only"
     assert header["pipeline"] == "pipelines.lord_of_mysteries"
 
@@ -234,3 +239,90 @@ def test_replacement_log_metadata_header_is_optional(tmp_path: Path) -> None:
     lines = path.read_text(encoding="utf-8").splitlines()
     assert len(lines) == 2
     assert json.loads(lines[0])["record"] == "run_metadata"
+
+
+# -- author-ruled normalizations land BEFORE the AI/gate ever see the text ----------------
+
+class _CaptureProvider:
+    """Records every request the AI stage is handed, and echoes it back unchanged."""
+
+    def __init__(self) -> None:
+        self.texts: list[str] = []
+        self.system_prompts: list[str] = []
+
+    def capabilities(self):
+        from ai.models import ProviderCapabilities
+
+        return ProviderCapabilities("capture", True, ("fake-1",), 8000, 4096)
+
+    def health_check(self):
+        from ai.models import ProviderStatus
+
+        return ProviderStatus.OK
+
+    def list_models(self):
+        return ["fake-1"]
+
+    def complete(self, request):
+        from ai.models import CompletionResult
+
+        self.texts.append(request.text)
+        self.system_prompts.append(request.system_prompt)
+        return CompletionResult(request.text, "fake-1", 0.01, "stop", False)
+
+
+@pytest.mark.parametrize(
+    "novel_name, typo, canonical",
+    [
+        ("The Noble Queen", "Kraii", "Kraai"),
+        ("Renegade Immortal", "Ligou", "Liguo"),
+    ],
+)
+def test_normalization_reaches_the_ai_stage_already_canonical(
+    tmp_path: Path, monkeypatch, novel_name: str, typo: str, canonical: str
+) -> None:
+    """The AI provider must never be shown the source typo.
+
+    The substitution runs inside the scripted pipeline (Block B), and `run_batch` hands
+    the pipeline's output to `AIEditor.edit`. So by the time any model or the validation
+    gate sees the chapter, only the canonical spelling exists. Proven by capturing what
+    the provider is actually sent rather than by inspecting the final file.
+    """
+    pytest.importorskip("pdfplumber")
+    pytest.importorskip("reportlab")
+
+    from ai.editor import AIEditor, EditorOptions
+    from ai.models import RunPolicy
+    from core.batch_runner import run_batch
+
+    body = (
+        f"King {typo} walked to the gate that evening and {typo}'s servant followed "
+        "close behind him through the long and very quiet stone corridor beyond it.\n"
+    )
+    src = _make_bait_pdf(tmp_path, body=body, name=f"norm_{canonical}.pdf")
+
+    provider = _CaptureProvider()
+    editor = AIEditor(
+        lambda: provider,
+        EditorOptions("fake-1", RunPolicy.PREFER_AI,
+                      request_overhead_tokens=0, safety_margin_tokens=0),
+    )
+    logs: list[str] = []
+    summary = run_batch(
+        [src],
+        str(tmp_path / f"out_norm_{canonical}"),
+        novel_name=novel_name,
+        write_debug_text=True,
+        gui_log=lambda m, level="info": logs.append(m),
+        ai_editor=editor,
+    )
+    assert summary["succeeded"] == 1, f"run failed: {logs}"
+    assert provider.texts, "the AI stage was never invoked"
+
+    # What the model was actually sent.
+    seen = "\n".join(provider.texts)
+    assert typo not in seen, f"the AI stage was shown the source typo {typo!r}"
+
+    # The canonical form reached the AI either literally or as a protected placeholder;
+    # either way the typo is gone before any model or gate looks at the chapter.
+    assert canonical in seen or "__WE_P_" in seen

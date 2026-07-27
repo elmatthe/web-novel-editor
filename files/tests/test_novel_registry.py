@@ -121,9 +121,14 @@ def test_shipped_roster_has_known_novels_with_universal_first() -> None:
     assert len(roster) == len(list(NOVEL_INDEX_DIR.glob("*.txt"))) + 1
 
 
-def test_shipped_roster_marks_exactly_the_five_profileless_novels() -> None:
-    """The marker sits on exactly the 5 profile-less novels — and never on the 3 real
-    profiles or on "Universal"."""
+def test_shipped_roster_marks_exactly_the_profileless_novels() -> None:
+    """The marker sits on exactly the profile-less novels — and never on a real profile
+    or on "Universal".
+
+    Renegade Immortal moved from marked to unmarked on 2026-07-26: it was registered so
+    it could carry its own Ligou/Ligo -> Liguo substitution, which is per-profile data.
+    The marker following that change is correct — it now genuinely has a profile.
+    """
     roster = available_novels(NOVEL_INDEX_DIR)
     marked = {n for n in roster if n.endswith(NO_PROFILE_MARKER)}
     unmarked = set(roster) - marked
@@ -131,10 +136,10 @@ def test_shipped_roster_marks_exactly_the_five_profileless_novels() -> None:
         "Circle of Inevitability" + NO_PROFILE_MARKER,
         "Lord of the Mysteries" + NO_PROFILE_MARKER,
         "Re Monster" + NO_PROFILE_MARKER,
-        "Renegade Immortal" + NO_PROFILE_MARKER,
         "Reverend Insanity" + NO_PROFILE_MARKER,
     }
-    assert unmarked == {"Universal", "Shadow Slave", "Supreme Magus", "The Noble Queen"}
+    assert unmarked == {"Universal", "Shadow Slave", "Supreme Magus",
+                        "The Noble Queen", "Renegade Immortal"}
 
 
 # -- display string -> clean novel name (the GUI-side mapping) --------------------------

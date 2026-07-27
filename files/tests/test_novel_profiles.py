@@ -39,7 +39,15 @@ from core.protected_lexicon import (
     expand_lexicon_variants,
     load_protected_lexicon,
 )
-from pipelines import lord_of_mysteries, shadow_slave, supreme_magus, the_noble_queen
+from core.replacement_log import ReplacementLog
+from pipelines import (
+    lord_of_mysteries,
+    renegade_immortal,
+    shadow_slave,
+    supreme_magus,
+    the_noble_queen,
+)
+from profiles.renegade_immortal.special_fixes import RI_SPECIAL_FIXES
 from profiles.supreme_magus.canonical_names import SM_CANONICAL_NAMES
 from profiles.supreme_magus.special_fixes import SM_SPECIAL_FIXES
 from profiles.the_noble_queen.canonical_names import NQ_CANONICAL_NAMES
@@ -91,12 +99,29 @@ def test_new_profiles_appear_in_shipped_roster() -> None:
 
 
 def test_unauthored_novels_still_fall_back_to_universal_only() -> None:
-    """Renegade Immortal / Reverend Insanity stay placeholders by decision (5b scope)."""
-    for name in ("Renegade Immortal", "Reverend Insanity"):
+    """The remaining unregistered novels stay on universal-only dispatch.
+
+    Renegade Immortal was on this list until 2026-07-26, when it was registered so it
+    could carry its own Ligou/Ligo -> Liguo substitution. Reverend Insanity, Circle of
+    Inevitability and Re:Monster remain unauthored.
+    """
+    for name in ("Reverend Insanity", "Circle of Inevitability", "Re Monster"):
         d = resolve_dispatch(name)
         assert d.has_profile is False
         assert d.run_pipeline is lord_of_mysteries.run_pipeline
         assert d.canonical_names == frozenset()
+
+
+def test_renegade_immortal_promotion_kept_its_protection_identical() -> None:
+    """Registering Renegade Immortal must not have changed what it protects.
+
+    Its floor is deliberately empty, so the merged lexicon is exactly the index file —
+    the same set the universal fallback produced before the promotion.
+    """
+    d = resolve_dispatch("Renegade Immortal")
+    assert d.has_profile is True
+    assert d.canonical_names == frozenset()          # empty floor: index is the only source
+    assert d.index_filename == "renegade-immortal.txt"
 
 
 def test_shadow_slave_dispatch_untouched_by_new_registrations() -> None:
@@ -189,7 +214,8 @@ def test_sm_special_fixes_apply_in_sm_mode_and_are_logged() -> None:
 def test_sm_special_fixes_do_not_apply_in_universal_or_other_profiles() -> None:
     """Cross-novel isolation: the SM bait passes through every OTHER mode unchanged."""
     for novel, pipeline in (
-        ("Renegade Immortal", lord_of_mysteries.run_pipeline),  # universal fallback
+        ("Reverend Insanity", lord_of_mysteries.run_pipeline),  # universal fallback
+        ("Renegade Immortal", renegade_immortal.run_pipeline),  # its own profile
         ("Shadow Slave", shadow_slave.run_pipeline),
         ("The Noble Queen", the_noble_queen.run_pipeline),
     ):
@@ -217,8 +243,11 @@ def test_ss_special_fixes_do_not_apply_in_new_profiles() -> None:
 
 def test_no_profanity_uncensor_was_ported() -> None:
     """The legacy SM editor's uncensor map is spec-excluded content alteration."""
-    assert NQ_SPECIAL_FIXES == {}
-    assert all("*" not in k for k in SM_SPECIAL_FIXES), "censor-mask keys were ported"
+    # NQ_SPECIAL_FIXES is no longer empty (Kraii -> Kraai, added 2026-07-26), so the
+    # check is what it always meant: no censor-mask keys in any profile's fix map.
+    for name, fixes in (("NQ", NQ_SPECIAL_FIXES), ("SM", SM_SPECIAL_FIXES),
+                        ("RI", RI_SPECIAL_FIXES)):
+        assert all("*" not in k for k in fixes), f"censor-mask keys were ported into {name}"
     # A censored word passes through Supreme Magus mode exactly as printed.
     _, lex = _lexicon_for("Supreme Magus")
     bait = (
@@ -350,3 +379,87 @@ def test_nq_corpus_chapter_protected_terms_survive_profile_mode(request) -> None
         n_in, n_out = len(rx.findall(raw)), len(rx.findall(out))
         if n_in:
             assert n_out >= n_in, f"{term!r}: source={n_in} output={n_out}"
+
+
+# -- author-ruled spelling normalizations (2026-07-26) ------------------------------------
+#
+# Two forced substitutions were added on the author's ruling: Kraii -> Kraai (The Noble
+# Queen) and Ligou/Ligo -> Liguo (Renegade Immortal). These are one-time normalizations of
+# a source-text error, NOT protected-term entries — the canonical spelling is what gets
+# indexed, and the variant must stay OUT of the index or masking would hide it from the
+# substitution (special fixes run on the masked text, inside Block B).
+
+def test_nq_kraii_normalizes_to_kraai_including_possessive() -> None:
+    d, lex = _lexicon_for("The Noble Queen")
+    log = ReplacementLog()
+    src = (
+        "Chapter 242: The Heart.\n\n"
+        "King Kraii then pulled out a dagger from his waist, and somehow Kraii's "
+        "servant survived the chaos of the battle that had raged all through it.\n"
+    )
+    out = d.run_pipeline(src, lex, repl_log=log)
+    assert "Kraii" not in out
+    assert "King Kraai" in out and "Kraai's" in out
+    assert ("Kraii", "Kraai") in {(e.original, e.replacement) for e in log.entries
+                                  if e.rule == "special_fixes"}
+
+
+def test_ri_ligou_and_ligo_normalize_to_liguo() -> None:
+    d, lex = _lexicon_for("Renegade Immortal")
+    log = ReplacementLog()
+    src = (
+        "Chapter 5: The Devil.\n\n"
+        "The devil Xu Ligou came out of his forehead, and Ligou's greed was plain to "
+        "see. The moment Xu Ligo saw the Nascent Soul, his face filled with greed.\n"
+    )
+    out = d.run_pipeline(src, lex, repl_log=log)
+    assert "Ligou" not in out and "Xu Ligo " not in out
+    assert "Xu Liguo" in out and "Liguo's" in out
+    fired = {(e.original, e.replacement) for e in log.entries if e.rule == "special_fixes"}
+    assert ("Ligou", "Liguo") in fired and ("Ligo", "Liguo") in fired
+
+
+def test_ri_ligo_prefix_does_not_double_apply() -> None:
+    """"Ligo" is a prefix of "Ligou": shortest-first would make "Ligou" -> "Liguou".
+
+    Pins the longest-key-first ordering in `_apply_special_fixes`. 38 of the 39 "Ligo"
+    substring hits in the corpus are inside "Ligou", so this is the common case, not an
+    edge case.
+    """
+    d, lex = _lexicon_for("Renegade Immortal")
+    src = (
+        "Chapter 6: The Bead.\n\n"
+        "Ligou spoke to Ligou again while the whole of the sect watched them both in "
+        "a silence that stretched on for a very long and uncomfortable while.\n"
+    )
+    out = d.run_pipeline(src, lex)
+    assert "Liguou" not in out
+    assert out.count("Liguo") == 2
+
+
+def test_canonical_spellings_are_indexed_and_variants_are_not() -> None:
+    """The normalized result must be protected; the variants must not be.
+
+    An indexed variant would be masked before `_apply_special_fixes` runs and the
+    substitution could never fire — the ordering inside Block B makes this load-bearing.
+    """
+    _, nq = _lexicon_for("The Noble Queen")
+    assert "Kraai" in nq.terms and "Kraii" not in nq.terms
+
+    _, ri = _lexicon_for("Renegade Immortal")
+    assert "Liguo" in ri.terms and "Xu Liguo" in ri.terms
+    assert "Ligou" not in ri.terms and "Ligo" not in ri.terms
+
+
+def test_new_normalizations_are_scoped_to_their_own_novel() -> None:
+    """Cross-novel isolation, same contract the SS/SM fix maps are held to."""
+    bait = (
+        "Chapter 9: The Visit.\n\n"
+        "King Kraii met Xu Ligou by the gate that evening, and the two of them spoke "
+        "quietly together for a long while before either one of them moved again.\n"
+    )
+    for novel in ("Shadow Slave", "Supreme Magus", "Reverend Insanity"):
+        d, lex = _lexicon_for(novel)
+        out = d.run_pipeline(bait, lex)
+        assert "Kraii" in out, f"NQ fix leaked into {novel}"
+        assert "Ligou" in out, f"RI fix leaked into {novel}"

@@ -30,17 +30,18 @@ Mordret
 
 # --- The tyrant king (Plan 2b Phase 7b fallout) ---
 # The 7b comparison run caught a cloud model silently rewriting this name because it was
-# unprotected. Both spellings are listed DELIBERATELY: the source text itself is
-# inconsistent, and this index is a do-not-touch list, not a normalization list.
-# Corpus evidence (files/pdf-example-chapters/the-noble-queen-1, counted 2026-07-26):
+# unprotected. Corpus evidence (files/pdf-example-chapters/the-noble-queen-1, 2026-07-26):
 #   "Kraai" — 30 occurrences across 9 chapters (241-244, 260-264), incl. first appearance
 #   "Kraii" —  5 occurrences across 3 chapters (242, 266, 276)
-# Both appear in chapter 242. "Kraai" is dominant and introduces the character, so it is
-# most likely canonical and "Kraii" a source typo — but that is an EDITORIAL call for the
-# author, not one the editor should make silently. Protecting both freezes whatever the
-# source says; harmonizing them (if wanted) belongs in a deliberate replacement rule.
+#
+# The author ruled on 2026-07-26 that "Kraai" is canonical. "Kraii" is therefore a source
+# typo and is normalized to "Kraai" by NQ_SPECIAL_FIXES before anything else sees the text.
+#
+# "Kraii" is deliberately NOT listed here, and that is load-bearing rather than an
+# oversight: the pipeline masks protected terms BEFORE applying special fixes, so an
+# indexed "Kraii" would already be a placeholder when the substitution runs and the rule
+# could never fire. Only the canonical spelling belongs in a do-not-touch list.
 Kraai
-Kraii
 
 # --- In-world terms from chapter 1 ---
 Dreamscape
