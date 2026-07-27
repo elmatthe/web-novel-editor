@@ -291,9 +291,13 @@ def run_batch(
                     and ai_editor.run_state is ProviderRunState.UNAVAILABLE
                 ):
                     outage_warned = True
+                    # Name the actual cause. A batch that quietly finishes script-only is
+                    # the hardest failure to notice, and one generic sentence for a
+                    # retired model, a refused key, an exhausted quota and a dropped
+                    # connection told the user nothing about which of them to fix.
                     log(
-                        "        ⚠ AI provider unavailable — remaining chapters will "
-                        "use deterministic output.",
+                        f"        ⚠ AI stopped — {ai_editor.unavailable_description} "
+                        f"Remaining chapters will use deterministic output.",
                         "warn",
                     )
                 repl_log.record_audit(

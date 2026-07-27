@@ -347,7 +347,10 @@ def test_approved_records_load_from_the_committed_config():
 
     root = Path(__file__).resolve().parents[2]
     models = load_approved_models(load_config(root / "config.toml"))
-    assert len(models) >= 9
+    # Was >= 9. gemini-2.5-flash was removed on 2026-07-27 after a live probe returned
+    # HTTP 404 "no longer available to new users" — an approved record for a model that
+    # cannot be called is worse than no record, because the batch degrades silently.
+    assert len(models) >= 8
     assert all(isinstance(m, ApprovedModel) for m in models)
     assert {m.provider for m in models} == {"gemini", "groq"}
     assert all(m.reviewed_on and m.source_url for m in models)

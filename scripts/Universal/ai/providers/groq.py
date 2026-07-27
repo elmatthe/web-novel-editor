@@ -37,10 +37,12 @@ record, finish reasons compared as plain strings, one lazy ``_load_sdk()`` impor
 5. **The SDK's own retries are switched off.** The client retries twice by default.
    Silent retries would double-spend a free tier where tokens-per-day is the binding
    constraint, and would hide from Phase 4's limiter the very 429s it exists to see.
-6. **Reasoning is disabled on the gpt-oss models only.** They are reasoning models and
-   reasoning tokens come out of the output budget — the same trap Gemini's "thinking"
-   posed — but sending a reasoning parameter to a Llama model is a 400, so it is sent
-   per model family, exactly as the Gemini adapter sends its thinking setting.
+6. **Reasoning is held to its minimum on the gpt-oss models only.** They are reasoning
+   models and reasoning tokens come out of the output budget — the same trap Gemini's
+   "thinking" posed — but sending a reasoning parameter to a Llama model is a 400, so it
+   is sent per model family, exactly as the Gemini adapter sends its thinking setting.
+   The *value* is family-specific too: gpt-oss takes ``low|medium|high`` and cannot turn
+   reasoning off at all. See ``_MIN_REASONING_EFFORT``.
 
 Every message this adapter raises or logs passes through the Phase 1 redactor first.
 """
@@ -102,6 +104,17 @@ SDK_MAX_RETRIES = 0
 
 # Model families that bill reasoning tokens against the output budget.
 _REASONING_MODEL_PREFIXES = ("openai/gpt-oss",)
+
+# The lowest reasoning setting the gpt-oss family accepts. Groq's own reference
+# (console.groq.com/docs/reasoning and the chat-completions parameter table, re-checked
+# 2026-07-27) allows `low | medium | high` for `openai/gpt-oss-*` and reserves
+# `none | default` for the qwen3 family. Sending `"none"` here — which this adapter did
+# until 2026-07-27 — is a hard 400 on EVERY request, so both gpt-oss records were
+# approved, selectable and completely uncallable. `"low"` is the closest thing the family
+# offers to the intent behind the original `"none"`: the fewest reasoning tokens taken
+# out of the output budget. Reasoning text itself never reaches the gate — it arrives in
+# `message.reasoning`, and `_map_response` reads `message.content`.
+_MIN_REASONING_EFFORT = "low"
 
 # --- finish reasons -------------------------------------------------------
 # Compared as strings on purpose. See the module docstring: an unknown value must fail
@@ -667,10 +680,12 @@ class GroqProvider:
         if request.seed is not None:
             payload["seed"] = request.seed
         if self._is_reasoning_model():
-            # Reasoning tokens are drawn from the output budget, so leaving them on
+            # Reasoning tokens are drawn from the output budget, so leaving them high
             # risks a paid-for `length` finish with no visible text. Only the reasoning
-            # families accept this parameter; sending it to a Llama model is a 400.
-            payload["reasoning_effort"] = "none"
+            # families accept this parameter at all; sending it to a Llama model is a
+            # 400, and sending the wrong *value* to gpt-oss is equally a 400 — see
+            # `_MIN_REASONING_EFFORT`.
+            payload["reasoning_effort"] = _MIN_REASONING_EFFORT
         return payload
 
     # -- rate limits -------------------------------------------------------

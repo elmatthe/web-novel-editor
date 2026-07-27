@@ -537,14 +537,37 @@ def test_the_system_prompt_and_the_chapter_are_separate_messages():
     ]
 
 
-def test_reasoning_is_disabled_on_gpt_oss_so_it_cannot_eat_the_output_budget():
+def test_reasoning_is_held_to_its_minimum_on_gpt_oss_so_it_cannot_eat_the_output_budget():
     """gpt-oss are reasoning models; reasoning tokens are billed against the output
-    budget, so leaving it on risks paying for a ``length`` finish with no visible text.
-    This is the direct analogue of the Gemini adapter turning thinking off."""
+    budget, so leaving it high risks paying for a ``length`` finish with no visible text.
+    This is the direct analogue of the Gemini adapter turning thinking off.
+
+    The VALUE matters as much as the parameter. gpt-oss accepts only ``low|medium|high``
+    (``none``/``default`` are the qwen3 family's), so the ``"none"`` this adapter sent
+    until 2026-07-27 was a hard 400 on every single request — both gpt-oss records were
+    approved, selectable and completely uncallable, and a whole batch degraded to
+    script-only. A live probe confirmed the fix.
+    """
     client = _Client()
     guard = provider(client, model_id=NAMESPACED_MODEL)
     guard.complete(request(model=NAMESPACED_MODEL))
-    assert client.calls[0]["reasoning_effort"] == "none"
+    assert client.calls[0]["reasoning_effort"] == "low"
+
+
+def test_gpt_oss_is_never_sent_a_reasoning_effort_value_the_family_rejects():
+    """The regression guard for the 400 above.
+
+    Pins the constant itself rather than one call site, so a future edit that reaches for
+    ``"none"``, ``"default"``, ``"minimal"`` or ``None`` fails here instead of failing
+    against the live API on the first chapter of a real batch.
+    """
+    from ai.providers.groq import _MIN_REASONING_EFFORT
+
+    assert _MIN_REASONING_EFFORT in {"low", "medium", "high"}
+
+    client = _Client()
+    provider(client, model_id=NAMESPACED_MODEL).complete(request(model=NAMESPACED_MODEL))
+    assert client.calls[0]["reasoning_effort"] == _MIN_REASONING_EFFORT
 
 
 def test_llama_models_are_not_sent_a_reasoning_effort_parameter():

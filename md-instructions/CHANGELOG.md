@@ -69,6 +69,24 @@ DECISIONS.md #062–#070.
   Renegade Immortal and **17,252 → 5,474** for Reverend Insanity, returning both to their zero-index
   cost. Protection is unchanged: the gate still validates against the whole index. DECISIONS #063.
 
+### Fixed — three approved models could not be called at all (pre-merge click-through)
+- **`openai/gpt-oss-20b` and `openai/gpt-oss-120b` failed every request with HTTP 400.** The Groq
+  adapter sent `reasoning_effort = "none"`, which is a qwen3-only value; the gpt-oss family accepts
+  only `low`, `medium` or `high`. Both models were approved, selectable and completely uncallable, and
+  a whole batch degraded silently to script-only. Now sent as `low` — the family's minimum — verified
+  against Groq's own reference and by a live probe. A regression test pins the constant rather than
+  one call site.
+- **`gemini-2.5-flash` was removed from the approved model list.** Google returns HTTP 404 "no longer
+  available to new users" for it on this account. Note what did *not* catch it: the model is still
+  returned by `models.list()`, so the adapter's retirement check passed and `health_check()` reported
+  OK — being listed is not proof of being callable. Google's deprecation page names `gemini-3.6-flash`
+  and `gemini-3.1-flash-lite` as the replacements, both already approved, so nothing is lost.
+- **A lost provider now names its own cause in the run log.** One sentence — "AI provider unavailable"
+  — covered a withdrawn model, a refused key, an exhausted quota and a dropped connection, four
+  problems with four different fixes, while the batch finished quietly in script-only mode. The log
+  line now reads, e.g., "AI stopped — the chosen AI model is not available: Gemini does not offer
+  'gemini-2.5-flash' to this key (404 …). Remaining chapters will use deterministic output."
+
 ### Fixed
 - **Gemini daily-quota exhaustion was misclassified as a per-minute limit**, so a run retried chapter
   by chapter for ~35 minutes instead of checkpointing. The period is now read from the structured

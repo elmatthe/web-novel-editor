@@ -41,6 +41,53 @@ from .provider import AIProvider
 from .validation import GATE_VERSION, RejectionReason, validate_candidate
 
 
+# How much of the provider's own sentence survives into a one-line GUI log entry. The
+# adapters already bound and redact their messages; this is a second, tighter bound so a
+# condensed log stays readable.
+_REASON_CHARS = 220
+
+# Plain-English cause for each way a run can lose its provider. The user reads these
+# strings, so they say what happened rather than naming an exception class.
+#
+# Why this exists: a whole batch that quietly degrades to script-only is the failure mode
+# hardest to notice, and "AI provider unavailable" was the same sentence for a retired
+# model, a refused key, an exhausted quota and a dropped connection — four things with
+# four different fixes. The cause below is joined to the provider's own message, so the
+# log names the actual problem.
+_UNAVAILABLE_CAUSES = {
+    "ModelUnavailable": "the chosen AI model is not available",
+    "AuthenticationError": "the API key was refused",
+    "DailyQuotaExhausted": "the free daily quota is used up",
+    "RateLimited": "the service is limiting how fast this account may send requests",
+    "TransientNetworkError": "the AI service could not be reached",
+    "TimeoutError": "the AI service did not answer in time",
+    "OSError": "the AI service could not be reached",
+    "ProviderUnavailable": "the AI service refused the request",
+    "ContextTooLong": "the chapter was too long for the model's context",
+}
+_UNAVAILABLE_FALLBACK = "the AI service stopped working"
+
+
+def describe_unavailable(kind: str, reason: str) -> str:
+    """One plain sentence naming why the AI stopped, for a log line or a dialog.
+
+    ``kind`` is the exception class name recorded when the run went unavailable and
+    ``reason`` is the stored ``"Kind: message"`` text. Neither is trusted to be present:
+    an editor that never ran, or one marked unavailable without an exception, still gets
+    a usable sentence rather than an empty one.
+    """
+    cause = _UNAVAILABLE_CAUSES.get(str(kind or "").strip(), _UNAVAILABLE_FALLBACK)
+    detail = str(reason or "").strip()
+    prefix = f"{kind}: "
+    if kind and detail.startswith(prefix):
+        detail = detail[len(prefix):].strip()
+    if len(detail) > _REASON_CHARS:
+        detail = detail[:_REASON_CHARS].rstrip() + "…"
+    sentence = f"{cause} — {detail}" if detail else cause
+    # Callers append their own sentence after this one, so end it properly.
+    return sentence if sentence.endswith((".", "!", "?", "…")) else sentence + "."
+
+
 @dataclass(frozen=True)
 class EditorOptions:
     model_id: str
@@ -81,10 +128,26 @@ class AIEditor:
         self._capabilities = None
         self._state = ProviderRunState.UNINITIALIZED
         self._unavailable_reason = "Provider unavailable for this run."
+        self._unavailable_kind = ""
 
     @property
     def run_state(self) -> ProviderRunState:
         return self._state
+
+    @property
+    def unavailable_reason(self) -> str:
+        """The stored ``"Kind: message"`` for why the run lost its provider."""
+        return self._unavailable_reason
+
+    @property
+    def unavailable_kind(self) -> str:
+        """The exception class name behind the outage, or ``""`` if none was recorded."""
+        return self._unavailable_kind
+
+    @property
+    def unavailable_description(self) -> str:
+        """One plain sentence naming the cause, ready to show the user."""
+        return describe_unavailable(self._unavailable_kind, self._unavailable_reason)
 
     def prepare_run(self) -> ProviderRunState:
         """Establish provider availability once before a batch starts.
@@ -111,7 +174,7 @@ class AIEditor:
                     f"Model unavailable: {self.options.model_id}", retryable=False
                 )
         except (AIProviderError, OSError, TimeoutError) as exc:
-            self._mark_unavailable(f"{type(exc).__name__}: {exc}")
+            self._mark_unavailable_from(exc)
             raise
         return self._state
 
@@ -127,16 +190,23 @@ class AIEditor:
             provider = self._provider_factory()
             capabilities = provider.capabilities()
         except (AIProviderError, OSError, TimeoutError) as exc:
-            self._mark_unavailable(f"{type(exc).__name__}: {exc}")
+            self._mark_unavailable_from(exc)
             raise
         self._provider = provider
         self._capabilities = capabilities
         self._state = ProviderRunState.AVAILABLE
         return provider
 
-    def _mark_unavailable(self, reason: str) -> None:
+    def _mark_unavailable(self, reason: str, *, kind: str = "") -> None:
         self._state = ProviderRunState.UNAVAILABLE
         self._unavailable_reason = reason
+        self._unavailable_kind = str(kind or "")
+
+    def _mark_unavailable_from(self, exc: BaseException) -> None:
+        """Record an outage from the exception that caused it, kind and text together."""
+        self._mark_unavailable(
+            f"{type(exc).__name__}: {exc}", kind=type(exc).__name__
+        )
 
     def _fallback_or_raise(
         self,
@@ -330,9 +400,7 @@ class AIEditor:
                     stricter_retry = False
             if not chunk_accepted:
                 if provider_outage is not None:
-                    self._mark_unavailable(
-                        f"{type(provider_outage).__name__}: {provider_outage}"
-                    )
+                    self._mark_unavailable_from(provider_outage)
                 return self._fallback_or_raise(
                     baseline,
                     failure_reasons,

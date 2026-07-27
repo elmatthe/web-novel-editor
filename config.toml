@@ -200,16 +200,23 @@ source_url = "https://ai.google.dev/gemini-api/docs/models/gemini-3.1-flash-lite
 free_tier_confidence = "confirmed"
 pilot_status = "not-piloted"
 
-[[ai.approved_models]]
-id = "gemini-2.5-flash"
-provider = "gemini"
-status = "stable"
-context_limit = 1048576
-output_limit = 65536
-reviewed_on = "2026-07-24"
-source_url = "https://ai.google.dev/gemini-api/docs/models/gemini-2.5-flash"
-free_tier_confidence = "confirmed"
-pilot_status = "not-piloted"
+# --- RETIRED, removed 2026-07-27 ------------------------------------------------------
+# `gemini-2.5-flash` was an approved record until 2026-07-27. It is NOT callable and the
+# record has been removed rather than left to fail at the first chapter of a real batch.
+#
+# What the provider actually says, from a one-request probe on this account:
+#   HTTP 404 NOT_FOUND — "This model models/gemini-2.5-flash is no longer available to
+#   new users. Please update your code to use a newer model."
+#
+# Note what does NOT catch this: the model is still returned by `models.list()`, so the
+# adapter's retirement check (`ensure_model_available`) passes and `health_check()`
+# reports OK. Google keeps listing it for the accounts that already had it. Availability
+# on the *list* is therefore not proof of callability, and only a real request tells the
+# truth. Google's own deprecation page schedules the 2.5-flash family for shutdown and
+# names `gemini-3.6-flash` / `gemini-3.1-flash-lite` as the replacements — both of which
+# are already approved below, so nothing is lost by removing this record.
+#
+# Do not re-add it without a fresh probe. Adding a record is a review commitment.
 
 # --- Groq, reviewed 2026-07-24 --------------------------------------------------------
 # Groq DOES publish free-plan limits per model, and they apply at the ORGANIZATION level,
