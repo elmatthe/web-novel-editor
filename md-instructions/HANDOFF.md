@@ -40,6 +40,78 @@ manually in the provider's own console (done 2026-07-25 — see the Phase 7a log
 now passes `ai.spend_guard.ensure_free_tier_run_allowed` at `ai.factory.create_provider` before an
 adapter exists**, and a refusal stops the run in a dialog rather than degrading to script-only.
 
+## Work Log — 2026-07-27 — Claude Code — Author-ruled spelling rules + prompt-cost re-measure
+
+Two follow-ups to the index build, on `feature/plan-2b-cloud-providers`. **No change to
+AIEditor, the validation gate or the prompt layer** — `git diff -- scripts/Universal/ai/`
+is empty. Plan 2b is still paused for the provider decision; Phase 8 not started.
+
+### Task 1 — two deterministic replacement rules (not index entries)
+
+The author ruled `Kraai` canonical (The Noble Queen) and `Liguo` canonical (Renegade
+Immortal). Both are now **one-time normalizations** in the special-fixes layer, applied by
+the scripted pass, not protected-term entries:
+
+| novel | rule | fires |
+|---|---|---|
+| The Noble Queen | `Kraii` → `Kraai` | `NQ_SPECIAL_FIXES` |
+| Renegade Immortal | `Ligou` → `Liguo`, `Ligo` → `Liguo` | `RI_SPECIAL_FIXES` |
+
+**`Kraii` was REMOVED from the-noble-queen.txt, and that is load-bearing.** Block B masks
+protected terms *before* `_apply_special_fixes` runs, so an indexed `Kraii` would already
+be a placeholder when the substitution is attempted and the rule could never fire. Only the
+canonical spelling belongs in a do-not-touch list. Confirmed present: `Kraai` in the Noble
+Queen index; `Liguo` and `Xu Liguo` in the Renegade Immortal index. `Ligou`/`Ligo` were
+already correctly absent.
+
+**Ordering is load-bearing too.** `Ligo` is a prefix of `Ligou`, and 38 of the 39 `Ligo`
+substring hits in the corpus sit inside `Ligou` — shortest-first would produce `Liguou`.
+`_apply_special_fixes` sorts longest-key-first; pinned by
+`test_ri_ligo_prefix_does_not_double_apply`.
+
+**Renegade Immortal was promoted to a registered profile** (`profiles/renegade_immortal/`,
+`pipelines/renegade_immortal.py`, one registry entry). Forced substitutions are per-profile
+data and the universal fallback's map is shared by every profile-less novel and pinned
+empty by test, so registration was the only way to scope the fix. The promotion is
+behaviour-preserving by construction: the floor is **empty** (the 837 terms stay in the
+index, so the merged lexicon is byte-identical to the old fallback) and the new pipeline
+mirrors `lord_of_mysteries.py` stage-for-stage. Its dropdown entry loses the
+"— no profile yet" marker, which is now accurate.
+
+Four tests that used Renegade Immortal as the *profile-less fixture* were re-pointed to
+Reverend Insanity (still unregistered), preserving every guarantee they assert.
+`test_no_profanity_uncensor_was_ported` no longer asserts `NQ_SPECIAL_FIXES == {}`; it
+checks what it always meant — no censor-mask keys in any profile's map.
+
+### Task 2 — prompt cost re-measured for the two newly-indexed novels
+
+`build_system_prompt` embeds the whole term list, and `AIEditor` sends it **with every
+chunk**. Measured locally against the frozen 10-chapter sample, no cloud call (script:
+`files/qa-tools/scratch/index-build/measure_prompt_cost.py`):
+
+| novel | terms | term block / request | est. before | est. now | ×  | chapters needing 2 chunks |
+|---|---|---|---|---|---|---|
+| Renegade Immortal | 837 | 4,536 | 4,872 | 10,209 | **2.10×** | 2/10 |
+| Reverend Insanity | 1,435 | 7,444 | 5,323 | 17,252 | **3.24×** | 6/10 |
+
+Two effects compound. The term block is charged per request; and masking *inflates* text
+(a `__WE_P_00000__` placeholder is 14 chars, most names are shorter), tipping chapters near
+the 4,096-token chunk budget over it — Reverend Insanity's median chapter goes 4,057 →
+4,172 masked — which splits them into two requests that **each** re-send the full block.
+
+Applying those multipliers to Phase 7b's provider-reported figures (both novels had 0
+protected terms then) projects real cost and Groq throughput at its 100,000 tokens/day
+free ceiling:
+
+| novel | 7b reported/chapter | projected now | chapters/day before | now |
+|---|---|---|---|---|
+| Renegade Immortal | 3,108 | ~6,512 | 32 | **~15** |
+| Reverend Insanity | 2,972 | ~9,633 | 33 | **~10** |
+
+Both now exceed the ~4,400 tokens/chapter that Shadow Slave (352 terms) measured in 7b —
+the figure that run's calibration was anchored on. Tokens/day is the binding Groq limit;
+12,000 tokens/min and 1,000 requests/day are not reached at these volumes.
+
 ## Work Log — 2026-07-26 — Claude Code — Protected-term index build and audit (all 8 novels)
 
 Ran on HOME-PC, on `feature/plan-2b-cloud-providers`, **after** Phase 7b and independent of it.
@@ -1545,6 +1617,20 @@ key storage, no consent dialog, no rate limiter, no GUI change, no dependency ad
 CHANGELOG/BRIEFING/DECISIONS entry (v0.13.0 docs belong to Phase 8), no merge, no tag, no PR.
 
 ### Session Sync Log
+- 2026-07-27 — HOME-PC — Author-ruled spelling normalizations + prompt-cost re-measure, verify
+  **1195 passed / 10 skipped** on `feature/plan-2b-cloud-providers`. Changed:
+  `profiles/the_noble_queen/special_fixes.py` (Kraii -> Kraai, map was empty),
+  `profiles/renegade_immortal/` (new package: empty floor + Ligou/Ligo -> Liguo),
+  `pipelines/renegade_immortal.py` (new, mirrors the universal pipeline stage-for-stage),
+  `core/novel_registry.py` (+1 registry entry and its import), `novel-index/the-noble-queen.txt`
+  (**removed `Kraii`** — masking precedes special fixes, so an indexed variant would block its
+  own rule), plus `files/tests/test_novel_profiles.py`, `test_dual_mode_provenance.py`,
+  `test_novel_registry.py` (Reverend Insanity takes over as the profile-less fixture; 9 new
+  tests). **`scripts/Universal/ai/` untouched — empty diff** (AIEditor, gate, prompt layer).
+  No config, dependency or cloud call. Prompt cost re-measured locally: Renegade Immortal
+  2.10x and Reverend Insanity 3.24x their Phase 7b per-chapter input tokens, cutting Groq
+  free-tier throughput to roughly 15 and 10 chapters/day.
+  Next: unchanged — Plan 2b still pauses for the provider decision.
 - 2026-07-26 — HOME-PC — Protected-term index build + audit, all 8 novels, verify **1188 passed / 8
   skipped** (1196 collected) on `feature/plan-2b-cloud-providers`. **Index data only.** Changed:
   `scripts/Universal/resources/novel-index/` — `renegade-immortal.txt` (0→837), `reverend-insanity.txt`
