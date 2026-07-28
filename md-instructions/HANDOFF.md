@@ -4,9 +4,21 @@
 
 **Plan 2b (Cloud AI Providers — Gemini, Groq) is COMPLETE through Phase 8, v0.13.0, on
 `feature/plan-2b-cloud-providers`. It has NOT been merged to `main` and awaits the author's
-sign-off.** `verify` is green at **1252 passed / 9 skipped** after the 2026-07-27 post-click-through
+sign-off.** `verify` is green at **1265 passed / 8 skipped** (four checks) after the 2026-07-27 evening
 pass (see the work log directly below); it was 1238 / 9 at the end of Phase 8, and identical in the
 clean room with `ollama`, `groq` and `google.genai` import-blocked and every key unset.
+
+**Evening of 2026-07-27 (four more commits):** `qwen/qwen3.6-27b` was audited and **NOT added** —
+Groq lists it as Preview and prices it on the developer plan, failing two of the three standing
+conditions (DECISIONS #073). The Renegade Immortal / Reverend Insanity coverage gap was partly closed
+and **the answer is in**: RI's two new rejections are `protected_term_changed_or_moved` on a novel
+that had **0** protected terms in 7b and has **861** now — a check that could not fire before, so the
+delta belongs to the index build (#062), not the prompt scoping (#063). The "daily quota" mystery is
+solved: the classifier was **right** (Google really does say per-day, allowance **20 requests/day**),
+but the same body carries a 2–55 s `retryDelay` that the handling threw away, so a refilling quota
+ended the run for the day. Fixed as DECISIONS #072, Gemini only, Groq provably unaffected. And
+`config.toml` is at 0.13.0 with a `verify` check so that drift cannot recur, with the launcher rename
+finished.
 
 **The author's pre-merge click-through found three things, all addressed 2026-07-27.** Three approved
 models were uncallable — the gpt-oss pair through a wrong `reasoning_effort` value we were sending
@@ -70,6 +82,134 @@ first phase that makes a real cloud call, so it needs a key and the billing/plan
 manually in the provider's own console (done 2026-07-25 — see the Phase 7a log). **Every cloud run
 now passes `ai.spend_guard.ensure_free_tier_run_allowed` at `ai.factory.create_provider` before an
 adapter exists**, and a refusal stops the run in a dialog rather than degrading to script-only.
+
+## Work Log — 2026-07-27 (evening) — Claude Code — qwen audit, RI/RevIns coverage, quota root-cause, version+launcher
+
+Ran on HOME-PC, on `feature/plan-2b-cloud-providers`, following the afternoon's post-click-through
+pass. Four commits, one per task, all pushed. **Still UNMERGED.** `scripts/verify.py` **PASS —
+1265 passed, 8 skipped**, from 1252 / 9 (+13 tests, +1 verify check).
+
+### Task A — `qwen/qwen3.6-27b`: audited, and NOT added
+
+Checked against Groq's own current documentation (Context7, not recall). **It fails two of the three
+conditions, so it was not added and the third was deliberately not tested.**
+
+| condition | result |
+|---|---|
+| free tier | **NO.** Published at $0.60/M input, $3.00/M output. The limits beside it (250K TPM / 1K RPM) are the **developer plan's** — Groq's model table is titled as developer-plan rate limits and there is no free-plan row for this model. That is `free_tier_confidence = "unknown"` at best, which strict mode refuses. |
+| stable | **NO.** Groq lists "Alibaba Cloud Qwen" under **Preview** models: "provided strictly for evaluation purposes and should not be used in production environments, as they may be discontinued at short notice." `ensure_model_approved` allows only `status = "stable"` in strict mode. |
+| callable | **not tested, on purpose.** A guarded probe needs an approved record to exist first, and writing one would mean recording `status = "stable"` and `free_tier_confidence = "confirmed"` as facts when neither is true. The guard was asked about the model directly instead and refused it with `model_not_approved` — the rails working. |
+
+**Note on the requested value:** the brief asked for `free_tier_confidence = "confident"`. The schema's
+three legal values are `confirmed | unknown | not-free`; `"confident"` would have been skipped by
+`parse_approved_models` with a problem message. Moot here, but worth knowing for next time.
+
+**The approved list stays at eight.** Recorded as DECISIONS #073 so it is not re-proposed on sight —
+a live Qwen model on Groq is exactly the thing a future agent will want to add, in a project whose
+*local* default is `qwen3:14b`.
+
+### Task B — the RI / Reverend Insanity coverage gap (DIAGNOSIS ONLY; nothing changed)
+
+Free tier only, every request through the spend guard, which cleared each time and refused nothing.
+Gemini's allowance is **20 requests/day** (see Task C), so coverage was bought a few chapters at a
+time across ~60 paced `--resume` rounds. **Renegade Immortal reached 6/10; Reverend Insanity reached
+1/10** — enough to answer the question for RI, not enough to answer it for Reverend Insanity.
+
+| novel | measured | accepted | fallback | reasons | 7b on the same chapters |
+|---|---|---|---|---|---|
+| Renegade Immortal | 6 / 10 | **4** | **2** | `protected_term_changed_or_moved` ×2 | 6 accepted, 0 fallback |
+| Reverend Insanity | 1 / 10 | 1 | 0 | — | 1 accepted, 0 fallback |
+
+Whole frozen set to date: **27/40 measured, 23 accepted, 4 fallback, 12 faithful echoes**, every
+rejection `protected_term_changed_or_moved`. 7b restricted to those same 27: **25 accepted, 2
+fallback**. **Exactly two chapters changed outcome, both Renegade Immortal** (`backfill` Ch. 1448 and
+`q25` Ch. 841), both ACC → `protected_term_changed_or_moved`.
+
+**The finding, and it is not a prompt-scoping regression.** Renegade Immortal had **0 protected
+terms** in Phase 7b and has **861** now. `protected_term_changed_or_moved` is the gate comparing
+`_protected_signature` — exact spelling plus paragraph/sentence/word ordinal for every occurrence of
+every indexed term — between the baseline and the candidate. With zero terms that signature is empty
+on both sides and **the check was arithmetically incapable of firing in 7b**. It is not that the
+model got worse on these chapters; it is that these chapters were unprotected in 7b and are protected
+now. The delta is attributable to the index build (#062), not to the per-chunk term scoping (#063).
+
+That is also the answer to the author's original observation. The higher rejection rate was seen on
+exactly the two novels whose indexes went 0 → 861 and 0 → 1,429, and this is the mechanism.
+
+**What I could NOT determine, stated rather than guessed:** *which* term moved in either rejected
+chapter. On a fallback, `AIOutcome.text` is the deterministic baseline, so the bundle stores the
+baseline twice and the rejected candidate is not retained anywhere. (My first attempt at attributing
+it compared the baseline against itself and found "no change" — a vacuous result, discarded.)
+Capturing it means re-running those two chapters with the candidate saved, which needs a fresh daily
+window. Worth doing: it distinguishes "the model renamed something" from "the model inserted or
+deleted a word near a name and shifted its ordinal", and only the first is real damage.
+
+**Still open:** Reverend Insanity at 1/10. It has the largest index (1,429) and is the least-measured
+novel. `python run_compare.py --provider gemini --model gemini-3.6-flash --resume --novels
+"Reverend Insanity"` on a fresh window finishes it, ~20 requests.
+
+### Task C — the quota-period classification: the classifier is RIGHT, the handling was wrong
+
+Reproduced and captured the raw 429 body (an observer patched onto the adapter's error path — it
+records `exc.details` and then calls the original method unmodified, so no request behaved
+differently). **11 consecutive 429s captured.** Google says both of these in one response:
+
+```
+quotaId:              GenerateRequestsPerDayPerProjectPerModel-FreeTier   <- genuinely per-day
+quotaMetric:          generativelanguage.googleapis.com/generate_content_free_tier_requests
+quotaValue:           20                                                 <- 20 requests/day
+RetryInfo.retryDelay: "53s"                                              <- come back in 53 seconds
+```
+
+`quota_period()` returns `"day"` and it is **correct** — Phase 8's classifier is not misreading
+anything. Google enforces the free-tier requests-per-day allowance as a **refilling window** and
+publishes when the next slot opens. Observed retryDelay across the 11 captures: **2, 5, 6, 15, 24,
+25, 26, 35, 43, 53, 55 seconds** — and waiting them really did let more chapters through, which is
+the entire reason Task B got any coverage at all today.
+
+**So the fast recovery has a concrete explanation and there was no classifier bug. What there was, is
+a handling bug.** DECISIONS #069 states waits are split **"by duration, not by error code."** The
+implementation split them by code: `if kind in DAILY_KINDS` returned "never a wait" however short the
+wait actually was, and the authoritative 53 was discarded. **#072 refines #069 rather than reversing
+it.** A per-day quota is now waited iff all three hold: the delay came from the **provider**
+(`retry_after_seconds` on the error — never a floor, never a guess), it is **positive and at or under
+a configured cap**, and that **cap is above zero**. Everything else checkpoints exactly as before and
+the reported `LimitKind` never changes.
+
+`config.toml` ships **120 s for Gemini and 0 — off — for Groq.** Groq's tokens-per-day ceiling latches
+correctly today (Phase 7b watched it refuse every subsequent chapter in 0.0 s with no network call)
+and must keep doing so; a test builds the **shipped** Groq settings and asserts the cap is 0, so this
+cannot reach Groq by accident. 12 tests, all on the injected clock, nothing sleeps for real.
+
+**A number worth recording on its own: the free-tier allowance is 20 requests/day for
+`gemini-3.6-flash` on this project.** Google publishes no free-tier table, so this is the only figure
+that exists — and it is why a 3,000-chapter cloud run stays impractical on the free tier however well
+the waiting works.
+
+### Task D — version, launchers, and stopping the drift recurring
+
+- **`config.toml` 0.12.0 → 0.13.0**, matching CHANGELOG and BRIEFING.
+- **`verify` gained a fourth check** that fails when `config.toml` disagrees with the CHANGELOG's
+  newest entry. Two tests back it: one pins the rule at the pytest layer so a bare `pytest` catches
+  it, and one asserts `verify.check_config_version` exists **and returns False on a mismatch** — a
+  check that cannot fail is decoration.
+- **Launcher rename finished:** `Setup_and_Run.{bat,command}` →
+  `Setup_and_Run-Web-Novel-Editor.{bat,command}`. Git records both as **pure renames (identical blob
+  hashes)**, `.bat` still CRLF and `.command` still LF per `.gitattributes`, and the `.command`'s
+  `100755` bit preserved so Finder double-click still works. The glob lookup added to
+  `test_launchers.py` in the afternoon resolves both new names with no change.
+- **References updated where a stale name misleads:** `README.md` (the instruction a user follows),
+  `main.py`'s docstring, `BRIEFING.md`, and `plan-2c-installer-bootstrap.md` (which tells a future
+  agent which files to read). **Deliberately not updated:** CHANGELOG, DECISIONS and past HANDOFF
+  entries — append-only records of what was true at the time.
+
+### Needs the author
+1. **Reverend Insanity coverage** (1/10) — one fresh daily window finishes it.
+2. **The two RI rejections** — worth re-running with the rejected candidate captured, to tell a real
+   rename from a harmless ordinal shift? That decides whether anything needs doing about the gate.
+3. **`qwen/qwen3.6-27b`** — closed as "not approved" unless you disagree with the two grounds above.
+4. Still standing from earlier: the 197 REVIEW terms, and the untracked
+   `md-instructions/plan-2-ai-editor-integration.md`.
 
 ## Work Log — 2026-07-27 — Claude Code — Post-click-through: model audit, rejection-rate check, honest labels
 
@@ -3617,6 +3757,43 @@ summary record.
 ---
 
 ## Session Sync Log (newest first)
+
+### 2026-07-27 (evening) — HOME-PC — PUSHED (qwen audit, RI/RevIns coverage, quota root-cause, version+launcher — UNMERGED)
+
+Branch `feature/plan-2b-cloud-providers`, four commits, pushed to `origin`. `verify` PASS —
+**1265 passed, 8 skipped** (was 1252 / 9), now with a fourth check. Plan 2b remains unmerged.
+
+`ade63ce` — Record why qwen/qwen3.6-27b is NOT approved
+- M `md-instructions/DECISIONS.md` — #073 (rejected candidate; preview status + developer-plan pricing)
+- No code changed; the approved list stays at eight.
+
+`4208b7e` — Wait out a per-day quota that refills, instead of ending the run for the day
+- M `scripts/Universal/ai/rate_limits.py` — `daily_quota_retry_delay_max_seconds`; the refill branch
+- M `scripts/Universal/ai/cloud.py` — the default (120 Gemini)
+- M `scripts/Universal/ai/providers/gemini.py` — `retry_after_seconds` attached to `DailyQuotaExhausted`
+- M `config.toml` — the knob, 120 for Gemini / 0 for Groq, with the captured evidence in a comment
+- M `files/tests/test_rate_limiting.py` (+9), `files/tests/test_gemini_provider.py` (+3)
+- M `md-instructions/DECISIONS.md` — #072; `md-instructions/CHANGELOG.md`
+
+`b1ded4e` — Align the version, finish the launcher rename, and stop the drift recurring
+- R `Setup_and_Run.bat` → `Setup_and_Run-Web-Novel-Editor.bat` (pure rename, CRLF kept)
+- R `Setup_and_Run.command` → `Setup_and_Run-Web-Novel-Editor.command` (pure rename, LF + 100755 kept)
+- M `config.toml` — version 0.12.0 → 0.13.0
+- M `scripts/verify.py` — `check_config_version`, now `[4/4]`
+- M `files/tests/test_scaffold.py` — two drift tests
+- M `README.md`, `scripts/Universal/main.py`, `md-instructions/BRIEFING.md`,
+  `md-instructions/plan-2c-installer-bootstrap.md` — live references only
+- M `md-instructions/CHANGELOG.md`
+
+`<this commit>` — the Task B diagnosis, recorded in HANDOFF (no code change: diagnosis only)
+
+**Deliberately NOT staged:** the untracked `md-instructions/plan-2-ai-editor-integration.md` (not
+mine to remove).
+
+**Local and gitignored, nothing committed:** `files/qa-tools/scratch/model-audit/`
+(`probe_models.py`, `quota_detail.py`, `run_with_429_capture.py`, `raw_429.jsonl`, `audit.json`) and
+`files/qa-tools/scratch/pilot-2b/` (`results.jsonl` now at 27/40 measured, `results_phase7b.jsonl`
+and `bundle_phase7b/` preserved). No corpus text and no provider key left `files/qa-tools/scratch/`.
 
 ### 2026-07-27 — HOME-PC — PUSHED (post-click-through: model audit, rejection-rate check, honest labels — UNMERGED)
 
