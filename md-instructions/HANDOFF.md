@@ -1,6 +1,1940 @@
 # Web Novel Editor — Handoff
 
 ## Current Focus
+
+**Plan 2b (Cloud AI Providers — Gemini, Groq) is COMPLETE through Phase 8, v0.13.0, on
+`feature/plan-2b-cloud-providers`. It has NOT been merged to `main` and awaits the author's
+sign-off.** `verify` is green at **1265 passed / 8 skipped** (four checks) after the 2026-07-27 evening
+pass (see the work log directly below); it was 1238 / 9 at the end of Phase 8, and identical in the
+clean room with `ollama`, `groq` and `google.genai` import-blocked and every key unset.
+
+**Evening of 2026-07-27 (four more commits):** `qwen/qwen3.6-27b` was audited and **NOT added** —
+Groq lists it as Preview and prices it on the developer plan, failing two of the three standing
+conditions (DECISIONS #073). The Renegade Immortal / Reverend Insanity coverage gap was partly closed
+and **the answer is in**: RI's two new rejections are `protected_term_changed_or_moved` on a novel
+that had **0** protected terms in 7b and has **861** now — a check that could not fire before, so the
+delta belongs to the index build (#062), not the prompt scoping (#063). The "daily quota" mystery is
+solved: the classifier was **right** (Google really does say per-day, allowance **20 requests/day**),
+but the same body carries a 2–55 s `retryDelay` that the handling threw away, so a refilling quota
+ended the run for the day. Fixed as DECISIONS #072, Gemini only, Groq provably unaffected. And
+`config.toml` is at 0.13.0 with a `verify` check so that drift cannot recur, with the launcher rename
+finished.
+
+**The author's pre-merge click-through found three things, all addressed 2026-07-27.** Three approved
+models were uncallable — the gpt-oss pair through a wrong `reasoning_effort` value we were sending
+(fixed, both verified live), `gemini-2.5-flash` through genuine withdrawal by Google (record
+removed) — and a lost provider now names its own cause instead of one generic sentence. The
+rejection-rate worry was **measured, not guessed: no regression.** On all 20 frozen chapters
+measurable in both runs the gate outcome is identical chapter for chapter, despite index growth of
+14× on one novel. The misleading "no profile yet" label is gone. **Two open questions are the
+author's:** whether to approve `qwen/qwen3.6-27b`, and whether to close the Task 2 gap (Renegade
+Immortal / Reverend Insanity were quota-blocked, and they are the novels behind the observed rate).
+
+**The author's Phase 8 decisions, now shipped:** no default cloud provider — cloud is opt-in per run,
+every run, with no persisted preference (DECISIONS #064); Renegade Immortal's real profile is correct
+and expected; and the 240 flagged index terms were batch-reviewed (43 promoted, 197 left).
+
+Phase 8 also **changed the prompt layer once, deliberately** — the sanctioned exception to the plan's
+"prompt layer unchanged" rule, investigated first and recorded as DECISIONS #063. The protected-term
+block is now scoped to the terms present in each request, cutting mean per-chapter input by 51% and
+68% for the two large-index novels with no loss of protection. `AIEditor`'s decision logic, the gate,
+the chunker and the base contract are byte-for-byte unchanged against the v0.12.0 baseline `72d68ca`.
+
+**Remaining before merge:** the author's hands-on click-through and explicit end-of-plan sign-off.
+The plan drop `plan-2b-cloud-providers.md` was deleted as its own final step.
+
+## Previous Focus (superseded)
+**Plan 2b (Cloud AI Providers — Gemini, Groq — target v0.13.0) is UNDERWAY. Phases 0–7b are
+complete. Phase 7b is DONE and PAUSED for the provider decision — the first real cloud calls this
+project has ever made were issued on 2026-07-25/26 and `files/pilot/PROVIDER-COMPARISON.md` is
+committed.** Gemini measured **38/40** frozen chapters; Groq measured **14/40** before its free
+tokens-per-day ceiling latched, so the Groq column is materially thinner and the report's
+like-for-like table (the 14 chapters both served) is the only directly comparable view. **Nothing
+is wired as a default and Phase 8 has not started.**
+
+**Since then, and independent of the phase sequence, the protected-term indexes were built and
+audited across all 8 novels (2026-07-26): 973 terms across 3 novels became 4,074 across 5.** Renegade
+Immortal (0→837) and Reverend Insanity (0→1435) were built from nothing; The Noble Queen (26→371),
+Shadow Slave (353→541) and Supreme Magus (594→890) were audited; Circle of Inevitability, Lord of the
+Mysteries and Re:Monster **cannot** be built — no corpus exists for them — and now say so in their own
+files. Index data only: no editing logic, pipeline, gate, provider or config was touched. A further
+410 dual-use candidates sit commented out awaiting the author's call. See that work log below and
+DECISIONS #062.
+
+Working branch
+**`feature/plan-2b-cloud-providers`**, cut from the approved
+merged release commit **`72d68ca`** (`main`, tag `v0.12.0`). Baseline `verify.py` at branch creation:
+**688 passed / 8 skipped**; after Phase 1: **739 / 8**; after Phase 2: **801 / 9**; after Phase 3:
+**892 / 9**; after Phase 4: **977 / 9**; after Phase 5: **1042 / 10**; after Phase 6: **1119 / 9**;
+after the Phase 6 gap-fill (layout, in-app key entry, stale model dropdown): **1139 / 9** (1148
+collected); after Phase 7a (pre-flight spend guard): **1187 passed / 9 skipped** (1196 collected —
+the long-documented Tk display skip flips pass↔skip on this machine).
+**Both cloud adapters exist** — `GeminiProvider` (`google-genai==2.14.0`) and `GroqProvider`
+(`groq==1.6.0`), both pinned, neither SDK imported at package load — both are paceable through one
+shared limiter, a run can be stopped and resumed across days, and **as of Phase 6 all of that is
+actually constructed at runtime by the GUI**. No live cloud call has ever been made from this repo.
+
+**Phase 7b is the next authorized work, and it stops for a decision.** The same stratified chapters
+as the 2a pilot, same prompt and gate versions, through each configured provider; then
+`files/pilot/PROVIDER-COMPARISON.md` (aggregate metrics and short redacted snippets only). Quality and
+over-edit rate dominate the recommendation — a default is never wired from speed alone. It is the
+first phase that makes a real cloud call, so it needs a key and the billing/plan state confirmed
+manually in the provider's own console (done 2026-07-25 — see the Phase 7a log). **Every cloud run
+now passes `ai.spend_guard.ensure_free_tier_run_allowed` at `ai.factory.create_provider` before an
+adapter exists**, and a refusal stops the run in a dialog rather than degrading to script-only.
+
+## Work Log — 2026-07-27 (evening) — Claude Code — qwen audit, RI/RevIns coverage, quota root-cause, version+launcher
+
+Ran on HOME-PC, on `feature/plan-2b-cloud-providers`, following the afternoon's post-click-through
+pass. Four commits, one per task, all pushed. **Still UNMERGED.** `scripts/verify.py` **PASS —
+1265 passed, 8 skipped**, from 1252 / 9 (+13 tests, +1 verify check).
+
+### Task A — `qwen/qwen3.6-27b`: audited, and NOT added
+
+Checked against Groq's own current documentation (Context7, not recall). **It fails two of the three
+conditions, so it was not added and the third was deliberately not tested.**
+
+| condition | result |
+|---|---|
+| free tier | **NO.** Published at $0.60/M input, $3.00/M output. The limits beside it (250K TPM / 1K RPM) are the **developer plan's** — Groq's model table is titled as developer-plan rate limits and there is no free-plan row for this model. That is `free_tier_confidence = "unknown"` at best, which strict mode refuses. |
+| stable | **NO.** Groq lists "Alibaba Cloud Qwen" under **Preview** models: "provided strictly for evaluation purposes and should not be used in production environments, as they may be discontinued at short notice." `ensure_model_approved` allows only `status = "stable"` in strict mode. |
+| callable | **not tested, on purpose.** A guarded probe needs an approved record to exist first, and writing one would mean recording `status = "stable"` and `free_tier_confidence = "confirmed"` as facts when neither is true. The guard was asked about the model directly instead and refused it with `model_not_approved` — the rails working. |
+
+**Note on the requested value:** the brief asked for `free_tier_confidence = "confident"`. The schema's
+three legal values are `confirmed | unknown | not-free`; `"confident"` would have been skipped by
+`parse_approved_models` with a problem message. Moot here, but worth knowing for next time.
+
+**The approved list stays at eight.** Recorded as DECISIONS #073 so it is not re-proposed on sight —
+a live Qwen model on Groq is exactly the thing a future agent will want to add, in a project whose
+*local* default is `qwen3:14b`.
+
+### Task B — the RI / Reverend Insanity coverage gap (DIAGNOSIS ONLY; nothing changed)
+
+Free tier only, every request through the spend guard, which cleared each time and refused nothing.
+Gemini's allowance is **20 requests/day** (see Task C), so coverage was bought a few chapters at a
+time across ~60 paced `--resume` rounds. **Renegade Immortal reached 6/10; Reverend Insanity reached
+1/10** — enough to answer the question for RI, not enough to answer it for Reverend Insanity.
+
+| novel | measured | accepted | fallback | reasons | 7b on the same chapters |
+|---|---|---|---|---|---|
+| Renegade Immortal | 6 / 10 | **4** | **2** | `protected_term_changed_or_moved` ×2 | 6 accepted, 0 fallback |
+| Reverend Insanity | 1 / 10 | 1 | 0 | — | 1 accepted, 0 fallback |
+
+Whole frozen set to date: **27/40 measured, 23 accepted, 4 fallback, 12 faithful echoes**, every
+rejection `protected_term_changed_or_moved`. 7b restricted to those same 27: **25 accepted, 2
+fallback**. **Exactly two chapters changed outcome, both Renegade Immortal** (`backfill` Ch. 1448 and
+`q25` Ch. 841), both ACC → `protected_term_changed_or_moved`.
+
+**The finding, and it is not a prompt-scoping regression.** Renegade Immortal had **0 protected
+terms** in Phase 7b and has **861** now. `protected_term_changed_or_moved` is the gate comparing
+`_protected_signature` — exact spelling plus paragraph/sentence/word ordinal for every occurrence of
+every indexed term — between the baseline and the candidate. With zero terms that signature is empty
+on both sides and **the check was arithmetically incapable of firing in 7b**. It is not that the
+model got worse on these chapters; it is that these chapters were unprotected in 7b and are protected
+now. The delta is attributable to the index build (#062), not to the per-chunk term scoping (#063).
+
+That is also the answer to the author's original observation. The higher rejection rate was seen on
+exactly the two novels whose indexes went 0 → 861 and 0 → 1,429, and this is the mechanism.
+
+**What I could NOT determine, stated rather than guessed:** *which* term moved in either rejected
+chapter. On a fallback, `AIOutcome.text` is the deterministic baseline, so the bundle stores the
+baseline twice and the rejected candidate is not retained anywhere. (My first attempt at attributing
+it compared the baseline against itself and found "no change" — a vacuous result, discarded.)
+Capturing it means re-running those two chapters with the candidate saved, which needs a fresh daily
+window. Worth doing: it distinguishes "the model renamed something" from "the model inserted or
+deleted a word near a name and shifted its ordinal", and only the first is real damage.
+
+**Still open:** Reverend Insanity at 1/10. It has the largest index (1,429) and is the least-measured
+novel. `python run_compare.py --provider gemini --model gemini-3.6-flash --resume --novels
+"Reverend Insanity"` on a fresh window finishes it, ~20 requests.
+
+### Task C — the quota-period classification: the classifier is RIGHT, the handling was wrong
+
+Reproduced and captured the raw 429 body (an observer patched onto the adapter's error path — it
+records `exc.details` and then calls the original method unmodified, so no request behaved
+differently). **11 consecutive 429s captured.** Google says both of these in one response:
+
+```
+quotaId:              GenerateRequestsPerDayPerProjectPerModel-FreeTier   <- genuinely per-day
+quotaMetric:          generativelanguage.googleapis.com/generate_content_free_tier_requests
+quotaValue:           20                                                 <- 20 requests/day
+RetryInfo.retryDelay: "53s"                                              <- come back in 53 seconds
+```
+
+`quota_period()` returns `"day"` and it is **correct** — Phase 8's classifier is not misreading
+anything. Google enforces the free-tier requests-per-day allowance as a **refilling window** and
+publishes when the next slot opens. Observed retryDelay across the 11 captures: **2, 5, 6, 15, 24,
+25, 26, 35, 43, 53, 55 seconds** — and waiting them really did let more chapters through, which is
+the entire reason Task B got any coverage at all today.
+
+**So the fast recovery has a concrete explanation and there was no classifier bug. What there was, is
+a handling bug.** DECISIONS #069 states waits are split **"by duration, not by error code."** The
+implementation split them by code: `if kind in DAILY_KINDS` returned "never a wait" however short the
+wait actually was, and the authoritative 53 was discarded. **#072 refines #069 rather than reversing
+it.** A per-day quota is now waited iff all three hold: the delay came from the **provider**
+(`retry_after_seconds` on the error — never a floor, never a guess), it is **positive and at or under
+a configured cap**, and that **cap is above zero**. Everything else checkpoints exactly as before and
+the reported `LimitKind` never changes.
+
+`config.toml` ships **120 s for Gemini and 0 — off — for Groq.** Groq's tokens-per-day ceiling latches
+correctly today (Phase 7b watched it refuse every subsequent chapter in 0.0 s with no network call)
+and must keep doing so; a test builds the **shipped** Groq settings and asserts the cap is 0, so this
+cannot reach Groq by accident. 12 tests, all on the injected clock, nothing sleeps for real.
+
+**A number worth recording on its own: the free-tier allowance is 20 requests/day for
+`gemini-3.6-flash` on this project.** Google publishes no free-tier table, so this is the only figure
+that exists — and it is why a 3,000-chapter cloud run stays impractical on the free tier however well
+the waiting works.
+
+### Task D — version, launchers, and stopping the drift recurring
+
+- **`config.toml` 0.12.0 → 0.13.0**, matching CHANGELOG and BRIEFING.
+- **`verify` gained a fourth check** that fails when `config.toml` disagrees with the CHANGELOG's
+  newest entry. Two tests back it: one pins the rule at the pytest layer so a bare `pytest` catches
+  it, and one asserts `verify.check_config_version` exists **and returns False on a mismatch** — a
+  check that cannot fail is decoration.
+- **Launcher rename finished:** `Setup_and_Run.{bat,command}` →
+  `Setup_and_Run-Web-Novel-Editor.{bat,command}`. Git records both as **pure renames (identical blob
+  hashes)**, `.bat` still CRLF and `.command` still LF per `.gitattributes`, and the `.command`'s
+  `100755` bit preserved so Finder double-click still works. The glob lookup added to
+  `test_launchers.py` in the afternoon resolves both new names with no change.
+- **References updated where a stale name misleads:** `README.md` (the instruction a user follows),
+  `main.py`'s docstring, `BRIEFING.md`, and `plan-2c-installer-bootstrap.md` (which tells a future
+  agent which files to read). **Deliberately not updated:** CHANGELOG, DECISIONS and past HANDOFF
+  entries — append-only records of what was true at the time.
+
+### Needs the author
+1. **Reverend Insanity coverage** (1/10) — one fresh daily window finishes it.
+2. **The two RI rejections** — worth re-running with the rejected candidate captured, to tell a real
+   rename from a harmless ordinal shift? That decides whether anything needs doing about the gate.
+3. **`qwen/qwen3.6-27b`** — closed as "not approved" unless you disagree with the two grounds above.
+4. Still standing from earlier: the 197 REVIEW terms, and the untracked
+   `md-instructions/plan-2-ai-editor-integration.md`.
+
+## Work Log — 2026-07-27 — Claude Code — Post-click-through: model audit, rejection-rate check, honest labels
+
+Ran on HOME-PC, on `feature/plan-2b-cloud-providers`, **after** Phase 8 and in response to the
+author's pre-merge click-through. Three commits, one per task, all pushed. **Still UNMERGED.**
+`scripts/verify.py` **PASS — 1252 passed, 9 skipped**, up from Phase 8's 1238 / 9 (+14 tests).
+
+### Task 1 — why three approved models were unreachable
+
+The author's batches logged "AI provider unavailable" for `gemini-2.5-flash`, `openai/gpt-oss-20b`
+and `openai/gpt-oss-120b`; nothing was sent and the batch finished script-only. **Two different
+causes, neither recoverable from the log.** Settled by one live single-request probe per model
+through the normal guarded path (`gui.ai_settings.build_ai_editor` → spend guard → factory; no
+bypass, nothing weakened). Harness: `files/qa-tools/scratch/model-audit/` (gitignored).
+
+**A cheap negative result first, and it matters.** `models.list()` returns **all nine** approved IDs
+on this account — 56 Gemini models, 15 Groq. So retirement was not the answer and `health_check()`
+reported OK for all nine. **Being listed is not being callable**, and the existing retirement check
+(`ensure_model_available`) can only ever see the list.
+
+| model | real cause | what changed |
+|---|---|---|
+| `openai/gpt-oss-20b` / `-120b` | **our bug.** HTTP 400 on *every* request: the adapter sent `reasoning_effort = "none"`, a qwen3-only value. gpt-oss accepts only `low\|medium\|high`. | Now `"low"` (`_MIN_REASONING_EFFORT`). **Both models verified callable by live probe.** Records kept. |
+| `gemini-2.5-flash` | **genuinely withdrawn.** HTTP 404: *"This model models/gemini-2.5-flash is no longer available to new users."* | Record **removed** from `config.toml`, with the probe output recorded in place so nobody re-adds it on a hunch. |
+
+Deleting two live, free, working models because of our own parameter bug would have been the wrong
+fix, so the gpt-oss records stay. Google's own deprecation page names `gemini-3.6-flash` and
+`gemini-3.1-flash-lite` as the 2.5-flash replacements — both already approved, so removing the
+record costs nothing. Groq's reference and Google's were both re-read (Context7), not recalled.
+
+**The message.** One sentence covered a withdrawn model, a refused key, an exhausted quota and a
+dropped connection — four problems with four different fixes — while a whole batch quietly finished
+script-only, which is the failure mode hardest to notice. `AIEditor` now records the exception
+**kind** beside the text (`unavailable_kind`, `unavailable_reason`, `unavailable_description`), and
+`ai.editor.describe_unavailable` joins a plain-English cause to the provider's own words. The run
+log now reads e.g. *"⚠ AI stopped — the chosen AI model is not available — Gemini does not offer
+'gemini-2.5-flash' to this key (404 …). Remaining chapters will use deterministic output."*
+
+**Not done, deliberately:** the spend guard and the approved-model exact-match rule are untouched.
+
+**Carry-forward item checked, and it does NOT apply.** The Phase 3 note ("two of the four Groq
+models are the named *replacements* for models shutting down 2026-08-16") refers to the gpt-oss pair
+being replacements, not being replaced. All four Groq records are current and callable.
+**Proposed for the author's decision, NOT added:** `qwen/qwen3.6-27b` now appears in Groq's live
+lineup, which retires Phase 0 correction #6 ("Groq offers no Qwen model"). It is the only new
+candidate the audit surfaced. Adding it is a review commitment and the author's call.
+
+### Task 2 — rejection-rate regression check (DIAGNOSIS ONLY; nothing was changed)
+
+Re-ran the **same frozen 40 chapters**, `gemini-3.6-flash` only, same prompt/gate versions, same
+guarded path, free tier only. The guard cleared every time and refused nothing. The Phase 7b
+`results.jsonl` and `bundle/` were preserved as `results_phase7b.jsonl` / `bundle_phase7b`.
+
+**Gemini's free daily quota bound the run at 20 of 40 chapters** (20 measured requests, ~99,000
+tokens, in a 28-minute window, on top of whatever the author's own batches spent earlier the same
+day). 22 further `--resume` rounds recovered 5 more chapters and then latched hard for 16
+consecutive rounds. The 20 unmeasured chapters are excluded from every quality figure, per 7b's own
+rule — a 429 says nothing about edit quality.
+
+| | measured | accepted | fallback | faithful echo | reasons |
+|---|---|---|---|---|---|
+| Phase 7b baseline | 38 / 40 | 36 (94.7%) | 2 | 19 | `protected_term_changed_or_moved` ×2 |
+| This re-run | 20 / 40 | 18 (90.0%) | 2 | 12 | `protected_term_changed_or_moved` ×2 |
+
+**The headline is the like-for-like column, and it is unambiguous: on all 20 chapters measured in
+both runs, the outcome is identical chapter for chapter. Zero changed.** 18/20 accepted in both, and
+the two rejections are the **same two chapters** (The Noble Queen `dialogue_heavy` Ch. 539 and
+`longest/cleanest` Ch. 105) with the **same reason**. Those two are also the whole of 7b's 2/38, so
+the two runs agree on every rejection either of them has ever recorded for this model.
+
+**The 94.7% → 90.0% difference is a sampling artefact, not a regression.** The 20 chapters that
+survived the quota are exactly the Shadow Slave and Noble Queen strata — which contained *both* of
+7b's rejections. The 18 Renegade Immortal / Reverend Insanity chapters, all accepted in 7b, went
+unmeasured. Restricting 7b to the same 20 gives 18/20 as well.
+
+**Renegade Immortal chapter 182 is NOT in the frozen set** (the RI strata are 208, 237, 497, 518,
+841, 1000, 1123, 1426, 1448, 2023), so this run says nothing about it.
+
+**Read on the per-chunk scoping change (#063): it does not explain any delta, and the evidence is
+stronger than "no delta observed."** These 20 chapters ran with materially *larger* indexes than in
+7b — Shadow Slave 352 → 540 terms, The Noble Queen 26 → 370 — so both the prompt-scoping change and
+a 14× index growth landed between the two runs, and the gate outcome still did not move on a single
+chapter. That is what would be expected if the block really is advisory under MASK, which is the
+premise #063 rests on.
+
+**Alternative explanations for the author's own higher rate, in the order I would rank them:**
+1. **Different population.** The author was running Renegade Immortal and Reverend Insanity, whose
+   indexes went 0 → 861 and 0 → 1,429 *after* 7b. `protected_term_changed_or_moved` is the gate
+   comparing every occurrence of every indexed term; more terms is mechanically more surface for it
+   to fire on. **The frozen set could not speak to these two novels today — every one of their
+   chapters was quota-blocked.** This is the gap in the diagnosis and I would close it first.
+2. **Sample size.** 12 attempts concentrated on one chapter that every model rejected. One hard
+   chapter dominates a 12-attempt sample; it does not dominate a 40-chapter one.
+3. **A genuinely hard chapter.** Every model rejecting RI 182 identically points at the chapter, not
+   at the prompt layer — a prompt-layer regression would not be model-independent.
+4. The scoping change itself. Ranked last: contradicted by the 20-chapter like-for-like above.
+
+**Recommended next step (the author's call, not taken):** re-run with
+`--novels "Renegade Immortal" "Reverend Insanity"` on a fresh daily window, and separately run
+RI 182 on its own. Those measure the population the author actually saw.
+
+**A second finding, reported not fixed.** The daily-quota classification looks too eager. The run
+stopped with `kind = requests_per_day`, `is_daily = True` — yet a full chapter-sized request
+succeeded minutes later, and each `--resume` recovered a chapter or two before latching again. A
+genuinely daily quota does not do that. The Phase 8 fix (DECISIONS #068) is working as designed —
+it latches in 0.2 s with no network call, versus 7b's ~35 minutes of futile retries — but if the
+period is being read as "day" when the provider means something shorter, a long batch stops for the
+rest of the day when waiting minutes would have continued it. `files/qa-tools/scratch/model-audit/
+quota_detail.py` exists to capture the raw `google.rpc.QuotaFailure` violations next time a 429 is
+reproducible; today's attempt succeeded instead of 429ing, so the `quotaId` is still uncaptured.
+
+### Task 3 — the misleading profile label
+
+"Has a special-fixes profile" and "has protected names" are two different things and one label was
+doing both jobs. Reverend Insanity — no profile, **1,429 protected terms** — showed as
+`Reverend Insanity — no profile yet` and logged `No novel-specific profile — universal-only editing`
+one line above `Loaded 1429 protected term(s)`. True on the letter, opposite on the reading.
+
+| | before | after |
+|---|---|---|
+| dropdown, registered profile | `Shadow Slave` | `Shadow Slave` (unchanged) |
+| dropdown, no profile + terms | `Reverend Insanity — no profile yet` | `Reverend Insanity — names protected` |
+| dropdown, no profile + no terms | `Circle of Inevitability — no profile yet` | `Circle of Inevitability — universal rules only` |
+| log, no profile + terms | `No novel-specific profile for 'Reverend Insanity' — universal-only editing.` | `No novel-specific fix-up rules for 'Reverend Insanity' — universal editing rules apply, and its 1429 protected name(s) are preserved.` |
+| log, no profile + no terms | *(same line as above)* | `No novel-specific fix-up rules and no protected names for 'Lord of the Mysteries' — universal editing rules only.` |
+| per-file, AI accepted, 0 edits | `done (AI accepted)` | `done (0 edits, AI accepted)` |
+| per-file, AI accepted, 7 edits | `done (7 edits)` | `done (7 edits, AI accepted)` |
+| per-file, AI rejected | `done (7 edits)` — identical to the line above | `done (7 edits, script-only (AI rejected))` |
+| per-file, AI outage | `done (7 edits)` | `done (7 edits, script-only (AI unavailable))` |
+
+`NAMES_PROTECTED_MARKER` / `UNIVERSAL_ONLY_MARKER` replace the single `NO_PROFILE_MARKER` (kept as
+an alias for the bare state); `clean_novel_name` strips both, longest-first. The count behind the
+marker comes from `load_protected_lexicon` — **the same function the run uses** — so the dropdown and
+the "Loaded N protected term(s)" line cannot drift apart. The GUI's explanatory label under the
+dropdown was rewritten to match. Only the display strings changed: dispatch, protection, masking and
+the gate are untouched.
+
+### One incidental fix, declared
+
+`files/tests/test_launchers.py` hardcoded `Setup_and_Run.bat`, so the author's in-progress rename to
+`Setup_and_Run-Web-Novel-Editor.bat` failed **nine** tests — including the macOS ones — and blocked
+`verify` entirely. The path is now resolved by glob. **The rename itself is untouched and
+unstaged**: `Setup_and_Run.bat` is still tracked-and-deleted in the working tree and
+`Setup_and_Run.command` still has the old name, so the rename is half-finished and is the author's
+to complete. `config.toml` also still reads `version = "0.12.0"` while CHANGELOG and BRIEFING are at
+`0.13.0`; `verify` does not check it, and I left it alone.
+
+### Needs the author
+1. **`qwen/qwen3.6-27b`** — add to the approved list, or not?
+2. **The Task 2 gap** — a fresh-window run restricted to Renegade Immortal and Reverend Insanity,
+   plus RI 182 on its own, is what would actually measure the population behind the observed rate.
+3. **The quota-period finding** — worth a look before merge, or after?
+4. The launcher rename and the `config.toml` version, both left as found.
+5. Still standing from Phase 8: the 197 REVIEW terms, and the untracked
+   `md-instructions/plan-2-ai-editor-integration.md`.
+
+## Work Log — 2026-07-27 — Claude Code — Plan 2b Phase 8 (adopt decision, bug hunt, docs, release gate)
+
+Ran on HOME-PC. **Phase 8 is complete; Plan 2b is complete; the drop was deleted.** Four commits, one
+per logical piece, as instructed. `verify` **PASS — 1238 passed, 9 skipped**, from 1215 at Phase 7b.
+
+### Task 1 — the term-block investigation, and the one sanctioned prompt-layer change
+
+**Finding: the block is advisory and never was the protection.** `build_system_prompt` embedded the
+whole index and `AIEditor` sent it with every chunk. Under `ProtectionStrategy.MASK` — the shipped
+default and what every 7b run used — `mask_protected_terms` has already turned every occurrence into a
+`__WE_P_NNNNN__` placeholder before chunking, so a 1,435-term block was instructing the model to
+preserve words that were not in front of it. Protection is enforced by masking (the model never holds
+the term) and by the gate (which compares every occurrence against the **whole** index). Under
+`VERIFY` the text is unmasked, so the block is genuine guidance there — but only for terms the request
+contains.
+
+**Fix: two-pass scoping.** Pass A selects the terms present in the post-masking chapter and sizes the
+chunk budget from that prompt; pass B narrows again per chunk. A chunk is a substring of the chapter,
+so pass B is always a subset of pass A and a per-chunk prompt can never exceed what the budget was
+computed against — that monotonicity is what makes it safe, and it has its own test. "Present" reuses
+the masker's own occurrence rule. `lexicon_hash` still fingerprints the whole index via a new
+`lexicon_terms` argument, so run provenance did not become a per-chunk value.
+
+Measured through the real editor with a capture provider on the frozen 10-chapter sample, no cloud
+call (`files/qa-tools/scratch/index-build/measure_term_block_fix.py`):
+
+| novel | terms | block/request | mean/chapter before | after | cut |
+|---|---|---|---|---|---|
+| Renegade Immortal | 861 | 4,536 → 516 | 10,209 | **4,983** | −51% |
+| Reverend Insanity | 1,429 | 7,444 → 516 | 17,252 | **5,474** | −68% |
+
+Projected on 7b's provider-reported figures, both return to their zero-index cost — ~3,108 and ~2,972
+tokens/chapter, **32 and 33 chapters/day** on Groq's 100K ceiling, up from 15 and 10.
+
+**One honest negative:** chunk splitting did **not** improve (2/10 and 6/10 before and after).
+`safe_input_budget` returns `min(max_output_limit, available // 2)`, and with a 1M-token context the
+**output** cap of 4,096 is what binds, so the prompt's size never affected chunk count. Growing an
+index now costs nothing per request unless the terms are actually used.
+
+### Task 2 — batch review of the 240 flagged terms
+
+Built `review_batch.py` (gitignored, repeatable). The question per term is whether its lowercase form
+is ordinary English or this novel's own vocabulary, and the oracle is the corpora, per #062: an
+ordinary word turns up in every novel on the shelf, a cultivation term does not turn up in a
+magic-academy novel. Bar: 100+ capitalized uses, lowercase absent from ≥3 of the 4 other corpora,
+lowercase under 75% of capitalized use, **multi-word only**.
+
+That last constraint came from reading the first shortlist rather than from theory. A per-million rate
+passed "Venerable", "Warship", "Seeker", "Antiquity", "Paradise" and "Trench" as novel-specific — they
+are ordinary English, merely *rare* English, so they never reach a density floor in a 4-million-word
+novel. Switching to absolute presence caught most; restricting to phrases caught the rest. **Every
+false positive was a single word.**
+
+**Enabled 24/101 (Renegade Immortal) and 19/139 (Reverend Insanity)**, uncommented in place with their
+evidence intact, contexts spot-checked in the corpus first ("Star System" is *Alliance Star System*;
+"Reverse Flow" is *Reverse Flow River*). **197 stay commented.** Grouped for the author:
+
+| bucket | RI | RevIns | note |
+|---|---|---|---|
+| phrase, under 100 capitalized uses | 47 | 75 | the largest group; lowering the floor to ~25 would clear most on the same evidence |
+| lowercase is ordinary prose in 2+ other novels | 22 | 28 | correctly deferred — "Realm", "Immortal", "Masters", "Fairy" |
+| single word, frequent — the judgement call | 4 | 7 | "Dao" (3578/1684), "Yin", "Yang", "Venerable" (4017/693) |
+| lowercase use exceeds capitalized use | 4 | 4 | "Ancient God" (248/1931), "Refinement Path" (240/1316) |
+
+### Task 3 — the Gemini quota bug, and what the bug hunt found
+
+**Gemini's daily exhaustion was misclassified as per-minute**, costing ~35 minutes of futile retries in
+7b. Root cause is *not* the check: `str(APIError)` does contain the evidence, but Google's message plus
+its documentation URL runs ~250 characters and `_safe_message` truncates at 300, while `quotaId` sits
+near character 450. The input had been amputated. Now read structurally from
+`google.rpc.QuotaFailure` violations, with `RetryInfo.retryDelay` supplying an authoritative wait; plus
+a provider-neutral escalation for limits that never name a period. DECISIONS #068. A test asserts the
+truncation itself, so the premise cannot rot silently.
+
+**Second defect, found while reviewing the REVIEW block and more serious than the first.** 76 of
+Reverend Insanity's 2,334 extracted chapters lost their newlines as a literal "n", welding that letter
+onto the following word. The #062 build counted the results honestly and **indexed 25 of them** —
+`Butn`, `Thisn`, `Xiaon`, and `Gun`, which is "Gu", the novel's central concept, plus a stray letter.
+Twenty-four were inert (no real text contains them); `Gun` froze every ordinary "gun". All removed,
+with two regression tests across **every** shipped index, one a general guard against indexing a
+function word. **Renegade Immortal's corpus has zero garbled chapters and zero phantom terms.**
+
+Also noted, not changed: Shadow Slave (32) and Supreme Magus (48) contain hand-curated terms absent
+from their extracted corpora. Those are pre-existing author entries the #062 audit deliberately did not
+touch, not artifacts — a different thing that looks the same to this check.
+
+### Task 4 — release gate
+
+CHANGELOG at **v0.13.0**; BRIEFING refreshed with a v0.13.0 state section; **DECISIONS #063–#071**
+(term block, no-default provider, approved-model policy, key storage, consent, honest billing
+contract, quota classification, checkpoint semantics, provider-independent chunking); EDITING-RULES
+gained a provider-independence section; README rewritten for a non-technical reader with the four
+things that actually matter about cloud. Clean-room re-run identical.
+
+**Diff-verified byte-for-byte unchanged against the v0.12.0 baseline `72d68ca`:** `validation.py`
+(the gate), `models.py`, `errors.py`, `provider.py`, `chunking.py`, `core/protected_lexicon.py`.
+`editor.py` (+25/−3) and `prompt.py` (+87/−2) changed **only** for the sanctioned #063 scoping.
+
+**Needs the author:** a hands-on click-through and the explicit end-of-plan sign-off before merging to
+`main`. Also standing: 197 REVIEW terms, and `md-instructions/plan-2-ai-editor-integration.md` — an
+untracked Plan 2a drop left behind after that plan shipped, which I did not delete because it is not
+mine to remove.
+
+## Work Log — 2026-07-27 — Claude Code — Author-ruled spelling rules + prompt-cost re-measure
+
+Two follow-ups to the index build, on `feature/plan-2b-cloud-providers`. **No change to
+AIEditor, the validation gate or the prompt layer** — `git diff -- scripts/Universal/ai/`
+is empty. Plan 2b is still paused for the provider decision; Phase 8 not started.
+
+### Task 1 — two deterministic replacement rules (not index entries)
+
+The author ruled `Kraai` canonical (The Noble Queen) and `Liguo` canonical (Renegade
+Immortal). Both are now **one-time normalizations** in the special-fixes layer, applied by
+the scripted pass, not protected-term entries:
+
+| novel | rule | fires |
+|---|---|---|
+| The Noble Queen | `Kraii` → `Kraai` | `NQ_SPECIAL_FIXES` |
+| Renegade Immortal | `Ligou` → `Liguo`, `Ligo` → `Liguo` | `RI_SPECIAL_FIXES` |
+
+**`Kraii` was REMOVED from the-noble-queen.txt, and that is load-bearing.** Block B masks
+protected terms *before* `_apply_special_fixes` runs, so an indexed `Kraii` would already
+be a placeholder when the substitution is attempted and the rule could never fire. Only the
+canonical spelling belongs in a do-not-touch list. Confirmed present: `Kraai` in the Noble
+Queen index; `Liguo` and `Xu Liguo` in the Renegade Immortal index. `Ligou`/`Ligo` were
+already correctly absent.
+
+**Ordering is load-bearing too.** `Ligo` is a prefix of `Ligou`, and 38 of the 39 `Ligo`
+substring hits in the corpus sit inside `Ligou` — shortest-first would produce `Liguou`.
+`_apply_special_fixes` sorts longest-key-first; pinned by
+`test_ri_ligo_prefix_does_not_double_apply`.
+
+**Renegade Immortal was promoted to a registered profile** (`profiles/renegade_immortal/`,
+`pipelines/renegade_immortal.py`, one registry entry). Forced substitutions are per-profile
+data and the universal fallback's map is shared by every profile-less novel and pinned
+empty by test, so registration was the only way to scope the fix. The promotion is
+behaviour-preserving by construction: the floor is **empty** (the 837 terms stay in the
+index, so the merged lexicon is byte-identical to the old fallback) and the new pipeline
+mirrors `lord_of_mysteries.py` stage-for-stage. Its dropdown entry loses the
+"— no profile yet" marker, which is now accurate.
+
+Four tests that used Renegade Immortal as the *profile-less fixture* were re-pointed to
+Reverend Insanity (still unregistered), preserving every guarantee they assert.
+`test_no_profanity_uncensor_was_ported` no longer asserts `NQ_SPECIAL_FIXES == {}`; it
+checks what it always meant — no censor-mask keys in any profile's map.
+
+### Task 2 — prompt cost re-measured for the two newly-indexed novels
+
+`build_system_prompt` embeds the whole term list, and `AIEditor` sends it **with every
+chunk**. Measured locally against the frozen 10-chapter sample, no cloud call (script:
+`files/qa-tools/scratch/index-build/measure_prompt_cost.py`):
+
+| novel | terms | term block / request | est. before | est. now | ×  | chapters needing 2 chunks |
+|---|---|---|---|---|---|---|
+| Renegade Immortal | 837 | 4,536 | 4,872 | 10,209 | **2.10×** | 2/10 |
+| Reverend Insanity | 1,435 | 7,444 | 5,323 | 17,252 | **3.24×** | 6/10 |
+
+Two effects compound. The term block is charged per request; and masking *inflates* text
+(a `__WE_P_00000__` placeholder is 14 chars, most names are shorter), tipping chapters near
+the 4,096-token chunk budget over it — Reverend Insanity's median chapter goes 4,057 →
+4,172 masked — which splits them into two requests that **each** re-send the full block.
+
+Applying those multipliers to Phase 7b's provider-reported figures (both novels had 0
+protected terms then) projects real cost and Groq throughput at its 100,000 tokens/day
+free ceiling:
+
+| novel | 7b reported/chapter | projected now | chapters/day before | now |
+|---|---|---|---|---|
+| Renegade Immortal | 3,108 | ~6,512 | 32 | **~15** |
+| Reverend Insanity | 2,972 | ~9,633 | 33 | **~10** |
+
+Both now exceed the ~4,400 tokens/chapter that Shadow Slave (352 terms) measured in 7b —
+the figure that run's calibration was anchored on. Tokens/day is the binding Groq limit;
+12,000 tokens/min and 1,000 requests/day are not reached at these volumes.
+
+## Work Log — 2026-07-26 — Claude Code — Protected-term index build and audit (all 8 novels)
+
+Ran on HOME-PC, on `feature/plan-2b-cloud-providers`, **after** Phase 7b and independent of it.
+No editing logic, pipeline, gate, provider or config was touched — this changed **index data only**
+(`scripts/Universal/resources/novel-index/*.txt`). Phase 8 was not started and no default was wired.
+
+**Why.** Phase 7b caught a cloud model renaming an unprotected character (`Kraii` → `Kraai`). Five of
+the eight indexes were empty placeholders and The Noble Queen held 26 terms against Shadow Slave's
+353, so the exposure was structural, not a one-off.
+
+**Result — 973 protected terms across 3 novels became 4,074 across 5:**
+
+| novel | before | after | added | flagged for review |
+|---|---|---|---|---|
+| Renegade Immortal | 0 | **837** | 837 | 101 |
+| Reverend Insanity | 0 | **1435** | 1435 | 139 |
+| The Noble Queen | 26 | **371** | 343 (62 shared SS canon + 281 own) | 73 |
+| Shadow Slave | 353 | **541** | 188 | 92 |
+| Supreme Magus | 594 | **890** | 296 | 105 |
+| Circle of Inevitability / Lord of the Mysteries / Re:Monster | 0 | **0** | — | — |
+
+**Method — the corpus is the only authority.** Every term was counted in that novel's own extracted
+chapters at the exact spelling listed before being written, and the count ships in the file as a
+trailing comment. Candidates came from capitalization statistics, a local **qwen3:14b** pass over 80
+sampled chapters per novel, and (for The Noble Queen) a cross-check of all 353 Shadow Slave terms.
+qwen only ever proposed: **132 of its 3,878 proposals (3.4%) were rejected** as absent from the
+corpus at the spelling given — including `Kraii` offered for two novels it does not occur in.
+
+**Dual-use words are flagged, not enabled.** `mask_protected_terms` is case-insensitive, so indexing
+"Song" freezes every "song". Terms whose lowercase use exceeds 5% of their capitalized use (1% for
+the Shadow Slave and Supreme Magus audits) are written **commented out** with their counts. 410 terms
+sit in those REVIEW blocks; comments are stripped by the loader so they change behaviour by nothing.
+
+**The Noble Queen / Shadow Slave shared universe.** Confirmed: The Noble Queen is a Shadow Slave
+fanfic (webnovel.com). 135 of Shadow Slave's 353 terms occur in Noble Queen's text at all; **62**
+cleared the bar and were adopted. Nothing was copied across for being in the other novel.
+
+**Author ground truth applied** (Renegade Immortal): `Wang Lin` canonical, never shortened to `Wan`
+(`Wang Lin`, `Wang`, `Lin` all indexed; longest-first masking takes the full name as one unit).
+`Liguo` canonical for Xu Liguo. `Ligou` (38x) and `Ligo` (1x) are left **unindexed on purpose** —
+indexing them would freeze the errors; they need a deliberate replacement rule.
+
+**Two defects the build found in itself.** (1) OCR garble `Ragnar?k` in the Supreme Magus corpus made
+a phantom "Ragnar" token look like a frequent name; indexing it masked the first six letters of every
+`Ragnar?k` and broke the `special_fixes` repair rule —
+`test_sm_special_fixes_apply_in_sm_mode_and_are_logged` caught it. Tokenization is now Unicode-aware
+and prefix-fragments welded to more text are dropped. (2) `git checkout <ref> -- <path>` stages the
+restored file, which silently swept a Noble Queen revert into a Renegade Immortal commit; the commit
+series was rebuilt so each commit touches exactly one novel.
+
+**Open items for the author** (none blocking): the 410 commented REVIEW terms; the `Ligou`/`Ligo`
+replacement rule; `Kraai` (30x) vs `Kraii` (5x) in The Noble Queen — both protected, since the source
+is inconsistent and harmonizing is an editorial call; and a pre-existing duplicate `Immortal Flame`
+in the hand-curated part of shadow-slave.txt (harmless, the loader de-duplicates; left alone because
+this pass promised not to modify existing content).
+
+**Gates.** `scripts/verify.py` **PASS — 1188 passed, 8 skipped** (1196 collected, 0 failed). Indexes
+remain supersets of `NQ_CANONICAL_NAMES` and `SM_CANONICAL_NAMES`; the three corpus-less files still
+load to exactly zero terms, so the Lord of the Mysteries universal-fallback seam test is untouched.
+Masking costs 192–505ms per chapter, in line with the pre-existing Supreme Magus baseline of 419ms.
+
+**Reproducing it:** the harness is local and gitignored at `files/qa-tools/scratch/index-build/`
+(`extract_current_corpora.py` → `qwen_candidates.py` → `build_all.py`, plus `write_placeholders.py`).
+Rebuilds are deterministic; append-mode novels need their tracked file checked out to the pre-audit
+state first, which `write_index.append` now refuses to do twice.
+
+## Work Log — 2026-07-26 — Claude Code — Plan 2b Phase 7b (Frozen comparison run + report)
+
+Ran on HOME-PC. **Phase 7b is complete and STOPPED for the provider decision. Phase 8 was not
+started and no default was wired** — `config.toml` still ships both cloud providers
+`enabled = false`, `model = ""`, and every `pilot_status` is still `not-piloted`.
+
+**This phase made the first real cloud requests in this project's history.** Every one of them
+went through the Phase 7a spend guard and nothing bypassed it.
+
+**No production code changed.** `git diff --stat d787c59 -- scripts/ config.toml` is **empty** —
+`AIEditor`, the gate, the prompt layer, both adapters, the limiter, the guard and `config.toml`
+are byte-for-byte unchanged. The entire harness lives in gitignored
+`files/qa-tools/scratch/pilot-2b/`, so there is no new shipped surface and therefore no new unit
+test was owed; the existing suite still passes offline.
+
+### The chapter set, models and dates (exact, for reproduction)
+- **Chapters: the SAME 40 as the 2a pilot**, read verbatim from
+  `files/qa-tools/scratch/pilot/selection.json` — 10 each from **Shadow Slave** and **The Noble
+  Queen** (profiled) and **Renegade Immortal** and **Reverend Insanity** (universal-only, 0
+  protected terms). No new sample was drawn and no chapter was re-selected.
+- **Prompt version 1.0, gate version 1.0**, protection **Strategy M (mask)**, policy
+  **prefer-AI** — the shipped defaults, frozen so only the provider varies.
+- **Models:** `gemini-3.6-flash` and `llama-3.3-70b-versatile`, chosen by the user as the
+  quality-matched pair. Both are `stable` + `free_tier_confidence = confirmed`.
+- **Dates:** 2026-07-25 (first Gemini window, first Groq window) and 2026-07-26 (Gemini's
+  post-reset window, Groq's partial window).
+- **Local bundle (gitignored, full text + full diffs + raw outputs):**
+  `files/qa-tools/scratch/pilot-2b/bundle/<provider>__<model>/<chapter>.txt`, with
+  `results.jsonl`, `unmeasured.jsonl` and `preflight.json` beside it.
+
+### The guard was the only path, and that is structural rather than a promise
+The harness never constructs `GeminiProvider` or `GroqProvider`. It calls
+`gui.ai_settings.build_ai_editor` — the same entry point the GUI's Start button uses — so every
+run passes `build_provider_factory` → `ai.factory.create_provider` →
+`spend_guard.ensure_free_tier_run_allowed`, keyed on the provider name **before any adapter
+object exists**. There is no pilot-mode branch anywhere. `run_compare.py --preflight` asks the
+guard about all nine approved models and sends nothing; its refusals were what proved the chain
+was live before any key existed (`no_usable_key` for all nine, then
+`disclosure_not_acknowledged` for Groq once keys were saved, then all nine `allowed`).
+
+### Coverage — the honest headline
+| provider / model | measured | not measured | why |
+|---|---|---|---|
+| `gemini-3.6-flash` | **38 / 40** | 2 | `RateLimited` (quota, 2nd window) |
+| `llama-3.3-70b-versatile` | **14 / 40** | 26 | `DailyQuotaExhausted` (TPD) |
+
+A refused chapter produced **no measurement** and is excluded from every quality figure rather
+than counted as a failure — a 429 says nothing about edit quality. Refused rows are quarantined
+in `unmeasured.jsonl`, and `--resume` deliberately treats them as *not done* so a later window
+picks them up.
+
+### Measured free-tier ceilings (the numbers nobody publishes)
+- **Gemini** served **24 requests / 123,392 tokens** on 2026-07-25 before 429s began, then did
+  not recover for ~35 minutes; after the daily reset it served **21 requests / 96,472 tokens**.
+  Google publishes no free-tier table and returns **no** `x-ratelimit-*` headers, so this is the
+  only figure that exists for this project.
+- **Groq** served **15 requests / 76,113 tokens** before its TPD ceiling latched. Live headers
+  confirmed `x-ratelimit-limit-requests = 1000` (per **day**) and
+  `x-ratelimit-limit-tokens = 12000` (per **minute**) — the documented asymmetry, observed.
+- A full 40-chapter pass costs **~243,000 tokens**, which is why Groq's 100K TPD cannot complete
+  one in a day. Correction #5 is confirmed by measurement, not inference.
+
+### A real product finding for Phase 8 (not a spend-guard failure; nothing overspent)
+**Gemini's quota exhaustion is misclassified.** Its 429 carries no "per day" wording, so
+`ai.rate_limits.classify_limit` reads it as a per-minute `RateLimited`. The limiter therefore
+retried and prefer-AI degraded chapter by chapter — the batch spent **~35 minutes making futile
+calls** instead of writing the checkpoint and stopping cleanly with "resume tomorrow", which is
+exactly what Phase 5 built. **Groq behaved correctly by contrast**: its message classified as
+`tokens_per_day`, the limiter latched, and every subsequent chapter was refused in **0.0 s with
+no network call**. On a 3,000-chapter run the Gemini path would be hours of pointless traffic
+producing silently script-only output. Recommend Phase 8 treat a sustained Gemini 429 as daily.
+
+### Quality — the deciding evidence, and it is NOT self-certified
+On the **14 chapters both providers served** (the only directly comparable subset):
+
+| provider | accepted | faithful echo | review flags | `proper_noun_changed` | `in_token_punctuation` | p50 |
+|---|---|---|---|---|---|---|
+| `gemini-3.6-flash` | 14/14 | 10 | 6 | 1 | 0 | 8.8 s |
+| `llama-3.3-70b-versatile` | 12/14 | 8 | 9 | 5 | 0 | 36.2 s |
+
+Across its full 38, Gemini accepted 36 (95 %), 19 faithful echoes, 2 gate fallbacks (both
+`protected_term_changed_or_moved` — the gate working). **Neither model produced a single
+`in_token_punctuation` change**, which is the specific gate-invisible corruption 2a saw the local
+8B commit. Both fell back exactly where the gate should catch a protected-term move.
+
+**Flagged for the user, deliberately undecided.** Groq produced `Noble's` → `Noble's's` **twice**
+(a doubled possessive) and renamed a character `Kraii` → `Kraai` **three times** in The Noble
+Queen — a profiled novel, so the name is evidently absent from its lexicon and nothing in the
+stack covered it. Gemini's 8 `proper_noun_changed` are mostly one repeated name-normalisation
+(`Ligo`/`Ligou` → `Liguo`, ×5, in a novel with **no** lexicon, so nothing verified which spelling
+is canonical), plus `Wang` → `Wan` which is genuinely ambiguous. Most other Gemini flags read as
+legitimate OCR repair (`first`→`fist`, `ware`→`were`, `hits`→`its`, `rare`→`rate`) and two are
+word-order repairs, which the prompt nominally prohibits. **A useful validity signal: on the one
+chapter both served with changes, the two providers made the same two corrections
+independently.**
+
+### Harness defects found and fixed during the run (all in gitignored QA code)
+1. `--resume` counted transport failures as "done", which would have permanently hidden the 17
+   unmeasured Gemini chapters. Now only real measurements count.
+2. The adapter reference for rate-limit snapshots was captured **before** `AIEditor` lazily built
+   its provider, so every snapshot was `None`. Re-read inside the loop; Groq headers now land.
+3. The over-edit classifier had two false-positive patterns that would have wasted review time:
+   sentence-initial `The` → `They` scored as a name change (capitalisation carries no signal at a
+   sentence boundary), and `thumb nail` → `thumbnail` scored as in-token punctuation (it is
+   whitespace, and no punctuation is involved). `reclassify.py` re-derives labels from the bundle
+   without re-spending quota.
+4. The report's own corpus-safety gate caught two genuine leaks before anything was written:
+   chapter keys embed the source PDF filename (**chapter titles**), and the Groq 429 text embeds
+   the **organization ID**. Both are now redacted; the report identifies chapters by
+   novel + stratification label only.
+
+### Corpus discipline (verified)
+`files/pilot/PROVIDER-COMPARISON.md` is the **only** tracked artifact. It contains aggregate
+tables and snippets capped at **48 characters** by `overedit.SNIPPET_CHARS`, enforced in code;
+`_assert_repo_safe` re-scans the finished document and refuses to write if any inline span
+exceeds the cap. Scanned before commit: longest inline span **50 chars**, zero occurrences of
+`Chapter `, no organization ID. The whole `files/qa-tools/scratch/` tree and
+`files/pdf-example-chapters/` remain gitignored.
+
+### Gates
+`python scripts/verify.py` **PASS — 1186 passed, 10 skipped** (1196 collected, 0 failed). The
+count matches Phase 7a's 1196 collected; the long-documented Tk display skip flipped pass↔skip on
+this machine, as recorded previously. Pins PASS; CHANGELOG at v0.12.0 matching BRIEFING.
+
+**Not done, by instruction:** no default wired, no `config.toml` edit, no `pilot_status` update,
+no CHANGELOG/BRIEFING/DECISIONS entry (all Phase 8's), no merge to `main`.
+
+**To finish the Groq column** (optional, the user's call):
+`python run_compare.py --provider groq --model llama-3.3-70b-versatile --resume` on a later day,
+optionally with `--novels "Renegade Immortal" "Reverend Insanity"` to spend a scarce window on
+the chapters that discriminate rather than the frozen order's next-in-line. Then
+`python reclassify.py && python analyze_compare.py --per-group 15`.
+
+## Work Log — 2026-07-25 — Claude Code — Plan 2b Phase 7a (Pre-flight spend guard)
+
+Ran on HOME-PC. **Phase 7a is complete and STOPPED per instruction; 7b was not started.**
+**No live cloud call was made, and none can be made by anything this phase added** — the guard
+is pure policy over configuration plus two small files, it imports no SDK and opens no socket,
+and tests assert both.
+
+**The standing product rule this phase encodes, recorded here so it is not re-litigated:** the
+tool must never cost the user money. If a run could leave the free tier, or the app cannot
+positively confirm it will not, the app **stops and says why** rather than proceeding. A stop is
+never traded for a charge.
+
+**User-confirmed console facts (2026-07-25) — recorded, never inferred, never queried by code.**
+Google AI Studio: the key in use belongs to project "Default Gemini Project"
+(`gen-lang-client-0017142727`); Billing Tier reads **"Free tier"** and the row still offers a
+"Set up billing" link, i.e. billing has never been enabled on that project. Groq console,
+Settings > Billing: the **"Free" plan is marked "Current Plan"**, no paid plan is active (Groq
+also shows Developer-tier upgrades as temporarily unavailable). These are the user's own console
+observations. **Nothing in the codebase queries, infers or asserts billing state from any
+provider API**, and a test pins that (`test_the_guard_never_asks_a_provider_about_billing`).
+
+| file | change |
+|---|---|
+| `scripts/Universal/ai/spend_guard.py` | **new, 359 lines** — the guard, its verdict type and `SpendRefused` |
+| `files/tests/test_spend_guard.py` | **new, 798 lines, 47 tests** |
+| `scripts/Universal/ai/factory.py` | +30 / −3 — the single call site |
+| `scripts/Universal/gui/ai_settings.py` | +125 / −46 — gate delegated down, cloud kwargs, eager cloud build |
+| `scripts/Universal/gui/app.py` | +21 / −8 — the refusal dialog before the run starts |
+| `files/tests/test_cloud_gui.py` | +140 / −74 — injection moved to the factory registry; 1 new GUI test |
+| `files/tests/test_gemini_provider.py` | +35 / −1 — a cleared guard context for the factory test |
+| `files/tests/test_groq_provider.py` | +35 / −1 — same |
+
+**PHASE 1 ALREADY COVERED MOST OF THIS, AND IS REUSED RATHER THAN RE-IMPLEMENTED.**
+`ai/cloud.py` is **byte-for-byte unchanged**. `ensure_cloud_request_allowed` already enforced
+five of the six required conditions — provider known and configured, key available, model
+matched **exactly** (`find_approved` compares `model.id == wanted`; `looks_like_alias` refuses
+`latest`/`*`), `status` stable, `free_tier_confidence` confirmed with `unknown` refused, and the
+disclosure acknowledged at the current version. The guard composes that call; it does not
+re-decide any of it.
+
+**The one real gap, and it is the condition the prompt lists first.** Phase 1 *reads*
+`strict_free_tier_only` out of configuration and passes it to `ensure_model_approved` as a
+parameter. Set it to `false` in `config.toml` and three rails evaporate silently — the function
+returns the record **before** checking status, before checking `not-free`, and before checking
+`unknown` — so a preview or paid model becomes callable and the app still reports "ready",
+because `check_readiness` never tested the switch either. The guard closes that: the value must
+be **exactly the boolean `True`**. Truthiness is wrong in both directions (`bool("false")` is
+True, `bool(0)` is False), so a string, an int, or `None` is a refusal that names what it found.
+
+**Where the guard lives, and why not where Phase 6 put it.** Phase 6's gate sat inside
+`build_provider_factory`'s lazy closure — a check the GUI happens to call, on the worker thread,
+at the first chapter. Two failures follow from that: an `AIEditor` built any other way skips it
+entirely, and under prefer-AI a refusal became chapter-atomic fallback plus a log line, i.e. the
+batch ran to completion having quietly not done what was asked. The guard is now the **one call
+site in `ai.factory.create_provider`**, keyed on the provider **name before any builder is
+consulted**, so (a) a cloud adapter cannot exist without it, (b) a builder registered under a
+cloud name is still guarded, and (c) it runs *before the adapter object exists*, which is
+stronger than checking inside `complete()`. `ai/cloud.py`'s `ensure_cloud_request_allowed` now
+has exactly one caller — the guard — so the rails are not evaluated from two places.
+
+**And it fires before the run starts.** `build_provider_factory` now builds a **cloud** provider
+**eagerly**, on the caller's thread, so `create_provider` runs while `_start` is still in front
+of the user; `gui/app.py` catches the refusal, shows it with `messagebox.showerror`, publishes it
+to the status line, and returns without starting the batch. There is no "run anyway". Local runs
+stay lazy and are untouched — no gate, no wrapper, no behaviour change. Eager construction
+contacts nothing: both adapters build their SDK client on first use, not in `__init__`.
+
+**One deviation, declared: I fixed a pre-existing Phase 6 defect on this exact seam.**
+`gui.ai_settings._create_provider` passed **every** provider the *local* adapter's constructor
+arguments (`endpoint`, `keep_alive`, `context_limit`), which neither cloud adapter accepts, and
+never passed `approved_models`. A real cloud run would therefore have died with a `TypeError` at
+adapter construction — and the cloud "Check service" probe swallowed that into a misleading
+"provider package is not installed". Certifying that path as "the real path" while knowing it
+could not build an adapter would have made the verification hollow, so the cloud kwarg set is
+now built separately (model, reviewed records, `strict_free_only=True` as a literal, timeout and
+max-output from `[ai.<provider>]`, key locations). A test builds the genuine `GroqProvider`
+through the genuine path and mutation-testing confirms the old arguments make it fail. **This
+would otherwise have been 7b's first crash.**
+
+**A behaviour change worth knowing about.** A refused cloud run now **stops the batch** instead
+of degrading to script-only editing. That is the standing rule ("stops and tells the user"), and
+script-only remains one click away — turn the AI pass off, or select the local provider.
+
+**Fail-closed inventory** (each has its own test): unknown/non-cloud provider; no run context;
+a context that is not a mapping; a missing or unusable `[ai]` table; provider not switched on;
+strict mode off; strict mode non-boolean; no key anywhere; no model chosen; a `latest`-style
+alias; a prefix, suffix or case variant of an approved ID; a model absent from the reviewed
+list; a model whose record belongs to the *other* provider; preview and experimental status;
+`unknown` and `not-free` confidence; disclosure never acknowledged; disclosure acknowledged at an
+older version; the other provider's acknowledgement; an unreadable settings file; missing or
+corrupt `approved_models`; and any unexpected exception while deciding. Three **post-conditions**
+on the record Phase 1 returns (ID identical to the one asked for, status stable, confidence
+confirmed) mean that if those rules are ever loosened upstream, the guard still fails closed
+rather than inheriting the loosening — they assert the result, they do not re-decide it.
+
+**The real-path proof, done to the same rigor as the key-dialog check.** The guard is patched
+with a recorder and required to be what actually ran when a cloud run starts through the normal
+entry point (`build_ai_editor`, **no injected `create`**), receiving the real provider and model
+ID, with no adapter constructed. The converse is also pinned: with the guard neutered, the same
+run — no key anywhere — builds an adapter, which is what rules out the refusal coming from
+somewhere else. Order is pinned too (`guard` then `adapter`), as is the fact that a *cleared* run
+really does reach the provider, so the guard is not merely a wall.
+
+**The `create` seam was closed for cloud, and that cost test churn.** `build_provider_factory`
+no longer honours an injected `create` for a cloud provider: a test seam that skips the factory
+is a way to start a cloud run unguarded, and by the phase's own standard that means the guard has
+failed. Nine Phase 6 tests now inject through `ai.factory.register_provider` instead, which is
+still guarded — so they became *stronger*, not weaker: each now proves its rail blocks the run
+**and** that the guard is what blocks it. Mutation-testing that mutation found something real:
+reverting to the injected `create` makes twelve tests fail *and* the run takes 39s instead of 2s,
+because the tests start resolving real key locations and building real adapters.
+
+**Five guards mutation-tested against a green baseline**, each making named tests fail: removing
+the guard call from the factory (10 tests); `strict is not True` → truthiness (1); dropping the
+explicit run context in the GUI (12); removing the refusal dialog from `gui/app.py` (1); and the
+old local-kwargs construction (1).
+
+**Gates.** `scripts/verify.py` **PASS — 1187 passed, 9 skipped** (1196 collected, 0 failed);
+pins PASS; CHANGELOG at v0.12.0 matching BRIEFING. That is **+48 collected** against the
+1148 Phase 6 gap-fill baseline, with zero regressions. `git diff --check` clean. **Clean-room
+re-run: identical 1187 / 9** with `ollama`, `groq`, `google.genai` and `google.generativeai`
+import-blocked and `GEMINI_API_KEY` / `GROQ_API_KEY` / `GOOGLE_API_KEY` unset. **No new
+dependency** — pure stdlib over existing internal modules.
+
+**Diff-verified untouched** (requirement 7): `editor.py`, `validation.py`, `prompt.py`,
+`chunking.py`, `errors.py`, `models.py`, `provider.py`, **`cloud.py`**, `approved_models.py`,
+`disclosure.py`, `secrets.py`, `redaction.py`, `rate_limits.py`, `settings.py`, `config.py`, both
+provider adapters, `core/run_manifest.py`, `core/batch_runner.py`, `gui/cloud_ui.py`,
+`config.toml` and `scripts/requirements.txt` are all byte-for-byte unchanged.
+
+**Known small wrinkle, recorded rather than papered over.** The cloud "Check service" probe now
+also passes the guard (correct — listing models still contacts a company the user may not have
+consented to), but `probe_provider` catches every exception and reports `package_unavailable`, so
+a *guard* refusal would read as "package not installed" there. It is only reachable with strict
+mode off, because `_check_ai_service` already refuses to probe a cloud provider unless
+`check_readiness` says ready; the run itself is still refused with the right words. Fixing it
+properly means either a second status vocabulary in Phase 6's panel or a new parameter on
+`probe_provider`, neither of which this phase was asked for.
+
+**Not done, by instruction:** no real cloud request, no comparison run, no
+`files/pilot/PROVIDER-COMPARISON.md` (all 7b); no CHANGELOG/BRIEFING/DECISIONS entry (v0.13.0
+docs are Phase 8's). `config.toml` untouched — both cloud providers still ship `enabled = false`
+and `model = ""`.
+
+**Needs hands-on click-through before 7b:** with `strict_free_tier_only = false` temporarily set
+for one provider in `config.toml`, start a cloud run and confirm the refusal dialog appears with
+the full sentence and the batch does not start — then set it back to `true`.
+
+## Work Log — 2026-07-25 — Claude Code — Plan 2b Phase 6 GAP-FILL (layout, key entry, stale dropdown)
+
+**Not a new numbered phase** — a bug-fix / gap-fill pass on Phase 6's work, from a manual
+click-through. Phase 7 is still the next authorized work. Ran on HOME-PC. **No live cloud call was
+made.** `git diff` proves `editor.py`, `validation.py`, `prompt.py`, `chunking.py`,
+**`rate_limits.py`**, **`run_manifest.py`**, `provider.py`, `models.py`, `errors.py`, `factory.py`,
+`cloud.py`, `disclosure.py`, `approved_models.py`, **`secrets.py`**, `redaction.py`, both provider
+adapters, `core/batch_runner.py`, `config.toml` and `scripts/requirements.txt` are byte-for-byte
+unchanged. `gui/ai_settings.py` needed no change either.
+
+| file | change |
+|---|---|
+| `scripts/Universal/gui/app.py` | +263 / −38 — the two-column layout, the key dialog, the dropdown fix |
+| `scripts/Universal/gui/cloud_ui.py` | +143 — `save_key`, `forget_key`, `key_prompt` |
+| `files/tests/test_cloud_gui.py` | +276 — 16 new tests |
+| `files/tests/test_ai_gui_controls.py` | +120 / −15 — 4 new layout tests; the height test rewritten |
+| `files/tests/test_app.py` | +14 / −3 — the layout-order test follows the new intent |
+
+**1. The log was clipped, and moving it sideways alone would NOT have fixed it.** The old
+single-column stack needed ~1012px of controls **plus** the log's own ~215px, while a 1080p desktop
+offers ~990px; `minsize` then overrode the screen-aware opening geometry and the bottom of the window
+fell off the desktop. The log is now the **right-hand column**, spanning the control rows — but the
+measured left column was still ~1012px, so the rework also had to reclaim height or the user would
+have seen the same clipping. Reclaimed: the Input listbox 6 rows → 4 (**this is the 2a-flagged Minor**
+— "the Input card's six-row listbox dominating the height budget" — closed here), and Advanced
+Options' three stacked checkboxes → two columns. **Measured result: 938px needed against
+`MIN_HEIGHT` 960, down from 1227px** — the window can now be made shorter than a 1080p desktop with
+22px to spare. `MIN_WIDTH` is derived from the two columns' floors (780 + 400 + padding = 1228)
+rather than being a magic number, and the columns measure 1165px. Column 0 has `weight=0` so no
+control can ever be squeezed; all horizontal slack goes to the log, and a spacer row takes the
+vertical slack, so the log now shows *more* lines than it ever could at the bottom. **The condensed
+one-line-per-file format is untouched** — this changed where the log sits, not what goes in it.
+
+**The height test had to be rewritten, and it would otherwise have failed for the wrong reason.** It
+summed *every* child's height, which is the column height in a one-column grid and a double-count in
+a two-column one — the log and five cards now share rows. It now computes per-**row** max height
+(and a new per-**column** max width), which is what "will the window be tall/wide enough" actually
+means. Three tests were added around it: the log must be in column 1 and the controls in column 0;
+both columns must fit `MIN_WIDTH`; and — encoding the reported bug as a number — **`MIN_HEIGHT` must
+fit a 1080p desktop**. A fourth pins the Start/Pause/Stop buttons' bottom edge inside `MIN_HEIGHT`
+(`winfo_ismapped` is useless here because every test window is `withdraw()`n, so it walks `winfo_y()`
+up the parent chain instead).
+
+**2. In-app key entry — a GUI door onto Phase 1, and nothing more.** Phase 1 built key precedence,
+the atomic per-user `secrets.json` write, the permission tightening and presence-only reporting, and
+deferred only the dialog; Phase 6's prompt did not ask for it. Added: a **"Key…" button on the
+provider row**, a small modal with a **masked** entry (`show="•"`), **Save**, **Forget saved key** and
+**Cancel**. `cloud_ui.save_key` / `forget_key` call `secrets.store_api_key` / `delete_api_key` — **no
+storage logic was written here**, and that is asserted by patching Phase 1's function and requiring it
+to be what ran, which is stronger than checking the file afterwards (the file could be right because
+the GUI wrote it itself). After a save the panel re-runs Phase 6's existing
+`_refresh_provider_options()` + `_publish_provider_status()`, so an in-app key reads exactly like an
+env-var one — `auth_missing` → `consent_required` — with no second status vocabulary.
+
+**One button, not two, and the reasoning is recorded.** The requirement behind "each provider needs
+its own entry point" is that the two keys stay independent — separate entries, separate save, separate
+forget — which they are; a button acting on the selected provider delivers that, and the dialog names
+the provider. Two permanent buttons would have cost a card row, which is the exact currency item 1 was
+spending.
+
+**The precedence subtlety is surfaced rather than hidden.** The env var outranks the saved file, so a
+correctly saved key can still not be the one in use. The dialog shows Phase 1's presence-only sentence
+naming **which source is winning**, so that cannot look like a failed save — and "Forget saved key"
+says plainly that it removes only the saved copy, since an env var is not this app's to delete.
+**No key value is held, returned, formatted into a message or logged**; `store_api_key` already
+registers it with the redactor. A test pushes a `gsk_`-shaped fake key through the panel path and
+asserts it appears in neither the log nor the outcome, and mutation testing confirms that echoing it
+into the message breaks that test.
+
+**One real defect this work exposed in Phase 6's panel.** `_refresh_provider_options` never passed
+`secrets_file`/`dotenv_path`, silently relying on `ai.secrets`' module-level defaults. It worked, but
+it meant the panel's key lookups and its saves could point at different files. The panel now resolves
+them once in `_key_locations()` and hands them over explicitly — the same seam `_settings_file()`
+already provided.
+
+**3. Stale model dropdown — root cause found, fixed at the cause, and it was two defects.**
+`_refresh_model_choices` began `if not is_cloud_provider(...): return`, so switching **back** to local
+left the cloud `values` in the widget untouched; and the only code that ever writes local tags is
+`_apply_probe`, reachable from `_check_ai_service`, which `_on_ai_provider_changed` never called —
+exactly the "tied to the checkbox toggle handler instead of the provider-change handler" the report
+suspected. Fixing only the second leaves a real window: the probe is asynchronous and can take the
+full timeout or never answer if the service is down, and until then a **cloud model ID is selectable
+while the local provider is active**. So both are fixed: the method is now authoritative for every
+provider (local clears to empty — the honest interim answer, since installed tags are only knowable by
+asking), and the provider-change handler triggers the same probe the checkbox already used, reused
+rather than duplicated.
+
+**The clearing is keyed, not unconditional, and that matters.** `_refresh_provider_options` is called
+for unrelated reasons — a saved key, an accepted disclosure — and clearing on every call would wipe a
+list the probe had just filled in. A recorded `_model_choices_provider` makes the invariant explicit —
+**a model list never outlives the provider it was built for** — instead of depending on call-site
+ordering. Two tests: one reproducing the exact reported click path with no checkbox toggle anywhere in
+it, one pinning the narrower safety invariant with a probe that never answers.
+
+**Twelve guards were mutation-tested against a green baseline**, each making a specific named test
+fail, including reverting `_refresh_model_choices` and removing the probe call — so the two dropdown
+tests provably fail against the old behaviour rather than merely passing against the new one.
+
+**Gates.** `scripts/verify.py` **PASS — 1139 passed, 9 skipped** (1148 collected, 0 failed); pins
+PASS; CHANGELOG at v0.12.0 matching BRIEFING. That is **+20 collected** against the 1119/9 Phase 6
+baseline (1128 → 1148), with zero regressions. `git diff --check` clean. **Clean-room re-run: 1138
+passed, 10 skipped** — the same 1148 collected — with `ollama`, `groq`, `google.genai` and
+`google.generativeai` import-blocked and `GEMINI_API_KEY`/`GROQ_API_KEY`/`GOOGLE_API_KEY` unset. **No
+new dependency.**
+
+**Out of scope and not built, by instruction:** multiple keys per provider with rotation/fallback
+(works against Phase 4/5's checkpoint-and-stop design and risks the providers' terms around
+circumventing per-account limits). `config.toml` was not touched — keys do not live there.
+
+**Needs hands-on click-through:** the two-column window at its default size (nothing clipped or
+overlapping, Start/Pause/Stop reachable, the log readable and scrolling); the Key dialog for both
+Gemini and Groq (masked entry, Save, Forget, and the "which source is winning" line while
+`GROQ_API_KEY` is set); and the provider round-trip local → cloud → local with the Model list
+repopulating without touching the checkbox.
+
+## Work Log — 2026-07-25 — Claude Code — Plan 2b Phase 6 (GUI: provider selection, consent, status, ETA)
+
+Ran on HOME-PC. **Phase 6 is complete and STOPPED per instruction; Phase 7 was not started.**
+**No live cloud call was made** — every test injects an in-process fake adapter, and the one place
+that could contact a cloud provider ("Check service") is refused until every rail already passes.
+
+**Three files touched and two added; nothing out of scope.** `git diff` proves `editor.py`,
+`validation.py`, `prompt.py`, `chunking.py`, **`rate_limits.py`**, **`run_manifest.py`**,
+`provider.py`, `models.py`, `errors.py`, `factory.py`, `cloud.py`, `disclosure.py`,
+`approved_models.py`, `secrets.py`, `redaction.py`, both provider adapters, `core/batch_runner.py`,
+`config.toml` and `scripts/requirements.txt` are **byte-for-byte unchanged**. Phases 4 and 5 are
+*consumed*, not reshaped — no public API of either grew a field, a parameter or a callback to
+accommodate the GUI, and where that was inconvenient the GUI absorbed the inconvenience (see the
+relay, and the short-wait line that was deliberately not built).
+
+| file | change |
+|---|---|
+| `scripts/Universal/gui/cloud_ui.py` | **new, 942 lines** — every cloud GUI decision, tkinter-free |
+| `scripts/Universal/gui/app.py` | +361 / −25 — the widgets, the three dialogs, the wiring |
+| `scripts/Universal/gui/ai_settings.py` | +96 / −6 — `build_provider_factory`, and `provider` persisted |
+| `files/tests/test_cloud_gui.py` | **new, 1,346 lines, 76 tests** |
+| `files/tests/test_ai_gui_controls.py` | +10 / −2 — two persistence tests, widened not weakened |
+
+**THE TWO DORMANT SEAMS ARE NOW LIVE, and both are proven live rather than merely present.**
+`gui/ai_settings.build_provider_factory` is the single lazy factory `AIEditor` is handed. For a cloud
+provider it (1) runs `cloud.ensure_cloud_request_allowed` **before the adapter object exists**, (2)
+builds the adapter, (3) builds the limiter with `limiter_for(...)`, handing it `stop_event`,
+`pause_gate` and **`checkpoint.on_quota_stop`**, and (4) returns `RateLimitedProvider(adapter,
+limiter)`. The local path returns the bare adapter exactly as before — no gate, no wrapper, no
+behaviour change. The proof that this is not decorative code is an end-to-end test that drives the
+**real `AIEditor.edit()`** with an adapter that raises `DailyQuotaExhausted` and asserts the
+checkpoint's callback fired — which can only happen if the limiter really is in the call path.
+Mutation-tested four ways: returning the adapter unwrapped, skipping the gate, passing
+`on_quota_stop = None`, or choosing the limiter by name instead of capability each makes a named test
+fail.
+
+**Two decisions `sequential_thinking` forced, and one thing it stopped me shipping.**
+
+1. **The ETA has three states, not two, because unknown inputs are not symmetric.** I was going to
+   ship a known/unknown flag and a ±20% band. Walking the inputs through showed that an unknown
+   *per-minute* limit still has a real floor — this app's own configured pacing, which is a known
+   number *about this app* — while an unknown *daily* quota is unbounded in the bad direction: the run
+   might finish today or stop every day for a fortnight. So there is no honest upper end to state.
+   Hence `range` (everything known), **`lower_bound`** (per-minute pacing known, a daily quota not —
+   "at least X hours of processing; the total cannot be estimated"), and `none` (the per-chapter cost
+   itself is unmeasured, which is the honest answer before the first cloud run). The floor is always
+   worded as *this app's own pacing*, never as a claim about the provider's limit.
+2. **A resumed run continues the ORIGINAL queue, not the remainder.** The obvious construction —
+   `RunCheckpoint(offer.output_dir, queue=offer.remaining, start_index=0)` — works, and quietly
+   discards the run's recorded shape, so a *second* resume would be continuing a run whose manifest no
+   longer described it. That is the same failure Phase 5 rejected when it chose to store the whole
+   queue rather than recompute it. The checkpoint is rebuilt from `load_manifest(offer.manifest_path)`
+   with the full queue and the original `next_index`; verified against `_record` (`_next_index += 1`)
+   and `finish` (`complete = next_index >= len(queue)`), so the resumed run lands exactly on complete.
+   Mutation-tested.
+
+**The range's width is derived, and where it cannot be derived there is no width.** Two real sources:
+the accepted/fallback split (2a retries a rejected chunk at most once before chapter-atomic fallback,
+so a chapter costs between 1× and 2× — an **unknown** fallback rate therefore widens the range to
+exactly that true worst case rather than collapsing to "no estimate"), and reset-time uncertainty (a
+run spanning *d* quota-days crosses *d−1* resets, each costing between nothing and one whole reset
+period, because how far into the current window the run starts is unknowable). No cosmetic fudge
+factor was added on top: when both ends coincide the headline prints one approximate figure rather
+than a fake band, and the code says so, so nobody later "fixes" it.
+
+**No limit figure is hardcoded anywhere in this phase.** Groq's published per-model RPD/TPM/TPD are
+in the research record and stay there. Daily limits reach the ETA only from live response headers,
+which means **Groq's tokens-per-day — the limit Phase 0 correction #5 says binds first on the free
+plan — is permanently unknown to the app, because Groq never reports it.** The Groq ETA says that
+plainly. Gemini's says that Google publishes no free-tier table and returns no rate-limit headers, so
+the limit that will actually stop the run is unknown and the live figures are in AI Studio. Both are
+statements about what a provider does and does not report, not numbers used in a computation.
+A run of more than 200 remaining chapters also says plainly that free tiers are for subsets.
+
+**Gemini's `tpm_floor = 0` is the normal path, not an edge case, and mutation testing found the guard
+was not load-bearing.** Zero means "no token pacing" — Phase 4 refused to invent a Gemini token
+figure — and it was being filtered out in *two* places, so removing either changed nothing and no test
+could tell. The configured floors are now read without a positivity filter (a floor of zero is a
+meaningful configured value, not a parse failure) and one `is_rate` test decides. Mutating it now
+divides by zero and fails a named test.
+
+**Disclosure versioning is a real version-compare, plus a guard against the way it actually breaks.**
+Phase 1's equality check already re-asks on any bump, so the remaining risk is not the compare — it is
+someone editing `disclosure_text` materially and forgetting to bump the constant, which leaves every
+old acknowledgement silently standing. The guard is an **append-only `{version: sha256(text)}` pin in
+the test file**: editing the text fails the hash assertion, and "fixing" that by editing the existing
+hash in place fails a second assertion that the mapping is append-only and that
+`DISCLOSURE_VERSION == max(keys)`. The cheap way out is therefore the correct one — add a version.
+Mutation-tested by changing the shipped wording. Separately, "acknowledged an older version" is now
+distinguished from "never acknowledged" (`DISCLOSURE_CHANGED` vs `DISCLOSURE_NEW`) so the re-ask reads
+*this notice has changed*, not *you never consented* — a pure read of Phase 1's existing record, and
+also mutation-tested. **`disclosure.py` itself is byte-for-byte unchanged.**
+
+**Selectable is deliberately NOT the same question as ready.** `check_readiness` already distinguishes
+six states with a plain sentence each and those are passed straight through — no status vocabulary was
+invented, and no reason was re-worded, because the panel's own docstring rule is that the status shown
+is the provider's own. A provider with no key is **not ready but still selectable**: selecting it is
+how the user gets told to add one. Exactly one condition greys a provider out — `selectable_models`
+is empty, i.e. every reviewed record for it is preview, not-free, or of unknown free-tier confidence,
+so nothing the user does inside the app leads anywhere. That is the drop's rule, stated once, and
+mutation-tested in both directions. **Retirement is only ever reported from a real `list_models()`
+answer**, never guessed before one is asked for; an empty list stays "unverifiable" via
+`ensure_model_available`, whose Phase 1 test owns that rule — a second copy of the condition in the
+GUI was written, found by mutation testing to be dead weight no test could distinguish, and removed.
+
+**Choosing a cloud provider in the dropdown is what enables it, and that is written down.**
+`config.toml` ships `enabled = false` for both so nothing is pre-selected before Phase 7. The dropdown
+evaluates each provider *as if selected* (`selected_ai_table`), otherwise every cloud row would read
+"turned off" instead of showing the real reason. This moves one rail — an explicit user act — from a
+config flag onto the dropdown plus the disclosure dialog; **every other rail is untouched and still
+enforced by `ensure_cloud_request_allowed`** before a chapter leaves the machine. The reasoning is in
+the function's docstring so it is not mistaken for a loosened check.
+
+**Condensed log: the per-file line was not touched at all.** Provider and model are run-scoped facts
+that cannot change mid-run, so they extend the existing run header (one line, once) rather than
+repeating on every `[i/total] name — outcome` line; a test asserts the header appears exactly once and
+another asserts the local path emits no cloud line. Quota stops use the existing indented
+`        ⚠ ` continuation shape, the same as the "AI rejected" and "heading-only page" warnings —
+"daily quota reached, you can close the app and resume tomorrow", or, when `reset_known` is False, an
+honest "the reset time is unknown" with the provider's limits link and **no invented midnight or
+timezone** (asserted). **A per-wait line for short RPM/TPM holds was deliberately NOT built**: the
+limiter exposes no `on_wait` callback and adding one would reshape Phase 4's public API, which this
+phase was told not to do. Not building it is the flagged trade-off, not an oversight.
+
+**`_QuotaStopRelay`, and why the order is load-bearing.** The limiter takes one `on_quota_stop` and
+the checkpoint provides one, so the GUI needed a third participant without either layer growing a
+second callback. The relay is duck-typed exactly like a `RunCheckpoint` (`build_provider_factory` only
+ever reads `.on_quota_stop`). It calls the checkpoint **first** — writing the manifest and setting the
+stop event — and logs after, so a logging fault can never cost the user the checkpoint. Pinned by a
+test that asserts the order, and mutation-tested. It logs through `_thread_log`, which marshals back
+onto the UI thread via `self.after`, because the callback fires on the worker thread inside
+`provider.complete()` and Tk is not thread-safe.
+
+**A checkpoint is written for cloud runs only.** Plan 2b reverses Plan 1's session-only decision *for
+cloud runs specifically*, so a local run still passes `checkpoint=None` and writes no manifest —
+asserted by its own test — and a purely local user never sees the resume dialog. One honest
+limitation, recorded rather than papered over: `entries` restarts empty on resume because
+`RunCheckpoint`'s public constructor takes no prior entries and reshaping it was out of scope, so a
+later offer's `completed_count` counts only the latest session. The dialog is therefore worded from
+`remaining` vs `len(queue)`, which stay correct.
+
+**One layout constraint had to be paid for.** The provider dropdown needs a row, and
+`test_every_fixed_row_fits_inside_the_minimum_window_height` measured 1036px against `MIN_HEIGHT`
+1020. Raising the minimum was rejected — the window already exceeds a 1080p screen and a tall-window
+Minor is already flagged — so the dry-run checkbox moved onto the policy row (and its label
+shortened), keeping the card at four rows. `MIN_HEIGHT` is unchanged.
+
+**Two existing tests were widened, not weakened.** `PERSISTED_KEYS` gained `provider` because the
+panel now has a provider dropdown; both tests still assert that the opt-in switch and anything
+credential-shaped are never written, and the second now pins the exact three-key document.
+
+**Tests: 76 new, in `files/tests/test_cloud_gui.py` (1,346 lines)**, offline and hermetic — every test
+passes explicit `settings_file` / `secrets_file` / `dotenv_path` / `environ` locations, including the
+panel tests, which also neutralise `ai.secrets.default_secrets_file` and `DEFAULT_DOTENV_PATH`, so a
+developer with a real key on this machine cannot change an outcome. Coverage: every provider status
+state and its displayed reason; selectable vs ready as separate questions; the picker showing only
+reviewed records (and a source scan proving this module never names the listing call); retirement only
+from a real list; disclosure new / changed / acknowledged / per-provider / version-bump / the
+append-only hash pin; the consent gate blocking the first cloud call end to end and declining falling
+back to script-only with **zero adapter calls**; ETA with all inputs known, with each unknown in turn,
+the zero-floor case, the reset fold, the degenerate range, and both providers' honesty lines; resume
+offered / accepted / declined / no manifest / manifest vanished between offer and answer; the resumed
+checkpoint completing the original queue; and the panel itself — the dropdown, a refused selection,
+the picker's values, both dialogs answered both ways, the checkpoint reaching `run_batch`, the local
+run still getting `None`, and the provider logged exactly once.
+
+**Sixteen guards were mutation-tested against a green baseline**, so none is incidentally green, and
+each makes a specific named test fail. The first harness run reported two guards "not caught"; both
+were **real findings, not harness faults** — one guard was duplicated so removing either half changed
+nothing, the other was redundant with `ensure_model_available`. The product was fixed in both cases,
+not the tests. A second harness fault was also found and fixed: restoring a mutated file left stale
+`.pyc` bytecode that silently reverted the mutation, and the rewrite purges `__pycache__` after every
+restore and preserves bytes so line endings are not rewritten.
+
+**Gates.** `scripts/verify.py` **PASS — 1119 passed, 9 skipped** (1128 collected, 0 failed); pins
+PASS; CHANGELOG at v0.12.0 matching BRIEFING. That is **+76 collected exactly** against the 1042/10
+Phase 5 baseline (1052 → 1128), with zero regressions; the 10↔9 skip difference is the documented Tk
+display skip. `git diff --check` clean. **Clean-room re-run: 1120 passed, 8 skipped** — the same 1128
+collected — with `ollama`, `groq`, `google.genai` and `google.generativeai` import-blocked and
+`GEMINI_API_KEY`/`GROQ_API_KEY`/`GOOGLE_API_KEY` unset. **No new dependency** — pure stdlib plus
+existing internal modules, so `scripts/requirements.txt` was not touched.
+
+**Not done, by instruction:** no comparison run (Phase 7); no CHANGELOG/BRIEFING/DECISIONS entry
+(v0.13.0 docs belong to Phase 8). `config.toml` was not touched — both cloud providers still ship
+`enabled = false` and `model = ""`, so nothing pre-selects a cloud model or a cloud provider.
+
+**Needs hands-on click-through before Phase 7** (dialog interaction cannot be tested from here): the
+three modal dialogs render as expected at 820px — the disclosure body is long and is passed to
+`messagebox.askokcancel`, which does not scroll, so confirm it is fully readable on the real display;
+the provider dropdown's "— unavailable" rows behave as intended when clicked; and the estimate dialog
+before a cloud run reads correctly.
+
+## Work Log — 2026-07-25 — Claude Code — Plan 2b Phase 5 (Checkpointed runs)
+
+Ran on HOME-PC. **Phase 5 is complete and STOPPED per instruction; Phase 6 was not started.**
+**No live cloud call was made** and nothing waits — the checkpoint takes an injected clock and the
+quota-stop path is driven by a real `QuotaStop` built without a limiter.
+
+**One existing file touched, and nothing that was out of scope.** `git diff` proves `provider.py`,
+`models.py`, `errors.py`, `factory.py`, `editor.py`, `validation.py`, `prompt.py`, `chunking.py`,
+**`rate_limits.py`**, both provider adapters, the whole GUI and `config.toml` are byte-for-byte
+unchanged. The only edit is `core/batch_runner.py` (+40 lines, additive), which is where the seam has
+to be because it is the only code that knows a file just finished — the same place and the same shape
+2a used to add its `ai_editor` seam.
+
+**The manifest: `<output folder>/run-manifest.json`, rewritten atomically after every finished file.**
+Written by 2a's `write_settings_atomic` — tempfile + `fsync` + `os.replace` — the exact call Phase 1
+used for `secrets.json`; no atomic-write logic was reimplemented. Payload:
+`{schema_version, run{novel, mirror_root, provider, model_id, prompt_version, gate_version,
+ai_policy, started_at}, output_dir, queue[], next_index, entries[], quota_stop, stopped_reason,
+complete}`, with each entry `{source, status, output, ai_status, size, mtime_ns, recorded_at}`. That
+covers every field the drop lists.
+
+**Two decisions `sequential_thinking` forced, and one it reversed.**
+1. **The whole queue is stored, not recomputed.** Folder mode's order is reproducible from
+   `scan_folder`, but **upload mode's is not** — it is whatever the user dragged in. Recomputing would
+   mean a "resume" that silently processed files in a different order than the run it claims to
+   continue. A few hundred KB for 3,000 chapters, rewritten once per file, is noise against a
+   multi-second-per-chapter AI pass. The cost is real and is recorded rather than glossed over.
+2. **Whole-file atomic rewrite, not an append-only journal.** A journal is cheaper to write and is
+   exactly the shape a kill can leave half-written; a whole-file replace means the file on disk is
+   *always* a complete, valid manifest.
+3. **Reversed mid-reasoning:** I had written "if any remaining input is missing, refuse the resume".
+   That is not conservatism — refusing a 2,000-chapter resume because one file was moved is a worse
+   outcome, and it is not guessing either, because `run_batch` already skips a missing file honestly
+   with a logged line. The rule now is: offer the resume, **report** `missing_inputs` so Phase 6 can
+   show the count, and only refuse when **every** remaining input is gone (there is genuinely nothing
+   to resume). Two tests pin both halves.
+
+**Checkpoints are file-boundary only, and the invariant has a sharp form.** `record_completed` sits on
+the **far side of `build_pdf` and its sidecars**, so a `completed` entry always means the output
+exists. A partial chapter cannot be checkpointed even in principle: chunk state lives inside
+`AIEditor.edit`, which is chapter-atomic and returns either accepted text or the deterministic
+baseline, so this layer never sees anything partial. The test is therefore not a vacuous "assert no
+partial field exists" but "make `build_pdf` raise mid-run and assert that file is recorded `failed`
+with no output path, while its neighbours are `completed`". Mutation-tested: moving the checkpoint
+one line earlier, before `build_pdf`, makes a test fail.
+
+**Failed and skipped files advance the queue** — with their own status, and never naming an output.
+Otherwise a resumed run retries the same corrupt PDF forever. The user-visible consequence is real and
+deliberate: **a resumed run does not re-attempt yesterday's failures, and does not re-run chapters that
+fell back to script-only** — the per-file `ai_status` (`accepted` / `fallback` / `script_only`) is
+recorded precisely so that is visible. Dry runs write no manifest at all.
+
+**Nothing sensitive is written, and the manifest owns that guarantee itself.** There is no field that
+could carry chapter text — asserted by a whitelist test over entry keys, because the natural way to
+leak prose later is a well-meaning "summary" or "preview" field. **A failure reason is accepted and
+deliberately discarded**: a provider error message can quote the candidate text, and the JSONL sidecar
+and GUI log already carry the detail. A test proves an `InvalidResponse: rejected 'the candidate text'`
+reaches the file as neither. Two positive tests run a **real committed Shadow Slave fixture** end to
+end through `run_batch` with a `gsk_`-shaped fake key registered, then assert the key is absent and
+that no 5-word phrase of the real extracted prose appears anywhere in the manifest.
+
+**One genuine defect the tests caught before it shipped.** The `quota_stop` record was persisted
+exactly as Phase 4 handed it over, on the assumption that Phase 4 had already redacted it. It had —
+but the manifest is the layer that *persists*, and it should not depend on an upstream caller's
+hygiene for its own guarantee. The record is now re-redacted and bounded on write. Mutation-tested:
+removing that second redaction makes the key test fail.
+
+**THE PHASE 4 SEAM, CONSUMED — and no import of `rate_limits` anywhere in the manifest module.**
+`RunCheckpoint.on_quota_stop(stop)` reads the `QuotaStop` **duck-typed through `as_dict()`**, the same
+trick `rate_limits.py` itself uses to read snapshots, so Phase 4's public shape is untouched and a test
+asserts the module imports nothing from it. The callback: records the stop, sets `stopped_reason` to
+`daily_quota` or `long_wait` from `stop.is_daily`, writes the manifest **immediately**, and then **sets
+the run's `stop_event`**.
+
+That last step is the whole mechanism, and it needed no new halting machinery: the callback fires on
+the worker thread inside `provider.complete()`, the `DailyQuotaExhausted` propagates into `AIEditor`,
+which is chapter-atomic and falls back to the deterministic text, that chapter is written and
+checkpointed normally, and `run_batch`'s existing between-files check ends the batch with
+`stopped: True`. **No busy loop, no background wait, no multi-day window** — it reuses the exact Stop
+path 2a built and Phase 4 already routes through. An end-to-end test drives the real batch loop with a
+provider that signals the seam and raises on chapter 2, and asserts: the in-flight chapter still
+completes (2 succeeded, 2 PDFs built), `next_index == 2`, `complete` is `False`,
+`stopped_reason == "daily_quota"`, and chapter 2's `ai_status` is `fallback`.
+
+**An ordering trap worth recording.** The manifest is written **twice** around a quota stop — once by
+the callback, then again moments later by the in-flight chapter's own checkpoint. Since every write is
+a whole-file replace, the second would have **erased** the quota stop. It is therefore held in memory
+on the checkpoint object, not read back from the file. Mutation-tested: clearing it after the callback
+write makes a test fail. I would have shipped that bug without walking the ordering through.
+
+**Safe-to-close, and the kill-mid-write case tested rather than asserted.** Three moments a kill can
+land relative to one write: *before the temp file* (previous manifest intact, at most the last file is
+redone), *between the temp write and `os.replace`* (previous manifest untouched, temp orphaned), and
+*after the replace* (new manifest durable). The middle one is tested by patching `os.replace` to raise
+and then asserting the previous manifest is **byte-identical** and still loads, that no `.tmp` residue
+remains (`write_settings_atomic` unlinks on any exception), and that an orphaned
+`.run-manifest.json.*.tmp` beside a valid manifest changes nothing — the discovery scan looks for the
+exact filename, so a dotfile temp can never be mistaken for a manifest. Mutation-tested: swapping the
+atomic write for a naive `write_text` makes the rename test fail. A separate test simulates an abrupt
+close by never calling `finish()` and confirms the manifest still loads and resumes from the right
+place.
+
+**Resume: two functions, deliberately shaped differently** (the same split `cloud.py` uses for
+readiness vs enforcement). `find_resumable_run(search_dir)` **never raises** — it scans one level down
+for manifests, takes the newest incomplete one, and returns a `ResumeOffer(available, reason,
+output_dir, novel, mirror_root, remaining, missing_inputs, completed_count, stopped_reason,
+quota_stop)`. `plan_resume(offer)` returns the exact `run_batch` arguments, continuing into the
+**original** output folder — that is what makes it a continuation rather than a second run.
+**Declining is not a function call at all**: the caller simply takes the normal fresh-run path, which
+allocates the next `<novel>-N` folder as usual, and a test proves merely *offering* mutates nothing.
+
+**`load_manifest` rejects rather than repairs, and never raises** (the caller is a GUI). Refused:
+missing, unreadable, truncated JSON, a non-object payload, a missing/non-integer schema version, a
+**forward** schema version (a future build's manifest must not be half-read by today's code), a queue
+that is missing/empty/not a list of strings, an index that is missing/negative/past the queue end, and
+non-list entries. Nine parametrized cases plus four named ones. Every rejection produces
+`available=False` with a plain sentence — never a partial resume, never an exception reaching the GUI.
+A *finished* run is also not offered, with its own distinct reason so Phase 6 can word it differently
+from "corrupt".
+
+**Tests: 66 new, in `files/tests/test_run_manifest.py` (974 lines)**, offline and hermetic. Coverage:
+the manifest after each completed file with every drop-listed field; accepted vs fallback recorded
+separately; failed/skipped advancing with their own status and no output path; no key and no chapter
+text (twice, including a real fixture run); every `load_manifest` rejection; resume offered / declined
+leaves it untouched / missing / corrupt / forward-schema / finished / all-inputs-gone /
+some-inputs-gone; the newest incomplete run chosen; temp-and-rename observed; kill between write and
+rename; orphaned temp ignored; the `run_batch` seam inert when absent; dry runs writing nothing; the
+build-failure boundary; the quota stop end to end through the real batch loop; the quota stop surviving
+the next write; an unknown reset time carried through as unknown; and a foreign object on the seam not
+crashing the run.
+
+**Ten guards were mutation-tested against a green baseline**, so none is incidentally green: the atomic
+write, the quota-stop redaction, the corrupt-manifest refusal, the forward-schema refusal, the
+in-memory quota-stop retention, the `stop_event` set, the failed-file index advance, the checkpoint's
+position after `build_pdf`, the dry-run guard, and `finish()` marking a run complete. Each makes a
+specific named test fail.
+
+**Gates.** `scripts/verify.py` **PASS — 1042 passed, 10 skipped** (1052 collected, 0 failed); pins
+PASS; CHANGELOG at v0.12.0 matching BRIEFING. That is **+66 exactly** against the 977/9 Phase 4
+baseline (986 collected → 1052), with zero regressions; the 9↔10 skip difference is the documented Tk
+display skip. `pip check` clean; `git diff --check` clean. **Clean-room re-run: 1044 passed, 8
+skipped** — the same 1052 collected — with `ollama`, `groq`, `google.genai` and `google.generativeai`
+all import-blocked and `GEMINI_API_KEY`/`GROQ_API_KEY`/`GOOGLE_API_KEY` unset. **No new dependency** —
+pure stdlib plus two existing internal modules, so `scripts/requirements.txt` was not touched.
+
+**Not done, by instruction:** no GUI of any kind (the resume dialog, the "daily free quota reached"
+message, a Retry button and the ETA are Phase 6); no comparison run (Phase 7); no
+CHANGELOG/BRIEFING/DECISIONS entry (v0.13.0 docs belong to Phase 8). **Nothing constructs a
+`RunCheckpoint` or a `RateLimitedProvider` at runtime yet** — `run_batch` accepts a checkpoint and the
+GUI does not yet pass one, exactly as `RateLimitedProvider` is built but not yet composed. Both are
+Phase 6's wiring, and doing either here would have been the GUI work this phase was told to stay out
+of. `config.toml` was not touched; both cloud providers still ship `enabled = false` and `model = ""`.
+
+## Work Log — 2026-07-25 — Claude Code — Plan 2b Phase 4 (Rate limiting + quota classification)
+
+Ran on HOME-PC. **Phase 4 is complete and STOPPED per instruction; Phase 5 was not started.**
+**No live cloud call was made** — every test injects an in-process fake provider, an injected
+monotonic clock and an injected sleeper. **Nothing in the suite ever sleeps**, enforced rather than
+asserted: an autouse fixture replaces `time.sleep` with a raiser for the whole module.
+
+**Two files touched besides the new ones, and NOTHING that was out of scope.** `git diff` proves
+`provider.py`, `models.py`, `errors.py`, `factory.py`, `editor.py`, `validation.py`, `prompt.py`,
+`chunking.py`, **both provider adapters**, `core/batch_runner.py` and the whole GUI are byte-for-byte
+unchanged. The 2a base contract again required **no change**, and this time that is a design result
+rather than a happy accident — see the wrapper decision below.
+
+**The structural decision the state machine forced: the limiter is a PROVIDER, not a change to the
+editor.** `AIEditor.edit()` calls `provider.complete(request)` directly and knows nothing about
+limits, and `AIEditor` was explicitly out of scope. Three placements were considered and
+`sequential_thinking` killed the first two: (a) a limiter *inside* each adapter would have edited two
+reviewed, pushed, live-verified modules, mixed transport with policy, and been untestable without a
+fake SDK; (b) a limiter *above* the editor cannot see a 429 at all, because the editor swallows
+provider errors into its fallback. What is built is (c) **`RateLimitedProvider`, a decorator that
+itself satisfies 2a's four-method protocol** and wraps a real adapter. The editor asks for an
+`AIProvider` and gets one; the limiter sits exactly where it can see both the errors and the headers;
+and a test asserts `isinstance(wrapper, AIProvider)`. Phase 6 composes it at construction time —
+Phase 4 deliberately wires nothing into the GUI.
+
+**The asymmetry is honoured by the capability flag, never by provider name.** `limiter_for(adapter,
+settings, provider=…)` reads `capabilities().exposes_rate_limits` and returns
+`HeaderDrivenRateLimiter` (Groq — reads the Phase 3 `RateLimitSnapshot` off `provider.last_rate_limits`
+and off `exc.rate_limits`) or `FlooredRateLimiter` (Gemini — `snapshot_from()` returns `None`
+*unconditionally and deliberately*: Google publishes no limits and returns no headers, so there is no
+number to read, and inventing one is what the drop forbids). A provider added later gets the right
+limiter without this function learning its name. Mutation-tested: hardcoding the header-driven class
+makes a test fail. **The limiter imports no provider module at all** — snapshots are read duck-typed
+via `getattr`, asserted by a test that scans the import lines.
+
+**THE DIRECTION IS ASSERTED IN BOTH DIRECTIONS.** Groq's `x-ratelimit-*-requests` are **per day** and
+`x-ratelimit-*-tokens` are **per minute**. So `remaining_requests == 0` classifies as
+`REQUESTS_PER_DAY` → a clean stop, and `remaining_tokens == 0` classifies as `TOKENS_PER_MINUTE` → a
+seconds-long wait. Three tests pin this, including one that swaps the two pairs and requires the
+classification to swap with them. The subtler half of the same trap is in the *wait* computation and
+is pinned separately: a per-minute wait may use `reset_tokens_seconds` but **must never** use
+`reset_requests_seconds`, which is the day counter's reset — mutating that one line makes a test fail.
+A snapshot carrying `remaining_requests = 0, reset_requests_seconds = 86400` produces a daily stop
+with **zero seconds slept**, and the 86,400 is recorded for Phase 5 rather than waited on.
+
+**The wait decision table**, in authority order, and what is deliberately *not* consulted:
+
+| Situation | Wait | Source |
+|---|---|---|
+| `Retry-After` on the error or the snapshot | **honoured exactly, never jittered** | `retry_after` |
+| TPM limit, no Retry-After | `x-ratelimit-reset-tokens` | `header_reset_tokens` |
+| RPM limit, no Retry-After | the configured floor — **never** `reset-requests` | `floor` |
+| malformed / absent / unparsable headers | the configured floor | `floor` |
+| transient network fault or provider capacity | jittered bounded backoff | `backoff` |
+| **any daily quota (RPD / TPD / unspecified)** | **none, ever** | `daily` |
+| auth, context, refused response, cancellation | none — re-raised untouched | `none` |
+
+**Retry-After is honoured exactly and jitter is never applied to it.** Jitter on a number the
+provider handed us either undershoots into overage or adds noise to an authoritative instruction; a
+test samples the same 429 twenty-five times with a 0.9 jitter ratio and requires exactly one distinct
+value. Backoff is `base * 2**attempt`, capped, then jittered into `[ceiling*(1-ratio), ceiling]`, from
+an **injected** `random.Random` so the bounds are checkable — and it is reachable **only** from
+`TRANSIENT` and `PROVIDER_CAPACITY`. A capacity error is explicitly *not* quota: it backs off, and it
+never writes a quota stop.
+
+**The one collision the two rules created, and how it was resolved.** "Honour Retry-After exactly" and
+"a daily quota must never become a long sleep" collide when a provider returns `Retry-After: 4000` on a
+*per-minute* error. Truncating it would disobey the provider; sleeping it would be the multi-day-sleep
+behaviour this plan exists to delete. The resolution is a third state: any wait longer than the
+configured `max_wait_seconds` (900 s) is **reported honestly at its full value and not slept** —
+`retry = False`, `too_long = True` — and the run stops cleanly through the same seam as a daily quota,
+flagged `is_daily = False`. That is exactly the drop's "short waits in session, long waits become a
+clean stop" split, and it fell out of the state machine rather than being designed in advance.
+
+**Never retry into overage, in its strongest form.** Once a daily stop is recorded, `complete()`
+short-circuits **before the provider is touched at all** — a run that hit the wall does not spend one
+more request on the next chapter. Separately, if a *successful* response's headers report
+`remaining_requests == 0`, the **next** request is refused before it is sent. Both are
+mutation-tested; removing either makes a test fail.
+
+**Conservative floors, and no magic number anywhere in the limiter.** Floors live in the Phase 1
+`[ai.gemini]` / `[ai.groq]` subtables (mirrored into `cloud.CLOUD_DEFAULTS` only so a missing or
+corrupt section still yields a *conservative* limiter rather than an unlimited one). A test scans
+`rate_limits.py` for hardcoded limit figures. Junk or negative values fall back to the shipped default
+rather than to "no limit". They are documented in `config.toml` as **client-side self-restraint, not a
+claim about the provider's real limit**: Groq gets 15 RPM / 5,000 TPM (below the smallest documented
+free-plan figure across the four approved models, and overridden by any live header), Gemini gets 10
+RPM and **`tpm_floor = 0`** — zero because no Gemini token figure exists to base one on, and guessing
+one is precisely the invention the prompt forbids. The floor governs pacing from the second request
+onward; a single request larger than the whole token floor **proceeds** rather than hanging, because
+no amount of waiting makes room for it and the floor is our own restraint, not the provider's limit.
+
+**Monotonic throughout; wall clock only for display.** Every deadline is a monotonic instant, so a
+wall-clock jump cannot change a countdown *by construction* — a test moves the wall clock back two
+hours and forward an hour mid-countdown and requires the served wait to be unchanged, and mutating the
+deadline to the wall clock makes a test fail. A monotonic jump forward (resume from suspend) simply
+ends the wait rather than leaving a negative or extended one. The only wall-clock value kept is
+`QuotaStop.observed_wall`, for display.
+
+**Stop during a wait — verified against the real code, and it matches the intended semantics.** Long
+waits are served as bounded 5-second slices, and the default sleeper is `stop_event.wait(...)`, so a
+Stop breaks the countdown *immediately* rather than up to one slice late. The wait then raises
+`RequestCancelled`. Traced through 2a's actual `editor.py`: `RequestCancelled` is an `AIProviderError`
+with `retryable = False` and is **not** in the `provider_outage` tuple, so the chunk loop records the
+attempt, breaks, and calls `_fallback_or_raise(..., cause=None)` →
+- **prefer-AI (the normal case): the chapter completes deterministically, script-only, byte-for-byte
+  the pipeline's own text**, the PDF is written, and the run halts at the normal between-files seam.
+  Both invariants hold — no half-written output, and Stop is never blocked behind a countdown. A test
+  drives the **real `AIEditor`** through the real wrapper and asserts the returned text is the
+  baseline byte-for-byte.
+- **AI-required: it raises instead of degrading**, that file is marked FAILED by the existing per-file
+  `try/except`, and the run still halts at the same between-files seam. That is AI-required's existing
+  2a contract ("raises instead of degrading"), not a third behaviour invented here. Reported, not
+  papered over; a test pins it.
+
+**A mid-file wait deliberately does NOT hold for Pause.** BRIEFING states a mid-file hold needs a
+superseding DECISIONS entry (#033: the in-flight file always finishes), and holding a countdown for a
+pause would only lengthen the very window Pause exists to bound. A `pause_gate` may be passed and is
+accepted for symmetry, but the wait observes **Stop** only; a test pins that a paused gate does not
+extend the wait. **Window close** is covered by the same mechanism — waits are sliced and stop-checked,
+and no wait can exceed `max_wait_seconds`, so nothing can hold the process open for hours.
+
+**THE PHASE 5 SEAM — `ai.rate_limits.QuotaStop`.** This is what Phase 5 plugs into, and Phase 4
+deliberately builds no manifest, no checkpoint file and no resume UI. A frozen dataclass, recorded
+once per run, readable as `limiter.quota_stop`, with an optional `on_quota_stop(stop)` callback fired
+exactly once (tested):
+
+| field | meaning |
+|---|---|
+| `provider`, `model_id` | which provider/model hit the wall |
+| `kind` | `requests_per_day` / `tokens_per_day` / `daily_unspecified` / a per-minute kind when `too_long` |
+| `reason` | the provider's own words, **redacted** through the Phase 1 boundary and bounded to 240 chars |
+| `reset_seconds`, `reset_known` | seconds until reset, or `None` + `False` — **never a guessed midnight or provider timezone** |
+| `is_daily` | `True` = resume tomorrow; `False` = a wait too long for this session |
+| `observed_wall` | wall clock, for display only |
+
+`as_dict()` is the manifest-safe projection: it carries **no API key, no chapter text, no file path**
+(asserted with a `gsk_`-shaped fake key in the provider's error text), and it deliberately omits
+`observed_monotonic`, which is meaningless once written to disk and read back in another process.
+Phase 5 writes the manifest from this and stops the batch at the between-files seam; Phase 6 renders
+`reset_known = False` as an honest "reset time unknown — see the provider's limits page".
+
+**Tests: 85 new, in `files/tests/test_rate_limiting.py` (1,165 lines)**, all offline and hermetic.
+Coverage: the configured floors and their junk-value fallbacks; every classification row; the header
+direction in both directions; Retry-After honoured exactly and never jittered; RPM wait then resume;
+TPM from the token reset header; RPD/TPD classified daily and **not** backed off; malformed, absent and
+unparsable headers falling back to the floor rather than a guess; the Gemini floored path with
+`exposes_rate_limits = False`; a provider claiming headers but returning none degrading to the floor;
+jittered backoff inside its bounds at three attempt depths and bounded at attempt 19; the wrapper's
+full loop including bounded attempts, pass-through of errors it does not own, the daily short-circuit
+and the header preflight; Stop during a wait at three levels (the limiter, the wrapper, and end-to-end
+through the real `AIEditor` under both policies); wall-clock and monotonic jumps; and the suite passing
+with no keys set.
+
+**Ten guards were mutation-tested against a green baseline**, so none is incidentally green: the
+header direction, the never-sleep-on-daily rule, the no-jitter-on-Retry-After rule, the
+per-minute-wait-never-reads-the-day-reset rule, the daily short-circuit, the zero-remaining-requests
+preflight, the capability-flag branch, the monotonic deadline, the over-long-wait stop, and the Stop
+check inside the wait loop. Each mutation makes a specific named test fail — and the Stop-check
+mutation makes the suite **hang**, which is the strongest possible evidence that the wait is genuinely
+interruptible. (The first harness run was **discarded**: it passed pytest a `--timeout` flag this
+environment does not have, so every run failed for the wrong reason and every mutation looked caught.
+The rebuilt harness asserts a green baseline before mutating and treats a hang as a distinct outcome.)
+
+**One real hazard, already documented by Phases 2 and 3, bit again.** The module passed 85/85 alone but
+failed 12 tests in the full suite: `test_ai_foundation` pops every `ai.*` module and re-imports the
+package, so a test module holding some names from before that pop and importing others after it ends up
+with two generations of the same classes — and the limiter's `except (RateLimited, ...)` stopped
+catching an exception the test had built. **The test was adapted, not the product**: all 31 in-function
+`ai.*` imports were hoisted to module level so one generation is used throughout, and the module
+docstring records why. Not a product defect; in production nothing reloads the package.
+
+**Gates.** `scripts/verify.py` **PASS — 977 passed, 9 skipped** (986 collected, 0 failed); pins PASS;
+CHANGELOG at v0.12.0 matching BRIEFING. That is **+85 exactly** against the 892/9 Phase 3 baseline, with
+zero regressions. `pip check` clean; `git diff --check` clean. **Clean-room re-run: identical 977 passed
+/ 9 skipped** with `ollama`, `groq`, `google.genai` and `google.generativeai` all blocked by an injected
+import blocker and `GEMINI_API_KEY`/`GROQ_API_KEY`/`GOOGLE_API_KEY` unset. **No new dependency** — the
+limiter is pure stdlib, so `scripts/requirements.txt` was not touched.
+
+**Not done, by instruction:** no run manifest, checkpoint file or resume UI (Phase 5); no GUI widget,
+countdown display, provider dropdown or ETA (Phase 6); no comparison run (Phase 7); no
+CHANGELOG/BRIEFING/DECISIONS entry (v0.13.0 docs belong to Phase 8). Nothing constructs a
+`RateLimitedProvider` at runtime yet — composing it into `gui/ai_settings.build_ai_editor` is Phase 6's
+wiring, and doing it here would have been GUI work this phase was told to stay out of. `config.toml`
+still ships `enabled = false` and `model = ""` for both providers, so both remain inert.
+
+## Work Log — 2026-07-25 — Claude Code — Plan 2b Phase 3 (GroqProvider)
+
+Ran on HOME-PC. **Phase 3 is complete and STOPPED per instruction; Phase 4 was not started.**
+**No live cloud call was made** — every test injects an in-process fake transport. `AIEditor`, the
+validation gate, the prompt layer, the chunker, the deterministic pipeline, `config.toml`, and the
+Gemini and Ollama adapters are byte-for-byte unchanged, confirmed by `git diff --stat HEAD` over
+each file.
+
+**The 2a base contract required NO change.** `provider.py`, `models.py` and `errors.py` are
+untouched and the diff proves it; `factory.py` needed no edit because its lazy `groq` →
+`ai.providers.groq.GroqProvider` mapping already existed. The one design question this phase forced
+is recorded below under *the rate-limit snapshot*, and the answer was **not** to extend the shared
+contract.
+
+**Web re-verification first, before any provider code (mandatory step).** Groq's own docs only;
+third-party aggregators were checked and discarded again as mutually contradictory (one still lists
+"Llama 4 Scout / Qwen3 32B / DeepSeek R1 Distill" and a flat 30K TPM / 14.4K RPD for all models —
+none of which matches Groq's per-model table). **All four Groq `[[ai.approved_models]]` records were
+re-verified field by field and needed no change.** Written into the drop as a dated *Phase 3
+research re-verification* section (items 12–15): the production lineup and every context/output
+figure are unchanged and none of the four models is deprecated (two are the named *replacements* for
+models shutting down 2026-08-16); the free-plan per-model limits are unchanged from Phase 0's record,
+so correction #5 stands and **TPD still binds long before RPD**; and the headers are confirmed with
+an asymmetry that matters — `x-ratelimit-*-requests` are **per day**, `x-ratelimit-*-tokens` are
+**per minute**.
+
+**The Qwen finding, refined.** Phase 0 correction #6 said Groq offers no Qwen model. The
+load-bearing half is **re-confirmed — there is still no Qwen model in Groq's production lineup** —
+but Groq now lists `qwen/qwen3.6-27b` in the **preview** section (131,072 / 16,384), explicitly "for
+evaluation purposes only". So the Phase 7 comparison is still **cross-family with no continuity to
+the 2a `qwen3:14b` baseline**, and it would not have been continuity anyway: a 27B 3.6-generation
+model is not the local 14B 3-generation one. Being preview it is refused twice over by strict
+free-only mode, and a test asserts exactly that.
+
+**SDK pinned: `groq==1.6.0`.** Phase 0 refused to pin it blind as a same-day release. Re-checked on
+PyPI a day later: still the latest, **no `1.6.1` hotfix, nothing yanked**, and its changelog diff
+over 1.5.0 is *repository infrastructure only* — CI runner configuration in the workflow templates
+plus CODEOWNERS, no client-code and no breaking change. Its runtime diff against the month-settled
+1.5.0 is therefore effectively nil, so pinning back to 1.5.0 would have bought no extra soak time on
+the code that actually ships while giving up a month of upstream API-schema updates. Surface
+confirmed through Context7 against the SDK's own source. **The SDK is imported in exactly one
+place** — `ai/providers/groq.py`'s `_load_sdk()`, called only when a client is built — and a test
+asserts `groq` is absent from `sys.modules` after importing both `ai` and the adapter.
+
+**Phase 2's shape was mirrored deliberately; five divergences are real and each has a reason.**
+Refusals stored not raised at construction, max-output from the reviewed record (an explicit
+argument may lower it, never raise it), retirement checked once per instance and cached, plain-string
+finish-reason comparison, one lazy import site — all identical. What differs: (1) **model IDs are
+passed through byte-for-byte** — Gemini strips a `models/` resource prefix, and doing anything of the
+sort here would rewrite `openai/gpt-oss-120b`, a whole ID that merely contains a slash, into one that
+does not exist; (2) **finish reasons are lowercase** (`stop`/`length`/`tool_calls`) where Gemini's
+are uppercase; (3) **the SDK's own retries are disabled** (`max_retries=0`) because it retries twice
+by default, which would double-spend a free tier where TPD binds and would hide from Phase 4's
+limiter the very 429s it exists to see; (4) **reasoning is disabled on the `openai/gpt-oss` family
+only** — reasoning tokens come out of the output budget, the same trap Gemini's "thinking" posed, but
+sending the parameter to a Llama model is a 400, so it is sent per model family exactly as Gemini
+sends its thinking setting; (5) **status codes are read from `status_code`** (Groq/httpx) rather than
+Gemini's `code`.
+
+**THE ASYMMETRY — what Phase 4 can rely on.** `capabilities().exposes_rate_limits` is **True** for
+Groq and **False** for Gemini, and that flag is the switch: **header-driven for Groq,
+floored-and-conservative for Gemini.** Every response — success *and* 429 — is scraped into a
+`RateLimitSnapshot`, readable as `provider.last_rate_limits` and attached to the raised error as
+`exc.rate_limits` / `exc.retry_after_seconds`. Captured fields and their true meanings:
+
+| Header | Snapshot field | Real meaning |
+|---|---|---|
+| `x-ratelimit-limit-requests` | `limit_requests` | requests **per day** (RPD) |
+| `x-ratelimit-remaining-requests` | `remaining_requests` | RPD remaining |
+| `x-ratelimit-reset-requests` | `reset_requests_seconds` | Go duration → seconds |
+| `x-ratelimit-limit-tokens` | `limit_tokens` | tokens **per minute** (TPM) |
+| `x-ratelimit-remaining-tokens` | `remaining_tokens` | TPM remaining |
+| `x-ratelimit-reset-tokens` | `reset_tokens_seconds` | Go duration → seconds |
+| `retry-after` | `retry_after_seconds` | seconds; 429 only |
+| `x-groq-request-id` | `CompletionResult.provider_request_id` | falls back to `x_groq.id`, then `id` |
+
+The request=day / token=minute split is load-bearing: read the other way round, Phase 4 would wait a
+minute for a quota that resets tomorrow. Durations parse `"7.66s"`, `"2m59.56s"`, `"1h2m3s"`,
+`"500ms"` and bare seconds; **anything that does not parse cleanly and completely returns `None`**
+rather than a guess, because a limiter waiting on a misread header is worse than one falling back to
+its floor. `is_empty` tells Phase 4 when nothing usable came back. Headers are read case-insensitively
+and an older SDK without `with_raw_response` degrades to a plain call — losing the figures, not the
+run.
+
+**The rate-limit snapshot is a provider-specific extra, NOT a contract change — and that is the
+right answer, not a workaround.** Two reasons it does not belong on `CompletionResult`: the shared
+result has no field that could carry it without abusing one, and — decisively — **the reading Phase 4
+needs most arrives on a 429, where there is no `CompletionResult` at all**. A field on the success
+type would have covered only the easy half. A snapshot held on the provider and attached to the
+raised error covers both, and it is the same shape the local adapter already uses for its inspectable
+`RequestBudget`, which 2a's Phase 0 contract map confirmed sits outside the four-method protocol on
+purpose.
+
+**The 429 split.** The drop forbids inferring daily exhaustion from *every* 429, so it needs positive
+evidence, and Groq supplies two independent kinds: its own wording naming the exact limit ("on tokens
+per day (TPD)"), and — failing that — the header rule that `x-ratelimit-remaining-requests` is a
+per-**day** counter, so zero remaining is daily exhaustion even when the body says only "Too Many
+Requests". Anything else stays a retryable per-minute `RateLimited`. **Availability is
+per-model and per-organization**, so no observed figure is generalised and none is hardcoded: limits
+come from live headers, sizes from the reviewed record, and availability from *this key's* own model
+list.
+
+**Finish-reason and error mapping (the table).**
+
+| Groq signal | Mapped to | Retryable | Effect |
+|---|---|---|---|
+| `stop` + non-empty text | `CompletionResult` | — | accepted, then gated as usual |
+| `stop` + empty text | `InvalidResponse` | yes | one stricter retry, then fallback |
+| `length` | `InvalidResponse` ("truncated") | yes | one stricter retry, then fallback |
+| `tool_calls` / `function_call` | `InvalidResponse` | **no** | immediate chapter-atomic fallback |
+| absent / `""` / `none` / `unspecified` | `InvalidResponse` | **no** | **fails closed** |
+| **any unrecognised value** (e.g. `content_filter`) | `InvalidResponse` | **no** | **fails closed — text discarded, never returned** |
+| no choices at all | `InvalidResponse` | yes | retry then fallback |
+| local estimate over the record's context | `ContextTooLong` | no | refused **before** the call is paid for |
+| HTTP 413 | `ContextTooLong` | no | — |
+| HTTP 400 naming a token/context limit | `ContextTooLong` | no | — |
+| HTTP 400 otherwise | `ProviderUnavailable` | no | — |
+| HTTP 401 / 403 | `AuthenticationError` | no | — |
+| HTTP 404 | `ModelUnavailable` | no | names no replacement |
+| HTTP 429 naming per-day/TPD/RPD, **or** zero RPD remaining | `DailyQuotaExhausted` | no | Phase 5 checkpoint case |
+| HTTP 429 otherwise | `RateLimited` | yes | Phase 4 limiter case |
+| HTTP 5xx | `ProviderUnavailable` | yes | — |
+| timeout / connection fault | `TransientNetworkError` | yes | — |
+| missing `groq` | `ProviderUnavailable` → `PACKAGE_UNAVAILABLE` | no | — |
+| no key in any precedence slot | `AuthenticationError` → `AUTH_MISSING` | no | — |
+
+**Redaction.** Every message the adapter raises or logs is built from
+`redaction.redact_exception(...)` and bounded to 300 characters. A key passed directly to the
+constructor is registered with the redactor immediately (it never passed through `ai.secrets`), and
+the module logger carries the Phase 1 `RedactingFilter`, installed at construction. Five tests cover
+it, including a real `gsk_…`-shaped key echoed inside a provider error, inside an
+`Authorization: Bearer` header in a list failure, and in a log record.
+
+**The same pre-existing invariant caught the same class of mistake as in Phase 2.** A docstring in
+the new adapter named the other provider, tripping
+`test_ollama_name_is_confined_to_provider_factory_and_configuration_boundary`. The docstring was
+reworded — **the test was not widened**. Not a product defect.
+
+**Tests: 91 new, in `files/tests/test_groq_provider.py` (936 lines)**, all offline and hermetic —
+each passes explicit non-existent `secrets_file`/`dotenv_path` locations or an injected key, so a
+developer with a real `GROQ_API_KEY` on this machine cannot make the suite pass or fail for the wrong
+reason. Coverage: SDK isolation and lazy factory construction; capabilities from the reviewed record;
+`exposes_rate_limits = True`; the max-output override capping but never raising; namespaced IDs
+preserved untouched; approved-choice filtering (live ∩ reviewed ∩ selectable, preview and
+cross-provider excluded); refusal of non-approved, unknown-confidence, preview, alias and
+wrong-provider models; retired model → provider unavailable naming no replacement; empty live list
+treated as unverifiable rather than retired; availability checked **once**, not per chapter; absence
+of any substitution helper (source scan); the full happy path into `CompletionResult` including the
+model **actually used**, request ID and token usage; missing usage reported as `None` rather than
+invented; the exact outbound payload (bounded max-output, temperature, seed, `n`, `stream`, separate
+system/user messages, reasoning disabled per family, SDK retries off); every row of the mapping table
+including the **fail-closed unknown finish reason**; local and provider-side context-too-long; auth
+missing, rejected and env-resolved; the full header block — parsing, case-insensitivity, malformed,
+absent, retry-after, snapshot on the raised error, and the no-`with_raw_response` fallback; and
+redaction with an injected fake key.
+
+**Five guards were mutation-tested**, so they are proven load-bearing rather than incidentally green:
+breaking the fail-closed finish-reason branch, the header-driven daily classification, the
+reasoning-effort family gate, the disabled SDK retries, or the byte-for-byte model-ID passthrough
+each makes its own test fail.
+
+**Gates.** `scripts/verify.py` **PASS — 892 passed, 9 skipped** (901 collected, 0 failed); pins PASS;
+CHANGELOG at v0.12.0 matching BRIEFING. That is **+91 exactly** against the 801/9 Phase 2 baseline,
+with zero regressions. `pip check` clean; `git diff --check` clean. **Clean-room re-run: identical
+892 passed / 9 skipped** with `ollama`, `groq`, `google.genai` and `google.generativeai` all blocked
+by an injected import blocker and `GEMINI_API_KEY`/`GROQ_API_KEY`/`GOOGLE_API_KEY` unset — the suite
+genuinely passes offline with no keys and no SDKs installed. Neither cloud SDK is installed on this
+machine, matching Phase 2.
+
+**Not done, by instruction:** no rate limiter or quota state machine (Phase 4); no run manifest or
+resume (Phase 5); no GUI widget, provider dropdown, or disclosure dialog (Phase 6); no comparison run
+(Phase 7); no CHANGELOG/BRIEFING/DECISIONS entry (v0.13.0 docs belong to Phase 8). `config.toml` was
+**not** touched — `[ai.groq] enabled = false` and `model = ""` still ship, so Groq is inert and
+nothing pre-selects a cloud model.
+
+## Work Log — 2026-07-24 — Claude Code — Plan 2b Phase 2 (GeminiProvider)
+
+Ran on HOME-PC. **Phase 2 is complete and STOPPED per instruction; Phase 3 was not started.**
+**No live cloud call was made** — every test injects an in-process fake transport. `AIEditor`, the
+validation gate, the prompt layer, the chunker, and the deterministic pipeline are byte-for-byte
+unchanged, confirmed by `git diff --stat HEAD` over each file.
+
+**The 2a base contract required NO change.** `provider.py`, `models.py` and `errors.py` are
+untouched, and the diff proves it. Everything Gemini needed already existed: `AUTH_MISSING` and
+`QUOTA_EXHAUSTED` on `ProviderStatus`; `AuthenticationError`, `RateLimited`, `DailyQuotaExhausted`,
+`ContextTooLong`, `TransientNetworkError`, `InvalidResponse`, `ModelUnavailable`,
+`ProviderUnavailable` in the taxonomy; `provider_request_id` / `input_tokens` / `output_tokens` /
+`truncated` / `finish_reason` on `CompletionResult`; `exposes_rate_limits` and
+`privacy_disclosure_id` on `ProviderCapabilities`; and `factory.py`'s existing lazy `gemini` →
+`ai.providers.gemini.GeminiProvider` mapping, which needed no edit. The one thing worth recording is
+that the taxonomy has **no dedicated safety/content-block error**, so a Gemini safety refusal is
+mapped to `InvalidResponse(retryable=False)`. That is not a gap: `editor.py` sets
+`stricter_retry = isinstance(exc, InvalidResponse)` and then `if not exc.retryable: break`, so a
+non-retryable `InvalidResponse` goes straight to chapter-atomic script-only fallback, which is the
+correct behaviour for a permanent content refusal. Adding an error type would have changed the
+shared contract to express something it already expresses.
+
+**Web re-verification first, before any provider code (mandatory step).** All five Gemini
+`[[ai.approved_models]]` records were re-checked against Google's own docs and **needed no change** —
+still `stable`, still "Free of charge" on the Standard tier, still 1,048,576 / 65,536. Three findings
+are written into the drop as a dated *Phase 2 research re-verification* section (items 9–11):
+Phase 0's correction #1 was **over-corrected** and is refined (the **tier** is set at the billing
+account, the **quota** is enforced per project — neither is per API key); Google still publishes
+**no** free-tier limits table and **no** rate-limit response headers, so "limits unknown" is
+re-confirmed as the normal Gemini case and `exposes_rate_limits = False` is a documented fact rather
+than a guess; and `gemini-2.0-flash`/`-lite` are now "Shut down" (never approved, nothing to remove)
+while `gemini-2.5-flash-lite` and `gemini-2.5-pro` are stable but were **deliberately not added** —
+an approved record is a review commitment, and widening the callable surface with un-piloted models
+buys nothing.
+
+**SDK pinned: `google-genai==2.14.0`** — the current official Google SDK, *not* the deprecated
+`google-generativeai`. Surface confirmed through Context7 against the SDK's own source
+(`Client(api_key=…, http_options=…)`, `client.models.generate_content(model, contents, config)`,
+`client.models.list()`, `GenerateContentConfig`, `ThinkingConfig`, `FinishReason`,
+`GenerateContentResponseUsageMetadata`, `errors.APIError.code`) and cross-checked on PyPI as the
+latest release with `requires_python >= 3.10`, matching `config.toml python_minimum`. The Phase 0
+candidate had not drifted. **The SDK is imported in exactly one place** —
+`ai/providers/gemini.py`'s `_load_sdk()`, called only when a client is actually built. A test asserts
+`google.genai` is absent from `sys.modules` after importing both `ai` and the adapter module itself.
+
+**Design decisions worth keeping.** *Refusals are stored, not raised, at construction* — the GUI has
+to be able to build a provider in order to display why it cannot be used, so an unapproved model
+yields `capabilities().model_ids == ()` and `health_check() → MODEL_MISSING`, and only `complete()`
+raises. *Max output comes from the reviewed record*, never a constant in the adapter; an explicit
+argument may **lower** it (a config cap) and can never raise it above what was reviewed. *Retirement
+is checked once per provider instance and cached* — a 3,000-chapter run must not pay for a
+`models.list()` per chapter — and a transport failure during that check is **not** treated as
+evidence of retirement. *The config is built as a plain dict*, not a `types.GenerateContentConfig`,
+which keeps the SDK import confined to client construction. *Thinking is turned off* (`thinking_level
+= MINIMAL` on the 3.x series, `thinking_budget = 0` on 2.5 — sending the wrong one is a 400), because
+thinking tokens are drawn from the output budget and would otherwise produce a paid-for `MAX_TOKENS`
+finish with no visible text.
+
+**Finish-reason and error mapping (the table).** Finish reasons are compared as **plain strings**,
+never against the SDK's enum — an enum this module does not import cannot grow a member this module
+silently accepts.
+
+| Gemini signal | Mapped to | Retryable | Effect |
+|---|---|---|---|
+| `STOP` + non-empty text | `CompletionResult` | — | accepted, then gated as usual |
+| `STOP` + empty text | `InvalidResponse` | yes | one stricter retry, then fallback |
+| `MAX_TOKENS` | `InvalidResponse` ("truncated") | yes | one stricter retry, then fallback |
+| `SAFETY`/`RECITATION`/`BLOCKLIST`/`PROHIBITED_CONTENT`/`SPII`/`LANGUAGE`/`IMAGE_SAFETY`/tool-call | `InvalidResponse` | **no** | immediate chapter-atomic fallback |
+| `prompt_feedback.block_reason` set | `InvalidResponse` ("blocked") | **no** | immediate fallback, read before candidates |
+| absent / `""` / `FINISH_REASON_UNSPECIFIED` | `InvalidResponse` | **no** | **fails closed** |
+| **any unrecognised value** | `InvalidResponse` | **no** | **fails closed — candidate text discarded, never returned** |
+| no candidates at all | `InvalidResponse` | yes | retry then fallback |
+| local estimate over the record's context | `ContextTooLong` | no | refused **before** the call is paid for |
+| HTTP 400 naming a token/context limit | `ContextTooLong` | no | — |
+| HTTP 400 otherwise | `ProviderUnavailable` | no | — |
+| HTTP 401 / 403 | `AuthenticationError` | no | — |
+| HTTP 404 | `ModelUnavailable` | no | names no replacement |
+| HTTP 429 naming a per-day/daily quota | `DailyQuotaExhausted` | no | Phase 5 checkpoint case |
+| HTTP 429 otherwise | `RateLimited` | yes | Phase 4 limiter case |
+| HTTP 5xx | `ProviderUnavailable` | yes | — |
+| timeout / connection fault | `TransientNetworkError` | yes | — |
+| missing `google-genai` | `ProviderUnavailable` → `PACKAGE_UNAVAILABLE` | no | — |
+| no key in any precedence slot | `AuthenticationError` → `AUTH_MISSING` | no | — |
+
+The 429 split matters and is deliberate: the drop forbids inferring daily exhaustion from *every*
+429, so only a quota Google itself names per-day becomes `DailyQuotaExhausted`.
+
+**Redaction.** Every message the adapter raises or logs is built from
+`redaction.redact_exception(...)` and bounded to 300 characters, because Google puts the API key in
+the request URL and that URL lands in the exception text — redaction here is the only thing between a
+403 and a key in the user's log. A key passed directly to the constructor is registered with the
+redactor immediately (it never passed through `ai.secrets`). The module logger carries the Phase 1
+`RedactingFilter`, installed at construction. Four tests cover it, including a real `AIza…`-shaped key
+echoed inside a provider error and a log record.
+
+**A real pre-existing invariant caught a genuine mistake.** A comment in the new adapter named the
+other provider, which tripped
+`test_ollama_name_is_confined_to_provider_factory_and_configuration_boundary`. The comment was
+reworded — the test was **not** widened. Separately, the factory test initially failed only in the
+full-suite run: the foundation import-isolation tests reload the `ai` package, so the lazily imported
+class is not the same object the test module imported. 2a hit this exact problem and documented the
+answer, so the same pattern was applied (assert `type(x).__name__` and the capability, not class
+identity). Neither was a product defect.
+
+**Tests: 63 new, in `files/tests/test_gemini_provider.py` (633 lines)**, all offline and hermetic —
+each passes explicit non-existent `secrets_file`/`dotenv_path` locations or an injected key, so a
+developer with a real `GEMINI_API_KEY` on this machine cannot make the suite pass or fail for the
+wrong reason. Coverage: SDK isolation and lazy factory construction; capabilities driven by the
+reviewed record; the max-output override capping but never raising it; live model list with the
+`models/` prefix stripped; approved-choice filtering (live ∩ reviewed ∩ selectable, cross-provider
+excluded); refusal of a non-approved, unknown-confidence, preview/not-free, alias, and
+wrong-provider model; retired model → `MODEL_MISSING` + a message naming no replacement; an empty
+live list treated as unverifiable rather than retired; the absence of any substitution helper
+(asserted by source scan); the full happy path mapped into `CompletionResult` including the model
+**actually used**, request ID and token usage; missing usage metadata reported as `None` rather than
+invented; the exact outbound config (bounded max-output, temperature, seed, `candidate_count`,
+thinking disabled per model family); every row of the mapping table above including the
+**fail-closed unknown finish reason**; local and provider-side context-too-long; auth missing,
+rejected, and env-resolved; and redaction with an injected fake key. The fail-closed branch was
+**mutation-tested** — replacing its condition with `if False:` makes
+`test_an_unknown_finish_reason_fails_closed_and_never_returns_the_text` fail, so the guard is proven
+load-bearing rather than incidentally green.
+
+**Gates.** `scripts/verify.py` **PASS — 801 passed, 9 skipped** (810 collected, 0 failed); pins PASS;
+CHANGELOG at v0.12.0 matching BRIEFING. That is **+62 net** against the 739/8 Phase 1 baseline (63 new
+tests, with the usual Tk display skip flipping pass↔skip on this machine). `pip check` clean;
+`git diff --check` clean. **Clean-room re-run: identical 801 passed / 9 skipped** with `ollama`,
+`google.genai`, `google.generativeai` and `groq` imports all blocked by an injected import blocker and
+`GEMINI_API_KEY`/`GROQ_API_KEY`/`GOOGLE_API_KEY` unset — the suite genuinely passes offline with no
+keys and no SDKs installed.
+
+**Not done, by instruction:** no Groq adapter and no `groq` pin (Phase 3); no rate limiter or quota
+state machine (Phase 4); no run manifest or resume (Phase 5); no GUI widget, provider dropdown, or
+disclosure dialog (Phase 6); no comparison run (Phase 7); no CHANGELOG/BRIEFING/DECISIONS entry
+(v0.13.0 docs belong to Phase 8). `config.toml` was **not** touched — `[ai.gemini] enabled = false`
+and `model = ""` still ship, so Gemini is inert and nothing pre-selects a cloud model.
+
+## Work Log — 2026-07-24 — Claude Code — Plan 2b Phase 1 (Keys, Settings, Consent, Safety Rails)
+
+Ran on HOME-PC. **Phase 1 is complete and STOPPED per instruction; Phase 2 was not started.**
+No provider API call was made, no provider SDK was imported, and `scripts/requirements.txt` was not
+touched. `AIEditor`, the validation gate, the prompt layer, and the deterministic pipeline are
+byte-for-byte unchanged.
+
+**Five new modules under `scripts/Universal/ai/`, all pure-stdlib and side-effect-free at import:**
+`redaction.py` (the single redaction boundary), `secrets.py` (key precedence + per-user storage +
+presence-only reporting), `approved_models.py` (the reviewed-record loader and every refusal rule),
+`disclosure.py` (the versioned privacy/billing disclosure and its acknowledgement record), and
+`cloud.py` (readiness reporting plus the one gate every cloud request must pass).
+
+**Key precedence** is env var (`GEMINI_API_KEY` / `GROQ_API_KEY`) → per-user `secrets.json` →
+session-only in-memory key → repo-root `.env` **read-only developer override** → unavailable with a
+plain-English reason. The drop numbers only the first three slots and calls `.env` an override, so
+`.env` was placed *below* the session key rather than at the top: an override that silently
+outranked the user's own saved key is a good place for a wrong key to hide. Reading `.env` never
+mutates `os.environ`, which would otherwise leak the value into every child process the app spawns.
+Storage **reuses 2a's `runtime_dir()` and `write_settings_atomic()`** rather than reimplementing
+either; after the atomic replace the file is tightened to owner-only (`chmod 0600`, plus a
+best-effort `icacls /inheritance:r /grant:r <user>:F` on Windows, which is the only real mechanism
+there — failure is swallowed so a weak ACL never costs the user their saved key).
+
+**One redaction boundary, two independent layers.** `ai.secrets` registers every key it resolves,
+from any source, the moment it resolves it, so the exact value is masked wherever it later appears;
+independently, Google (`AIza…`), Groq (`gsk_…`) and OpenAI-style (`sk-…`) key shapes,
+`Authorization: Bearer …`, and `api_key=…` assignments are masked whether or not they were ever
+registered — that second layer is what covers a key echoed by a third-party SDK that never passed
+through our resolver. `redact_obj` covers serialized structures (JSONL, the Phase 5 manifest),
+`redact_argv` covers command lines, `redact_exception`/`redact_traceback` cover error text, and a
+`logging.Filter` covers stdlib logging. The GUI's single log sink, `WebnovelEditorApp._log`, now
+routes every message through it, and a test asserts that it does.
+
+**Approved-model rules.** Records load from the existing `[[ai.approved_models]]` entries written in
+Phase 0 (they were not rewritten). Refusals, all non-retryable `ModelUnavailable`: not in the
+approved list; approved for a different provider; a `latest`-style moving alias (refused at load
+*and* at call, even if hand-edited in); `free_tier_confidence` other than `confirmed` while strict
+free-only mode is on; non-`stable` status in strict mode; and an empty selection. A retired model —
+configured, approved, but absent from the provider's live list — marks the provider unavailable with
+a message that deliberately names no alternative. An **empty** live list is treated as
+"unverifiable", not "retired", so an unreachable list endpoint cannot fake a retirement. The module
+contains no substitution helper of any kind, and a test asserts that.
+
+**Disclosure record shape:** `settings.json` → `ai.cloud_disclosure` → `{provider: version}`, e.g.
+`{"gemini": "1"}`. Only the version string is stored — no name, date, account, path, chapter text, or
+key — and acknowledgement is **per provider**, because the disclosure text names which company
+receives the chapters. Bumping `DISCLOSURE_VERSION` invalidates every existing acknowledgement.
+`DisclosureNotAcknowledged` is defined in `disclosure.py`, **not** in `errors.py`, so 2a's shared
+error taxonomy stays untouched (Definition of Done: "the 2a base contract required no change").
+
+**`config.toml`** gained secret-free `[ai.gemini]` / `[ai.groq]` subtables. Both ship
+`enabled = false` and **`model = ""`** — an empty default is deliberate, because the Phase 7
+comparison run chooses the default and nothing should pre-select a cloud model before that evidence
+exists. `strict_free_tier_only = true` is the shipped safety default, and `exposes_rate_limits`
+records the Phase 0 correction #4 asymmetry (Groq true, Gemini false) for Phase 4 to act on.
+
+**One existing test was strengthened, not weakened.** `test_committed_config_is_disabled_and_secret_free`
+used a bare substring scan for `api_key`/`secret`, which the new comments documenting the
+`GEMINI_API_KEY`/`GROQ_API_KEY` variable names would have tripped. It now asserts (a) no line
+*assigns* a credential-shaped setting and (b) `redact(config_text) == config_text`, i.e. no
+Google/Groq/OpenAI-shaped key value appears anywhere in the file. Both checks catch real committed
+credentials that the old substring scan would have missed.
+
+**Tests: 51 new, in `files/tests/test_cloud_keys_and_consent.py`**, all offline and hermetic (every
+test passes explicit `secrets_file`/`settings_file`/`dotenv_path` locations, so a developer who
+happens to have a real key on this machine cannot make the suite pass or fail for the wrong reason).
+Coverage: each precedence slot and absence; the precedence order itself; atomic write and permission
+restriction; presence-only reporting proven not to carry a value; redaction of plain text,
+structures, argv, exceptions, tracebacks and log records, including unregistered keys caught by
+shape; approved-record loading from the committed config; malformed records skipped with reasons;
+every refusal rule; retired-model handling and the absence of any substitution helper; the
+disclosure record's exact shape and per-provider scoping; the gate blocking on each rail in turn;
+readiness reporting never raising; and script-only output byte-identical with the whole cloud layer
+loaded, a key registered, and consent recorded.
+
+**`verify.py`: PASS — 739 passed, 8 skipped** (747 collected, 0 failed); pins PASS; CHANGELOG at
+v0.12.0 matching BRIEFING. That is +51 tests and zero regressions against the 688/8 branch baseline.
+
+**Not done, by instruction:** no provider adapter, no SDK import or pin, no provider API call, no
+rate limiter, no run manifest, no GUI widgets (only the tkinter-free
+`ai_settings.describe_key_presence` helper and two new status messages), no masked-prompt dialog
+(the session-key *resolution* slot exists; the dialog belongs with Phase 6's GUI work), and no
+CHANGELOG/BRIEFING/DECISIONS entry — v0.13.0 docs belong to Phase 8.
+
+**Carried into Phase 2:** `ai/__init__.py` was deliberately left unchanged, so the new modules are
+imported by path (`from ai.cloud import …`) and `import ai` keeps its 2a surface and its
+tomli-free import cost on Python 3.10.
+
 **Plan 2a is COMPLETE and v0.12.0 is RELEASED.** `feature/plan-2a-provider-foundation` was merged
 into `main` with a `--no-ff` merge commit and `main` was tagged **`v0.12.0`** — the project's first
 release tag (DECISIONS #061). `main` is now the v0.12.0 shipped baseline, superseding v0.11.0
@@ -32,6 +1966,162 @@ per-file exception isolation; `pause_gate` is checked only between files;
 dry-run, and build steps; and `build_pdf(...)` remains the sole PDF writer.
 Baseline on Python 3.14.2: `pip check` clean; `scripts/verify.py` PASS with
 **505 passed, 9 skipped** (environmental skips only).
+
+## Work Log — 2026-07-24 — Claude Code — Plan 2b Phase 0 (Reconcile + Baseline + Re-research)
+
+Ran on HOME-PC. **Phase 0 is complete and STOPPED per instruction; Phase 1 was not started.**
+No provider adapter code was written — this phase is reconciliation and research only.
+
+**Reconcile — no divergence.** `main` was clean (only the two pre-existing untracked paths,
+`.claude/` and the superseded `md-instructions/plan-2-ai-editor-integration.md`, both deliberately
+left untracked as in every prior phase). Nothing staged; no secret, `.env`, corpus, or generated
+output anywhere near the index. `git fetch --all --tags --prune` confirmed local `main` ==
+`origin/main` == **`72d68ca`**, carrying tag **`v0.12.0`** — the approved Plan 2a release merge. The
+prune deleted four stale remote-tracking refs for branches already removed on `origin`
+(`feature/gui-batch-overhaul`, `feature/junk-strip-hardening`, `feature/novel-dropdown`,
+`release-main`); no local branch and no reachable commit was affected. Branch
+**`feature/plan-2b-cloud-providers`** created at **`72d68ca`**.
+
+**Baseline.** `scripts/verify.py` **PASS — 688 passed, 8 skipped** (696 collected, 0 failed);
+dependency pins PASS; CHANGELOG at v0.12.0 matching BRIEFING. After the `config.toml` change the
+re-run was **687 passed / 9 skipped** — the *same 696 collected with zero failures*; the one-test
+delta is the long-documented Tk "no display available" skip that flips pass↔skip on this machine.
+
+**2a's real contract was mapped from code, and it is already cloud-shaped — no base-contract
+change is needed.** Recorded because the drop describes the contract loosely and the code wins:
+`ProviderStatus` already has all nine values including `AUTH_MISSING` and `QUOTA_EXHAUSTED`;
+`errors.py` already defines `AuthenticationError`, `RateLimited`, `DailyQuotaExhausted`,
+`ContextTooLong`, `RequestCancelled`; `ProviderCapabilities` already carries `exposes_rate_limits`
+and `privacy_disclosure_id`; `CompletionResult` already carries `provider_request_id`,
+`input_tokens`, `output_tokens`, `truncated`, `finish_reason`; and `factory.py` **already maps
+`gemini` and `groq` to `ai.providers.{gemini,groq}` behind its lazy import**, so Phases 2–3 only add
+the two modules. Two things the drop does not say: the `AIProvider` protocol is exactly four methods
+and `OllamaProvider.request_budget()` is **not** part of it (cloud adapters must report limits via
+`ProviderCapabilities`); and `ai/settings.py` **already implements** `runtime_dir()` for
+`%LOCALAPPDATA%/WebNovelEditor` + `~/Library/Application Support/WebNovelEditor` and
+`write_settings_atomic()`, which Phase 1 must reuse for `secrets.json` rather than reimplement.
+
+**Research (2026-07-24, providers' own docs only — third-party aggregators were checked and
+discarded as contradictory).** Nine dated approved-model records written to `config.toml` under
+`[[ai.approved_models]]` using the drop's exact nine-field schema, exact IDs only, no `latest`
+alias, stable-only: five Gemini (`gemini-3.6-flash`, `gemini-3.5-flash`, `gemini-3.5-flash-lite`,
+`gemini-3.1-flash-lite`, `gemini-2.5-flash`; all 1,048,576 / 65,536) and four Groq
+(`llama-3.3-70b-versatile` 131,072/32,768, `llama-3.1-8b-instant` 131,072/131,072,
+`openai/gpt-oss-120b` and `openai/gpt-oss-20b` both 131,072/65,536). Verified inert: the live config
+still resolves `enabled=False, model='qwen3:14b', strategy=mask`, and per DECISIONS #060 there is no
+`**kwargs` splat anywhere in `scripts/`, so the new key cannot be observed by existing consumers.
+
+**Eight drop claims were corrected** and are recorded in a dated *Phase 0 research corrections*
+section inside the drop itself (that section wins over the older prose). The load-bearing ones:
+Gemini limits are **per project**, not per billing account; **Google no longer publishes a
+free-tier limits table at all**, deferring to AI Studio, so Gemini quota is unknowable from docs
+while free-*of-charge* status is separately confirmable from the pricing page; **Groq is the mirror
+image** — it publishes exact per-model free RPM/RPD/TPM/TPD and returns `retry-after` plus
+`x-ratelimit-*` headers, so Phase 4 is Groq-header-driven and Gemini-floored by design; **Groq has
+no Qwen model in production**, so there is no continuity with the 2a `qwen3:14b` baseline; and the
+**workload assumption is wrong** — on Groq free, TPD binds long before RPD (100K TPD ≈ ten chapters
+a day) and `llama-3.1-8b-instant`'s 6K TPM is smaller than a single chapter round-trip, so a
+~3,000-chapter cloud run is not viable and cloud is realistically for subsets and comparison runs.
+
+**One safety gap found and closed outside the drop's letter.** `.gitignore` had **no** `.env`,
+`*.key`, `*.pem`, or `secrets.json` rules, and did not ignore `.claude/`, `.codex/`, or `.vscode/`
+despite AI-WORKSPACE.md requiring all of them. Nothing was ever committed as a result, but starting a
+plan whose entire subject is API keys with no credential ignore rules was not acceptable, so the
+rules were added now rather than deferred to Phase 1.
+
+**Toolkit availability on this machine.** Superpowers, Context7 and `sequential_thinking` are
+present. The three skills the drop names by filename — `tdd-guide`, `spec-driven-workflow`,
+`dependency-auditor` — are **not** in `.claude/skills/` on HOME-PC (which holds an unrelated set).
+They were skipped rather than auto-installed; their intent was applied by hand (the dependency-audit
+mindset produced the un-pinned SDK candidates below). Phases 2–4 should not assume they exist.
+
+**SDK candidates recorded, deliberately NOT pinned in this phase:** `google-genai==2.14.0` (the
+current official Google SDK — *not* the deprecated `google-generativeai`) and `groq==1.6.0`. Both
+require Python >= 3.10, matching `config.toml python_minimum`. `groq==1.6.0` was released
+**2026-07-24**, i.e. the same day as this review, so Phase 3 should re-check it rather than pin a
+same-day release blind. `scripts/requirements.txt` was not touched.
+
+**Not done, by instruction:** no provider adapter code, no `[ai.gemini]`/`[ai.groq]` subtables, no
+key storage, no consent dialog, no rate limiter, no GUI change, no dependency added, no
+CHANGELOG/BRIEFING/DECISIONS entry (v0.13.0 docs belong to Phase 8), no merge, no tag, no PR.
+
+### Session Sync Log
+- 2026-07-27 — HOME-PC — Author-ruled spelling normalizations + prompt-cost re-measure, verify
+  **1195 passed / 10 skipped** on `feature/plan-2b-cloud-providers`. Changed:
+  `profiles/the_noble_queen/special_fixes.py` (Kraii -> Kraai, map was empty),
+  `profiles/renegade_immortal/` (new package: empty floor + Ligou/Ligo -> Liguo),
+  `pipelines/renegade_immortal.py` (new, mirrors the universal pipeline stage-for-stage),
+  `core/novel_registry.py` (+1 registry entry and its import), `novel-index/the-noble-queen.txt`
+  (**removed `Kraii`** — masking precedes special fixes, so an indexed variant would block its
+  own rule), plus `files/tests/test_novel_profiles.py`, `test_dual_mode_provenance.py`,
+  `test_novel_registry.py` (Reverend Insanity takes over as the profile-less fixture; 9 new
+  tests). **`scripts/Universal/ai/` untouched — empty diff** (AIEditor, gate, prompt layer).
+  No config, dependency or cloud call. Prompt cost re-measured locally: Renegade Immortal
+  2.10x and Reverend Insanity 3.24x their Phase 7b per-chapter input tokens, cutting Groq
+  free-tier throughput to roughly 15 and 10 chapters/day.
+  Next: unchanged — Plan 2b still pauses for the provider decision.
+- 2026-07-26 — HOME-PC — Protected-term index build + audit, all 8 novels, verify **1188 passed / 8
+  skipped** (1196 collected) on `feature/plan-2b-cloud-providers`. **Index data only.** Changed:
+  `scripts/Universal/resources/novel-index/` — `renegade-immortal.txt` (0→837), `reverend-insanity.txt`
+  (0→1435), `the-noble-queen.txt` (26→371, incl. the standalone `Kraai`/`Kraii` fix committed first),
+  `shadow-slave.txt` (353→541), `supreme-magus.txt` (594→890), and comment-only status headers for
+  `circle-of-inevitability.txt`, `lord-of-the-mysteries.txt`, `re-monster.txt` (still 0 active terms
+  each — no corpus exists to measure). Plus `md-instructions/DECISIONS.md` (#062) and this file.
+  **No editing logic touched** — no change to `editor.py`, `validation.py`, `prompt.py`,
+  `chunking.py`, `protected_lexicon.py`, any pipeline or profile, any provider, `spend_guard.py`, or
+  `config.toml`. No new dependency; no cloud call (candidate generation ran on local Ollama
+  qwen3:14b, which proposed 3,878 terms of which 132 (3.4%) were rejected as absent from the corpus).
+  410 dual-use candidates left commented out for the author. Seven commits, one novel each.
+  Next: unchanged — Plan 2b still pauses for the provider decision; Phase 8 not started.
+- 2026-07-25 — HOME-PC — Plan 2b Phase 5 (checkpointed runs), verify 1042/10 (1052 collected) on
+  `feature/plan-2b-cloud-providers`. Changed: `scripts/Universal/core/run_manifest.py` (new, 436
+  lines — `RunCheckpoint`, `load_manifest`, `ResumeOffer`, `find_resumable_run`, `plan_resume`),
+  `files/tests/test_run_manifest.py` (new, 974 lines, 66 tests), `scripts/Universal/core/
+  batch_runner.py` (+40 lines — one optional `checkpoint` parameter and four guarded call sites,
+  inert when absent), `md-instructions/HANDOFF.md` (this entry + Current Focus). **2a base contract
+  unchanged** — no edit to `provider.py`, `models.py`, `errors.py`, `factory.py`, `editor.py`,
+  `validation.py`, `prompt.py` or `chunking.py`. **`rate_limits.py`, both provider adapters, the whole
+  GUI and `config.toml` unchanged** — `QuotaStop` is consumed duck-typed. No new dependency
+  (`requirements.txt` untouched). No live cloud call. Committed and pushed to the working branch.
+  Next: Phase 6 — GUI provider selection, consent dialog, status, ETA, and the resume offer.
+- 2026-07-25 — HOME-PC — Plan 2b Phase 4 (rate limiting + quota classification), verify 977/9 on
+  `feature/plan-2b-cloud-providers`. Changed: `scripts/Universal/ai/rate_limits.py` (new, 790 lines —
+  the shared limiter, both implementations, the `RateLimitedProvider` wrapper and the `QuotaStop`
+  seam), `files/tests/test_rate_limiting.py` (new, 1,165 lines, 85 tests), `config.toml` (+47 lines —
+  eight limiter-floor keys per cloud provider with a dated rationale block), `scripts/Universal/ai/
+  cloud.py` (+25 lines — the same keys as safety defaults in `CLOUD_DEFAULTS`),
+  `md-instructions/HANDOFF.md` (this entry + Current Focus). **2a base contract unchanged** — no edit
+  to `provider.py`, `models.py`, `errors.py`, `factory.py`, `editor.py`, `validation.py`, `prompt.py`
+  or `chunking.py`. **Both provider adapters, `core/batch_runner.py` and the whole GUI unchanged.** No
+  new dependency (`requirements.txt` untouched). No live cloud call. Committed and pushed to the
+  working branch. Next: Phase 5 — checkpointed runs, hooking `ai.rate_limits.QuotaStop`.
+- 2026-07-25 — HOME-PC — Plan 2b Phase 3 (GroqProvider), verify 892/9 on
+  `feature/plan-2b-cloud-providers`. Changed: `scripts/Universal/ai/providers/groq.py` (new, 862
+  lines), `files/tests/test_groq_provider.py` (new, 936 lines, 91 tests),
+  `scripts/requirements.txt` (+14 lines — `groq==1.6.0` pinned with rationale),
+  `md-instructions/plan-2b-cloud-providers.md` (+53 lines — dated Phase 3 re-verification section,
+  items 12–15), `md-instructions/HANDOFF.md` (this entry + Current Focus). **2a base contract
+  unchanged** — no edit to `provider.py`, `models.py`, `errors.py`, `factory.py`, `editor.py`,
+  `validation.py`, `prompt.py` or `chunking.py`. No `config.toml`, GUI, pipeline, launcher, Gemini
+  or Ollama change. No live cloud call. Committed and pushed to the working branch.
+  Next: Phase 4 — rate limiting + quota classification.
+- 2026-07-24 — HOME-PC — Plan 2b Phase 0 from `72d68ca` on new branch
+- 2026-07-24 — HOME-PC — Plan 2b Phase 2 (GeminiProvider), verify 801/9 on
+  `feature/plan-2b-cloud-providers`. Changed: `scripts/Universal/ai/providers/gemini.py` (new, 623
+  lines), `files/tests/test_gemini_provider.py` (new, 633 lines, 63 tests),
+  `scripts/requirements.txt` (+7 lines — `google-genai==2.14.0` pinned with rationale),
+  `md-instructions/plan-2b-cloud-providers.md` (dated Phase 2 re-verification section, items 9–11),
+  `md-instructions/HANDOFF.md` (this entry + Current Focus). **2a base contract unchanged** — no edit
+  to `provider.py`, `models.py`, `errors.py`, `factory.py`, `editor.py`, `validation.py`, `prompt.py`
+  or `chunking.py`. No `config.toml`, GUI, pipeline, or launcher change. No live cloud call.
+  Committed and pushed to the working branch. Next: Phase 3 — GroqProvider.
+- 2026-07-24 — HOME-PC — Plan 2b Phase 1 (keys/redaction/approved models/consent), verify 739/8
+  `feature/plan-2b-cloud-providers`. Changed: `config.toml` (+9 `[[ai.approved_models]]` records and
+  dated research comments), `.gitignore` (credential + agent-config ignore rules added),
+  `md-instructions/plan-2b-cloud-providers.md` (dated Phase 0 corrections section, contract map,
+  secrets-path reuse note, Qwen line settled), `md-instructions/HANDOFF.md` (this entry + Current
+  Focus). No code, test, GUI, pipeline, or requirements change. Committed and pushed to the working
+  branch. Next: Phase 1 — keys, settings, consent, safety rails.
 
 ## Work Log — 2026-07-24 — Claude Code — v0.12.0 RELEASE: merge to main + first release tag (Work Item B)
 
@@ -1667,6 +3757,200 @@ summary record.
 ---
 
 ## Session Sync Log (newest first)
+
+### 2026-07-27 (evening) — HOME-PC — PUSHED (qwen audit, RI/RevIns coverage, quota root-cause, version+launcher — UNMERGED)
+
+Branch `feature/plan-2b-cloud-providers`, four commits, pushed to `origin`. `verify` PASS —
+**1265 passed, 8 skipped** (was 1252 / 9), now with a fourth check. Plan 2b remains unmerged.
+
+`ade63ce` — Record why qwen/qwen3.6-27b is NOT approved
+- M `md-instructions/DECISIONS.md` — #073 (rejected candidate; preview status + developer-plan pricing)
+- No code changed; the approved list stays at eight.
+
+`4208b7e` — Wait out a per-day quota that refills, instead of ending the run for the day
+- M `scripts/Universal/ai/rate_limits.py` — `daily_quota_retry_delay_max_seconds`; the refill branch
+- M `scripts/Universal/ai/cloud.py` — the default (120 Gemini)
+- M `scripts/Universal/ai/providers/gemini.py` — `retry_after_seconds` attached to `DailyQuotaExhausted`
+- M `config.toml` — the knob, 120 for Gemini / 0 for Groq, with the captured evidence in a comment
+- M `files/tests/test_rate_limiting.py` (+9), `files/tests/test_gemini_provider.py` (+3)
+- M `md-instructions/DECISIONS.md` — #072; `md-instructions/CHANGELOG.md`
+
+`b1ded4e` — Align the version, finish the launcher rename, and stop the drift recurring
+- R `Setup_and_Run.bat` → `Setup_and_Run-Web-Novel-Editor.bat` (pure rename, CRLF kept)
+- R `Setup_and_Run.command` → `Setup_and_Run-Web-Novel-Editor.command` (pure rename, LF + 100755 kept)
+- M `config.toml` — version 0.12.0 → 0.13.0
+- M `scripts/verify.py` — `check_config_version`, now `[4/4]`
+- M `files/tests/test_scaffold.py` — two drift tests
+- M `README.md`, `scripts/Universal/main.py`, `md-instructions/BRIEFING.md`,
+  `md-instructions/plan-2c-installer-bootstrap.md` — live references only
+- M `md-instructions/CHANGELOG.md`
+
+`<this commit>` — the Task B diagnosis, recorded in HANDOFF (no code change: diagnosis only)
+
+**Deliberately NOT staged:** the untracked `md-instructions/plan-2-ai-editor-integration.md` (not
+mine to remove).
+
+**Local and gitignored, nothing committed:** `files/qa-tools/scratch/model-audit/`
+(`probe_models.py`, `quota_detail.py`, `run_with_429_capture.py`, `raw_429.jsonl`, `audit.json`) and
+`files/qa-tools/scratch/pilot-2b/` (`results.jsonl` now at 27/40 measured, `results_phase7b.jsonl`
+and `bundle_phase7b/` preserved). No corpus text and no provider key left `files/qa-tools/scratch/`.
+
+### 2026-07-27 — HOME-PC — PUSHED (post-click-through: model audit, rejection-rate check, honest labels — UNMERGED)
+
+Branch `feature/plan-2b-cloud-providers`, three commits, pushed to `origin`. `verify` PASS —
+**1252 passed, 9 skipped** (was 1238 / 9). Plan 2b remains unmerged pending the author's sign-off.
+
+`daa30de` — Find the root launcher by shape, not by an exact filename
+- M `files/tests/test_launchers.py` — resolve `Setup_and_Run*.{bat,command}` by glob
+
+`661e762` — Make the three uncallable approved models callable, or gone, and say why
+- M `config.toml` — `gemini-2.5-flash` record removed (404 "no longer available to new users");
+  the probe evidence replaces it as a comment so it is not re-added on a hunch
+- M `scripts/Universal/ai/providers/groq.py` — `_MIN_REASONING_EFFORT = "low"`; `"none"` is
+  qwen3-only and was a hard 400 on every gpt-oss request
+- M `scripts/Universal/ai/editor.py` — `describe_unavailable`, `_mark_unavailable_from`, and the
+  `unavailable_kind` / `unavailable_reason` / `unavailable_description` properties
+- M `scripts/Universal/core/batch_runner.py` — the outage line names its cause
+- M `files/tests/test_groq_provider.py` — pins the constant against the values gpt-oss rejects
+- M `files/tests/test_cloud_keys_and_consent.py` — approved-record count 9 → 8
+- M `files/tests/test_plan2a_phase5.py` — outage-naming tests
+- M `md-instructions/CHANGELOG.md`
+
+`cc9bc06` — Say what a novel IS protected by, instead of what it lacks
+- M `scripts/Universal/core/novel_registry.py` — `NAMES_PROTECTED_MARKER` /
+  `UNIVERSAL_ONLY_MARKER`, `protected_term_count`, marker-agnostic `clean_novel_name`
+- M `scripts/Universal/core/batch_runner.py` — profile line moved below the lexicon load and made
+  term-aware; the per-file line reports the edit count AND the AI verdict
+- M `scripts/Universal/gui/app.py` — dropdown explanatory label rewritten
+- M `files/tests/test_novel_registry.py`, `test_app.py`, `test_pause_and_condensed_log.py`,
+  `test_plan2a_phase5.py`
+- M `md-instructions/CHANGELOG.md`
+
+**Deliberately NOT staged** (the author's working-tree state, left exactly as found): the unstaged
+deletion of `Setup_and_Run.bat`, the untracked `Setup_and_Run-Web-Novel-Editor.bat`, the untracked
+`md-instructions/plan-2-ai-editor-integration.md`, and `config.toml`'s `version = "0.12.0"`.
+
+**Local and gitignored, nothing committed:** `files/qa-tools/scratch/model-audit/`
+(`probe_models.py`, `quota_detail.py`, `audit.json`) and the Phase 7b archive
+`files/qa-tools/scratch/pilot-2b/results_phase7b.jsonl` + `bundle_phase7b/` beside the new
+`results.jsonl`. No corpus text and no provider key left `files/qa-tools/scratch/`.
+
+
+### 2026-07-27 — HOME-PC — PUSHED (Plan 2b Phase 8: adopt decision, bug hunt, docs, release gate — PLAN COMPLETE, UNMERGED)
+- Branch: `feature/plan-2b-cloud-providers` (4 commits this session on top of `afd9280`)
+- Changed — product code:
+  - `scripts/Universal/ai/prompt.py` — `select_relevant_terms`, `lexicon_terms` on
+    `build_system_prompt`, `lexicon_term_count` on `PromptBundle` (DECISIONS #063)
+  - `scripts/Universal/ai/editor.py` — two-pass per-chapter / per-chunk term scoping
+  - `scripts/Universal/ai/providers/gemini.py` — `quota_period`, `retry_delay_seconds`, structured
+    429 classification (DECISIONS #068)
+  - `scripts/Universal/ai/rate_limits.py` — `limit_period_is_named`, unexplained-limit escalation
+  - `scripts/Universal/ai/cloud.py`, `config.toml` — `unnamed_limit_escalation_seconds = 600` for
+    both cloud providers
+- Changed — shipped data:
+  - `scripts/Universal/resources/novel-index/renegade-immortal.txt` — 24 REVIEW terms enabled
+    (837 → **861** active)
+  - `scripts/Universal/resources/novel-index/reverend-insanity.txt` — 19 enabled, **25 extraction
+    artifacts removed** plus 3 in the REVIEW block (1,435 → **1,429** active)
+- Changed — tests: `test_ai_editor.py` (+6), `test_ai_validation.py` (+7), `test_novel_profiles.py`
+  (+3), `test_rate_limiting.py` (+8), `test_gemini_provider.py` (+7), `test_cloud_keys_and_consent.py`
+  (+3)
+- Changed — docs: `CHANGELOG.md` (v0.13.0), `BRIEFING.md`, `DECISIONS.md` (#063–#071),
+  `EDITING-RULES.md`, `README.md`, `HANDOFF.md`
+- Deleted: `md-instructions/plan-2b-cloud-providers.md` (the plan's own final step)
+- Not committed (gitignored, local only): `files/qa-tools/scratch/index-build/review_batch.py`,
+  `measure_term_block_fix.py`, `review-batch.json`, `term-block-fix.json`
+- Not touched: `md-instructions/plan-2-ai-editor-integration.md` — an untracked leftover Plan 2a drop,
+  flagged for the author rather than deleted
+- Gates: `verify` **PASS — 1238 passed, 9 skipped**; clean-room run identical with `ollama`, `groq`,
+  `google.genai` import-blocked and all keys unset
+- **NOT merged to `main`.** Awaiting the author's click-through and end-of-plan sign-off.
+
+### 2026-07-26 — HOME-PC — PUSHED (Plan 2b Phase 7b: frozen comparison run + report — 7b COMPLETE, PAUSED for decision)
+- Branch:  feature/plan-2b-cloud-providers (1 commit this session on top of d787c59)
+- Env:     existing .venv, Python 3.13.12. No dependency added, no pin edited.
+           **First real cloud calls in this project's history** — Gemini and Groq, both
+           through the Phase 7a spend guard, both on free tiers confirmed by the user in
+           each provider's own console on 2026-07-25.
+- Added:   files/pilot/PROVIDER-COMPARISON.md (the ONLY tracked artifact from this phase)
+- Changed: md-instructions/HANDOFF.md (Current Focus, Phase 7b work log, this entry)
+- Deleted: nothing
+- Local only (gitignored, NOT committed): files/qa-tools/scratch/pilot-2b/ — the harness
+           (compare_common.py, overedit.py, run_compare.py, analyze_compare.py,
+           reclassify.py), results.jsonl, unmeasured.jsonl, preflight.json and the
+           full-text bundle/ with every baseline, accepted output and unified diff.
+- Not touched (diff-verified byte-for-byte — `git diff d787c59 -- scripts/ config.toml`
+           returns EMPTY): all of scripts/, including ai/editor.py, ai/validation.py,
+           ai/prompt.py, ai/chunking.py, ai/spend_guard.py, ai/factory.py, ai/cloud.py,
+           ai/rate_limits.py, both provider adapters, gui/*, and config.toml.
+- Decided: run the quality-matched pair (gemini-3.6-flash vs llama-3.3-70b-versatile) at
+           the user's direction rather than the feasibility-matched 8B, because 2a showed
+           model size dominates edit quality and an 8B-vs-Flash result would have measured
+           parameter count while looking like a provider verdict. Strategy frozen at M —
+           this phase varies the provider, not the strategy, which 2a already settled.
+           A refused chapter is excluded from quality figures, never averaged in.
+- Evidence: Gemini 38/40 measured (36 accepted, 19 faithful echoes, 2 gate fallbacks);
+           Groq 14/40 measured (12 accepted, 8 echoes, 2 gate fallbacks) before its TPD
+           ceiling latched. Like-for-like on the 14 both served: Gemini 14/14 accepted,
+           10 echoes, 1 proper-noun change, 8.8 s p50; Groq 12/14, 8 echoes, 5 proper-noun
+           changes (incl. `Noble's`→`Noble's's` ×2 and a character renamed ×3), 36.2 s p50.
+           Neither produced any in-token punctuation corruption.
+- Flagged: **Gemini's daily quota exhaustion is misclassified as per-minute** (its 429
+           carries no "per day" wording), so the batch retried for ~35 min instead of
+           checkpointing. Groq classified correctly and refused in 0.0 s. Phase 8 item.
+           Nothing overspent; the spend guard was never the failing part.
+- Note:    no corpus text, chapter title, full diff, raw model response, API key or
+           organization ID was committed. The report's own safety gate refused to write
+           twice until chapter titles and the Groq org ID were redacted. Longest inline
+           span in the committed report: 50 chars. Pre-existing untracked `.claude/` and
+           `md-instructions/plan-2-ai-editor-integration.md` left untracked.
+- Result:  python scripts/verify.py -> PASS (1186 passed, 10 skipped, 0 failed; 1196
+           collected, unchanged from Phase 7a — the documented Tk display skip flipped
+           pass<->skip). git diff --check clean.
+- Next:    PAUSED for the user's provider decision. Phase 8 (adopt decision + bug hunt +
+           docs + release gate) is NOT started. Groq's remaining 26 chapters can be
+           completed on later daily windows with `--resume` if a fuller column is wanted
+           before deciding.
+
+### 2026-07-25 — HOME-PC — PUSHED (Plan 2b Phase 7a: pre-flight spend guard — 7a COMPLETE)
+- Branch:  feature/plan-2b-cloud-providers (1 commit this session on top of 2123606)
+- Env:     existing .venv, Python 3.13.12. No dependency added, no pin edited. No cloud
+           call of any kind; no key read from anywhere outside a test's own tmp_path.
+- Added:   scripts/Universal/ai/spend_guard.py (new — the one guard function, its
+           verdict type and SpendRefused)
+           files/tests/test_spend_guard.py (new — 47 tests)
+- Changed: scripts/Universal/ai/factory.py (the single call site; guard_context)
+           scripts/Universal/gui/ai_settings.py (gate delegated to the factory, cloud
+           constructor arguments, eager cloud build so a refusal precedes the run)
+           scripts/Universal/gui/app.py (the refusal dialog before the batch starts)
+           files/tests/test_cloud_gui.py (injection moved to the factory registry; one
+           new GUI test for the refusal)
+           files/tests/test_gemini_provider.py, files/tests/test_groq_provider.py (a
+           cleared guard context for the two factory-construction tests)
+           md-instructions/HANDOFF.md (Current Focus, Phase 7a work log, this entry)
+- Deleted: nothing
+- Not touched (diff-verified byte-for-byte): ai/cloud.py, editor.py, validation.py,
+           prompt.py, chunking.py, errors.py, models.py, provider.py, approved_models.py,
+           disclosure.py, secrets.py, redaction.py, rate_limits.py, settings.py,
+           config.py, both provider adapters, core/run_manifest.py, core/batch_runner.py,
+           gui/cloud_ui.py, config.toml, scripts/requirements.txt
+- Decided: the guard composes Phase 1's `ensure_cloud_request_allowed` rather than
+           duplicating it; the only rail it adds is that strict free-only mode must be
+           exactly `True`. A refused cloud run now stops the batch instead of degrading
+           to script-only. One declared deviation: a pre-existing Phase 6 defect on the
+           same seam (cloud adapters handed the local adapter's constructor arguments)
+           was fixed, because without it the "real path" could not build an adapter.
+- Evidence: five mutations against a green baseline, each caught by named tests.
+- Note:    no corpus, chapter text, prompt/response text, machine identifier, secret or
+           generated PDF was recorded or staged. Only fake key shapes appear in tests.
+           Pre-existing untracked `.claude/` and
+           `md-instructions/plan-2-ai-editor-integration.md` were left untracked.
+- Result:  python scripts/verify.py -> PASS (1187 passed, 9 skipped, 0 failed; 1196
+           collected, was 1148 at the Phase 6 gap-fill baseline). Clean-room re-run with
+           all provider SDKs import-blocked and every cloud key unset: identical
+           1187/9. git diff --check clean.
+- Next:    Plan 2b Phase 7b — the frozen comparison run and PROVIDER-COMPARISON.md, on a
+           separate prompt. It is the first real cloud call.
 
 ### 2026-07-23 — HOME-PC — PUSHED (Plan 2a Phase 7: GUI AI controls — PHASE 7 COMPLETE)
 - Branch:  feature/plan-2a-provider-foundation (1 commit this session on top of a32de93)

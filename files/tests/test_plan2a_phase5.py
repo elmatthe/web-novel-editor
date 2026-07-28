@@ -207,7 +207,13 @@ def test_outage_warns_once_and_later_files_do_not_call_provider(
     assert summary["succeeded"] == 3
     assert [text for text, _ in built] == [BASELINE, BASELINE, BASELINE]
     assert provider.complete_calls == 2
-    assert sum("AI provider unavailable" in message for _, message in logs) == 1
+    outage = [message for _, message in logs if "AI stopped" in message]
+    assert len(outage) == 1
+    # The line must NAME the cause, not just say something went wrong: a batch that
+    # silently finishes script-only is the failure the user cannot see.
+    assert "the AI service refused the request" in outage[0]
+    assert "down" in outage[0]
+    assert "deterministic output" in outage[0]
 
 
 def test_default_dry_run_never_initializes_ai_and_writes_no_pdf(
@@ -453,3 +459,101 @@ def test_ai_enabled_still_isolates_pdf_build_failure(tmp_path, monkeypatch):
     )
     assert summary["succeeded"] == 2 and summary["failed"] == 1
     assert [Path(path).name for _, path in built] == ["0.pdf", "2.pdf"]
+
+
+# ---------------------------------------------------------------------------
+# Naming the outage (2026-07-27)
+# ---------------------------------------------------------------------------
+# A pre-merge click-through found three approved models returning one generic
+# "AI provider unavailable" line while a whole batch quietly finished script-only. The
+# causes were three different things — a model Google had withdrawn, and a Groq request
+# parameter this project was sending wrong — and none of them was recoverable from the
+# log. The run now names what actually failed.
+
+def test_describe_unavailable_names_a_withdrawn_model_and_keeps_the_providers_words():
+    """The exact case from the click-through: gemini-2.5-flash returning 404."""
+    from ai.editor import describe_unavailable
+
+    text = describe_unavailable(
+        "ModelUnavailable",
+        "ModelUnavailable: Gemini does not offer 'gemini-2.5-flash' to this key "
+        "(ClientError: 404 NOT_FOUND. This model is no longer available to new users.).",
+    )
+    assert "the chosen AI model is not available" in text
+    assert "gemini-2.5-flash" in text
+    assert "404" in text
+    # The class name is a developer detail and must not be the thing the user reads.
+    assert not text.startswith("ModelUnavailable")
+
+
+@pytest.mark.parametrize(
+    "kind, expected",
+    [
+        ("AuthenticationError", "the API key was refused"),
+        ("DailyQuotaExhausted", "the free daily quota is used up"),
+        ("TransientNetworkError", "the AI service could not be reached"),
+        ("ProviderUnavailable", "the AI service refused the request"),
+        ("SomethingNobodyHasSeen", "the AI service stopped working"),
+    ],
+)
+def test_describe_unavailable_distinguishes_the_causes(kind, expected):
+    """Four different fixes must not share one sentence."""
+    from ai.editor import describe_unavailable
+
+    assert expected in describe_unavailable(kind, f"{kind}: detail here")
+
+
+def test_describe_unavailable_is_bounded_and_survives_missing_information():
+    from ai.editor import describe_unavailable
+
+    assert describe_unavailable("", "") == "the AI service stopped working."
+    long_text = describe_unavailable("ModelUnavailable", "ModelUnavailable: " + "x" * 900)
+    assert len(long_text) < 320 and long_text.endswith("…")
+
+
+def test_the_editor_records_the_kind_behind_an_outage_not_just_the_text():
+    """`describe_unavailable` can only name a cause if the editor kept one."""
+    # Two errors: ProviderUnavailable is retryable, so the editor gets its one retry
+    # before the chunk is abandoned and the run is marked unavailable.
+    editor = _editor(FakeProvider(errors=[ProviderUnavailable("service is down")] * 2))
+    editor.edit(BASELINE)
+    assert editor.unavailable_kind == "ProviderUnavailable"
+    assert "service is down" in editor.unavailable_reason
+    assert "the AI service refused the request" in editor.unavailable_description
+
+
+def test_the_condensed_line_reports_the_edit_count_AND_the_ai_verdict(tmp_path, monkeypatch):
+    """Reconciles "done (N edits)" vs "done (AI accepted)" — both facts, every file."""
+    built = []
+    _wire(monkeypatch, built)
+    logs = []
+    run_batch(
+        _inputs(tmp_path, 1),
+        str(tmp_path / "out"),
+        ai_editor=_editor(
+            FakeProvider(
+                transform=lambda text: text.replace("he walk home", "he walks home")
+            )
+        ),
+        gui_log=lambda message, level="info": logs.append((level, message)),
+    )
+    done = [m for _, m in logs if "— done (" in m]
+    assert len(done) == 1
+    # Both facts, not one or the other: an accepted AI pass that changed something used
+    # to print only the count, indistinguishable from a rejected one.
+    assert "1 edit" in done[0] and "AI accepted" in done[0]
+
+
+def test_the_condensed_line_says_script_only_when_the_ai_was_not_used(tmp_path, monkeypatch):
+    built = []
+    _wire(monkeypatch, built)
+    logs = []
+    run_batch(
+        _inputs(tmp_path, 1),
+        str(tmp_path / "out"),
+        ai_editor=_editor(FakeProvider(errors=[ProviderUnavailable("down")] * 2)),
+        gui_log=lambda message, level="info": logs.append((level, message)),
+    )
+    done = [m for _, m in logs if "— done (" in m]
+    assert len(done) == 1
+    assert "script-only (AI unavailable)" in done[0]

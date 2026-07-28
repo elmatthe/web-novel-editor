@@ -124,7 +124,11 @@ def test_save_persists_only_the_user_choices_and_merges_other_keys(tmp_path):
     # Never persisted: the opt-in switch, and no endpoint/secret-shaped copy.
     assert "enabled" not in written["ai"]
     assert "endpoint" not in written["ai"]
-    assert set(ai_settings.PERSISTED_KEYS) == {"model", "policy"}
+    # Plan 2b Phase 6 widened this by exactly one: the panel gained a provider
+    # dropdown, so which provider was chosen is remembered too. The guarantees that
+    # matter are unchanged — the opt-in switch and anything credential-shaped are
+    # still never written.
+    assert set(ai_settings.PERSISTED_KEYS) == {"provider", "model", "policy"}
 
 
 def test_save_reports_failure_instead_of_raising_when_unwritable(tmp_path):
@@ -632,7 +636,11 @@ def test_model_and_policy_choices_persist_but_the_switch_does_not(
         app._persist_ai_choices()
 
         written = json.loads((tmp_path / "settings.json").read_text(encoding="utf-8"))
-        assert written["ai"] == {"model": "chosen:1", "policy": "ai_required"}
+        assert written["ai"] == {
+            "provider": appmod.cloud_ui.local_provider(),
+            "model": "chosen:1",
+            "policy": "ai_required",
+        }
     finally:
         app.destroy()
 
@@ -663,27 +671,130 @@ def test_ai_controls_are_locked_while_a_batch_runs(monkeypatch, tmp_path):
         app.destroy()
 
 
-def test_every_fixed_row_fits_inside_the_minimum_window_height(monkeypatch, tmp_path):
-    """The AI card must not push the Start button or the status strip off the bottom.
+def _grid_extent(app, appmod):
+    """Measured height and width the root grid actually needs.
 
-    Only the log row flexes; every other row keeps its requested height at any
-    window size, so their total (plus padding) has to clear MIN_HEIGHT or the
-    controls below them are simply not on screen.
+    A two-column grid (controls left, log right — the v0.13.0 rework) cannot be
+    measured by summing every child: the log shares rows with five cards, so a flat
+    sum double-counts and reports a height nobody ever needed. The real requirement is
+    per **row** for height and per **column** for width — the largest requested size in
+    each, plus that row's/column's padding. The log is excluded from the height side
+    only: it is the one widget allowed to shrink, and it now absorbs slack sideways.
+    """
+    root = app.winfo_children()[0]
+    log_frame = app.log_text.master
+
+    rows: dict[int, int] = {}
+    cols: dict[int, int] = {}
+    for child in root.winfo_children():
+        info = child.grid_info()
+        row, col = int(info["row"]), int(info["column"])
+
+        def _pad(value):
+            return sum(value) if isinstance(value, tuple) else int(value)
+
+        pady, padx = _pad(info.get("pady", 0)), _pad(info.get("padx", 0))
+        height = pady if child is log_frame else child.winfo_reqheight() + pady
+        rows[row] = max(rows.get(row, 0), height)
+        cols[col] = max(cols.get(col, 0), child.winfo_reqwidth() + padx)
+
+    return (sum(rows.values()) + 2 * appmod.PAD_M,
+            sum(cols.values()) + 2 * appmod.PAD_M)
+
+
+def test_the_log_sits_beside_the_controls_not_below_them(monkeypatch, tmp_path):
+    """The log was clipped off the bottom of a 1080p screen when it was a bottom row.
+
+    It is now the right-hand column, so the control stack's height no longer has to
+    accommodate it at all, and every control keeps its natural size at any window size.
+    """
+    _appmod, app = _new_app(monkeypatch, tmp_path)
+    try:
+        assert int(app.log_text.master.grid_info()["column"]) == 1
+        for card in (app.file_listbox.master.master, app.ai_model_combo.master,
+                     app.run_button.master):
+            assert int(card.grid_info()["column"]) == 0
+    finally:
+        app.destroy()
+
+
+def test_the_window_can_be_made_short_enough_for_a_1080p_screen(monkeypatch, tmp_path):
+    """The reported bug, encoded as a number.
+
+    The opening geometry is capped at `screenheight - 90`, but `minsize` overrides it,
+    so a MIN_HEIGHT above that cap means the bottom of the window is simply off the
+    desktop — which is how the log and the status strip came to be clipped. 1080p is
+    the smallest display this is expected to run on.
+    """
+    appmod, _app_unused = _new_app(monkeypatch, tmp_path)
+    try:
+        usable = 1080 - 90
+        assert appmod.MIN_HEIGHT <= usable, (
+            f"MIN_HEIGHT is {appmod.MIN_HEIGHT}px but only {usable}px is usable on a "
+            f"1080p desktop — the bottom of the window cannot be reached"
+        )
+    finally:
+        _app_unused.destroy()
+
+
+def test_both_columns_fit_inside_the_minimum_window_width(monkeypatch, tmp_path):
+    """Neither column may be crushed or overlapped at the narrowest allowed size."""
+    appmod, app = _new_app(monkeypatch, tmp_path)
+    try:
+        _height, width = _grid_extent(app, appmod)
+        assert width <= appmod.MIN_WIDTH, (
+            f"the two columns need {width}px but the window can be as narrow as "
+            f"{appmod.MIN_WIDTH}px — the log or the controls would be clipped"
+        )
+    finally:
+        app.destroy()
+
+
+def _offset_below_toplevel(widget) -> int:
+    """A widget's y offset inside its window, valid without the window being shown.
+
+    `winfo_ismapped` is useless here — every test window is `withdraw()`n — but the
+    geometry manager still computes placement after `update_idletasks`, so walking
+    `winfo_y()` up the parent chain gives the real offset.
+    """
+    offset = 0
+    node = widget
+    while node.master is not None:
+        offset += node.winfo_y()
+        node = node.master
+    return offset
+
+
+def test_the_run_controls_sit_inside_the_minimum_window_height(monkeypatch, tmp_path):
+    """Start/Pause/Stop are the controls the user must be able to reach.
+
+    They were being pushed past the bottom edge on a 1080p screen. Their bottom edge
+    has to fall inside MIN_HEIGHT, or the window cannot be made short enough to fit
+    the display without hiding them.
     """
     appmod, app = _new_app(monkeypatch, tmp_path)
     try:
-        root = app.winfo_children()[0]
-        log_frame = app.log_text.master
-        fixed = 0
-        for child in root.winfo_children():
-            info = child.grid_info()
-            pady = info.get("pady", 0)
-            pady = sum(pady) if isinstance(pady, tuple) else int(pady)
-            if child is log_frame:
-                fixed += pady        # the log itself may shrink; its padding may not
-            else:
-                fixed += child.winfo_reqheight() + pady
-        fixed += 2 * appmod.PAD_M     # the root frame's own padding
+        app.update_idletasks()
+        for button in (app.run_button, app.pause_button, app.stop_button):
+            bottom = _offset_below_toplevel(button) + button.winfo_reqheight()
+            assert bottom <= appmod.MIN_HEIGHT, (
+                f"{button['text']!r} ends at {bottom}px, past the "
+                f"{appmod.MIN_HEIGHT}px minimum window height"
+            )
+    finally:
+        app.destroy()
+
+
+def test_every_fixed_row_fits_inside_the_minimum_window_height(monkeypatch, tmp_path):
+    """The controls must not push the Start button or the status strip off the bottom.
+
+    Only the log flexes; every other row keeps its requested height at any window
+    size, so their total (plus padding) has to clear MIN_HEIGHT or the controls below
+    them are simply not on screen.
+    """
+    appmod, app = _new_app(monkeypatch, tmp_path)
+    try:
+        fixed, _width = _grid_extent(app, appmod)
 
         assert fixed <= appmod.MIN_HEIGHT, (
             f"fixed rows need {fixed}px but the window can be as short as "

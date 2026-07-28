@@ -622,3 +622,433 @@ Faluel's Lair
 # === main_recurring_names.txt ===
 
 # === rare_minor_names.txt ===
+
+# ============================================================
+# 2026-07-26 AUDIT — additions found by corpus frequency analysis
+# ============================================================
+# Gap-check over 4407 extracted chapters of this novel's own corpus
+# (files/pdf-example-chapters/supreme-magus-1/). Nothing above this line was changed,
+# removed or reordered; this block is additive only.
+#
+# Every term below was COUNTED in this novel's own text at the exact spelling shown:
+# at least 50 occurrences across at least 20 chapters, capitalized
+# mid-sentence, with this novel's lowercase use of it under 5% of its capitalized use.
+# Candidates came from capitalization statistics and from a local qwen3
+# pass over sampled chapters; qwen only proposed, the corpus decided.
+#
+# Trailing "# n=... in ... chapters" is the measured evidence, stripped at load.
+# ============================================================
+
+# --- SUPREME MAGUS — names and single-word terms (by corpus frequency) ---
+Yaga  # n=1373 in 487 chapters
+Invigoration  # n=1351 in 956 chapters
+Ernas  # n=1295 in 663 chapters
+Magus  # n=1114 in 597 chapters
+Emperor  # n=1073 in 654 chapters
+Baba  # n=815 in 562 chapters
+Yggdrasill  # n=693 in 278 chapters
+Davross  # n=670 in 389 chapters
+Fringe  # n=653 in 287 chapters
+Eldritch  # n=627 in 300 chapters
+Odi  # n=571 in 215 chapters
+Horseman  # n=547 in 289 chapters
+Courts  # n=522 in 275 chapters
+Meln  # n=497 in 328 chapters
+Upyrs  # n=495 in 150 chapters
+Kami  # n=491 in 429 chapters
+Rezar  # n=468 in 225 chapters
+Headmaster  # n=399 in 238 chapters
+Voidfeather  # n=366 in 163 chapters
+Nyka  # n=340 in 173 chapters
+Forgemasters  # n=328 in 227 chapters
+Suneater  # n=321 in 138 chapters
+Distar  # n=311 in 224 chapters
+Lark  # n=310 in 148 chapters
+Eldritches  # n=306 in 201 chapters
+Orichalcum  # n=300 in 186 chapters
+Glemos  # n=284 in 120 chapters
+Skinwalker  # n=270 in 198 chapters
+Shargein  # n=257 in 135 chapters
+Nana  # n=253 in 123 chapters
+Trawn  # n=252 in 208 chapters
+Marchioness  # n=248 in 120 chapters
+Harmonizer  # n=243 in 105 chapters
+Kolga  # n=242 in 118 chapters
+Phoenixes  # n=239 in 180 chapters
+Fae  # n=232 in 160 chapters
+Empress  # n=228 in 114 chapters
+Hush  # n=225 in 203 chapters
+Voidwalker  # n=224 in 178 chapters
+Jormun  # n=223 in 118 chapters
+Garrik  # n=222 in 118 chapters
+Hati  # n=220 in 86 chapters
+Valtak  # n=218 in 102 chapters
+DoLorean  # n=216 in 109 chapters
+Indech  # n=212 in 87 chapters
+Epphy  # n=208 in 117 chapters
+Zogar  # n=205 in 155 chapters
+Zelex  # n=205 in 121 chapters
+Chroniclers  # n=197 in 102 chapters
+Forgemastery  # n=195 in 164 chapters
+Scorpicore  # n=193 in 120 chapters
+Zeska  # n=192 in 85 chapters
+Soluspedia  # n=186 in 161 chapters
+Wayfinder  # n=174 in 63 chapters
+Raldarak  # n=167 in 79 chapters
+Gernoff  # n=166 in 78 chapters
+Surin  # n=165 in 105 chapters
+Accumulation  # n=164 in 133 chapters
+Ryman  # n=161 in 139 chapters
+Zouwu  # n=159 in 64 chapters
+Agni  # n=157 in 94 chapters
+Gatekeeper  # n=153 in 95 chapters
+Ruugat  # n=153 in 52 chapters
+Fylgja  # n=142 in 78 chapters
+Saefel  # n=132 in 89 chapters
+Theseus  # n=132 in 76 chapters
+Ufyl  # n=131 in 88 chapters
+Ragnarök  # n=131 in 90 chapters
+Yehval  # n=130 in 106 chapters
+Sekhmet  # n=130 in 58 chapters
+Strider  # n=130 in 75 chapters
+Zin  # n=127 in 83 chapters
+Narchat  # n=127 in 90 chapters
+Vurdalak  # n=127 in 70 chapters
+Salman  # n=124 in 36 chapters
+Bastet  # n=123 in 68 chapters
+Featherling  # n=121 in 86 chapters
+Yondra  # n=118 in 67 chapters
+Fallmug  # n=118 in 59 chapters
+Quaron  # n=116 in 38 chapters
+Erlik  # n=113 in 40 chapters
+Zor  # n=113 in 74 chapters
+Duke  # n=112 in 88 chapters
+Darwen  # n=111 in 48 chapters
+Tablets  # n=111 in 49 chapters
+Baroness  # n=109 in 46 chapters
+Hystar  # n=108 in 71 chapters
+Raum  # n=107 in 38 chapters
+Ballot  # n=106 in 40 chapters
+Grendel  # n=106 in 35 chapters
+Orulm  # n=105 in 46 chapters
+Scalewalker  # n=104 in 75 chapters
+Archon  # n=102 in 81 chapters
+Malyshka  # n=101 in 87 chapters
+Warlock  # n=101 in 42 chapters
+Thaymos  # n=101 in 37 chapters
+Syrah  # n=100 in 65 chapters
+Rudd  # n=98 in 40 chapters
+Wanemyre  # n=97 in 49 chapters
+Hyperion  # n=97 in 37 chapters
+Lutians  # n=93 in 39 chapters
+Valia  # n=93 in 73 chapters
+Protheus  # n=92 in 50 chapters
+Laruel  # n=91 in 56 chapters
+Roghar  # n=89 in 58 chapters
+Nok  # n=89 in 52 chapters
+McCoy  # n=88 in 74 chapters
+Wyrms  # n=88 in 52 chapters
+Raptor  # n=86 in 59 chapters
+Iata  # n=85 in 52 chapters
+Kellar  # n=84 in 77 chapters
+Marquisate  # n=84 in 73 chapters
+Akhton  # n=84 in 53 chapters
+Maergron  # n=82 in 32 chapters
+Phillard  # n=80 in 40 chapters
+Runesmithing  # n=79 in 48 chapters
+Redcap  # n=79 in 39 chapters
+Watchtower  # n=78 in 45 chapters
+Salanoth  # n=78 in 53 chapters
+Crone  # n=76 in 29 chapters
+Hekate  # n=76 in 58 chapters
+Marquis  # n=75 in 37 chapters
+Aylen  # n=75 in 31 chapters
+Dripha  # n=75 in 40 chapters
+Leannan  # n=75 in 29 chapters
+Highmaster  # n=74 in 49 chapters
+Ne'sra  # n=74 in 39 chapters
+Myrok  # n=73 in 49 chapters
+Heavenly  # n=73 in 73 chapters
+Parliament  # n=73 in 27 chapters
+Jakra  # n=71 in 39 chapters
+Loka  # n=71 in 50 chapters
+Urhen  # n=71 in 46 chapters
+Farg  # n=69 in 45 chapters
+Clackers  # n=68 in 22 chapters
+Ryssa  # n=68 in 47 chapters
+Reaver  # n=67 in 43 chapters
+Cinder  # n=67 in 36 chapters
+Rem  # n=66 in 40 chapters
+Jormungandr  # n=66 in 26 chapters
+Kandria  # n=65 in 48 chapters
+Wendigo  # n=65 in 24 chapters
+Aryk  # n=65 in 21 chapters
+Windfell  # n=64 in 30 chapters
+Duchess  # n=63 in 37 chapters
+Essagor  # n=63 in 46 chapters
+Solkar  # n=63 in 45 chapters
+Nova  # n=62 in 31 chapters
+Headmistress  # n=62 in 35 chapters
+Ilthin  # n=62 in 48 chapters
+Draugr  # n=62 in 28 chapters
+Surtr  # n=62 in 65 chapters
+Ryka  # n=61 in 45 chapters
+Wonderer  # n=61 in 20 chapters
+Abthot  # n=60 in 39 chapters
+Uragar  # n=60 in 48 chapters
+Erghak  # n=59 in 36 chapters
+Yozmogh  # n=58 in 22 chapters
+Stargazer  # n=58 in 24 chapters
+Traughen  # n=57 in 34 chapters
+Byt  # n=57 in 42 chapters
+Eari  # n=56 in 41 chapters
+Zagran  # n=56 in 52 chapters
+Hatorne  # n=55 in 32 chapters
+Vagrash  # n=55 in 29 chapters
+Spellbreaker  # n=54 in 43 chapters
+Dragonhood  # n=53 in 39 chapters
+Erion  # n=53 in 27 chapters
+Featherwalker  # n=52 in 45 chapters
+Wraith  # n=52 in 30 chapters
+Librarian  # n=52 in 21 chapters
+Maekosh  # n=51 in 35 chapters
+Wyalon  # n=51 in 38 chapters
+Loma  # n=50 in 28 chapters
+
+# --- SUPREME MAGUS — multi-word names, places and in-world terms ---
+Origin Flames  # n=1078 in 559 chapters
+Life Vision  # n=884 in 667 chapters
+Divine Beast  # n=752 in 572 chapters
+World Tree  # n=699 in 271 chapters
+Life Maelstrom  # n=631 in 322 chapters
+Golden Griffon  # n=532 in 281 chapters
+Warp Steps  # n=531 in 408 chapters
+Emperor Beast  # n=446 in 328 chapters
+Light Mastery  # n=418 in 299 chapters
+Shadow Dragon  # n=378 in 200 chapters
+Dead King  # n=376 in 199 chapters
+Warp Gate  # n=373 in 317 chapters
+Undead Courts  # n=351 in 229 chapters
+Mad Queen  # n=315 in 215 chapters
+Ruler of the Flames  # n=307 in 243 chapters
+Supreme Magus  # n=295 in 220 chapters
+Creation Magic  # n=290 in 161 chapters
+Black Throne  # n=278 in 60 chapters
+Sage Staff  # n=272 in 168 chapters
+Void Magic  # n=260 in 136 chapters
+Magus Verhen  # n=233 in 168 chapters
+Red Mother  # n=216 in 130 chapters
+Body Sculpting  # n=216 in 173 chapters
+War of the Griffons  # n=213 in 183 chapters
+Royal Court  # n=199 in 154 chapters
+Dragon Eyes  # n=191 in 132 chapters
+Dread Flames  # n=186 in 65 chapters
+Valeron the Second  # n=182 in 142 chapters
+Voidfeather Dragon  # n=178 in 112 chapters
+Awakened Council  # n=176 in 152 chapters
+Full Guard  # n=167 in 126 chapters
+Father of Fire  # n=163 in 70 chapters
+Primordial Flames  # n=157 in 62 chapters
+Gorgon Empire  # n=152 in 126 chapters
+Blade Spell  # n=147 in 90 chapters
+Verhen Mansion  # n=140 in 129 chapters
+Frost Soul  # n=139 in 52 chapters
+Hands of Menadion  # n=135 in 119 chapters
+Storm Griffon  # n=133 in 71 chapters
+Spirit Barrier  # n=132 in 99 chapters
+Void Flames  # n=132 in 76 chapters
+Royal Fortress  # n=127 in 91 chapters
+Fire Dragon  # n=125 in 71 chapters
+Blade Tier  # n=121 in 81 chapters
+The Rezar  # n=116 in 90 chapters
+Forbidden Sun  # n=109 in 45 chapters
+Ears of Menadion  # n=108 in 90 chapters
+Death Vision  # n=106 in 62 chapters
+Doom Tide  # n=106 in 60 chapters
+Soul Vision  # n=105 in 67 chapters
+Bright Day  # n=104 in 71 chapters
+Red Demon  # n=104 in 63 chapters
+Void Demon  # n=100 in 38 chapters
+Royal Guards  # n=99 in 74 chapters
+Double Edge  # n=93 in 66 chapters
+Eternal Fortress  # n=92 in 30 chapters
+Dragon Scales  # n=88 in 58 chapters
+Lady Ernas  # n=86 in 75 chapters
+Unwavering Loyalty  # n=85 in 73 chapters
+Uncle Lith  # n=84 in 68 chapters
+Mage Knight  # n=83 in 67 chapters
+Mad Professor  # n=83 in 60 chapters
+Demon Dragon  # n=82 in 34 chapters
+Mouth of Menadion  # n=82 in 76 chapters
+Marchioness Distar  # n=82 in 70 chapters
+Count Lark  # n=80 in 61 chapters
+Void Demon Dragon  # n=78 in 34 chapters
+Menadion Set  # n=78 in 63 chapters
+Night Court  # n=76 in 35 chapters
+Eclipsed Lands  # n=76 in 61 chapters
+Elder Wyrm  # n=76 in 42 chapters
+Mana Body  # n=75 in 46 chapters
+Royal Forgemaster  # n=74 in 64 chapters
+War Mage  # n=74 in 66 chapters
+Demons of the Darkness  # n=74 in 65 chapters
+Fourth Ruler  # n=73 in 63 chapters
+Blood Warlock  # n=73 in 37 chapters
+Prime Engine  # n=73 in 43 chapters
+Immortal Flames  # n=72 in 34 chapters
+Swirling Wind  # n=72 in 33 chapters
+Chaos Dimension  # n=71 in 27 chapters
+Ring of Space  # n=71 in 35 chapters
+Blade Magic  # n=70 in 46 chapters
+Dimensional Ruler  # n=67 in 49 chapters
+Lady Verhen  # n=67 in 56 chapters
+Elphyn Menadion  # n=66 in 54 chapters
+Mirror Magic  # n=66 in 32 chapters
+Trawn Woods  # n=66 in 47 chapters
+Firing Range  # n=66 in 30 chapters
+Black Griffon  # n=65 in 52 chapters
+Light Master  # n=65 in 58 chapters
+Soul Projection  # n=64 in 31 chapters
+Hand of Fate  # n=64 in 48 chapters
+Dawn Court  # n=63 in 40 chapters
+Thunder Soul  # n=63 in 29 chapters
+Raging Sun  # n=62 in 47 chapters
+Knight Guard  # n=59 in 28 chapters
+Vital Storm  # n=58 in 30 chapters
+Professor Vastor  # n=57 in 40 chapters
+Ranger Verhen  # n=57 in 50 chapters
+The Bastet  # n=57 in 36 chapters
+Howling Void  # n=56 in 37 chapters
+Battle Mage  # n=56 in 48 chapters
+Abyssal Gaze  # n=56 in 48 chapters
+Spirit Crystal  # n=56 in 40 chapters
+Abomination Touch  # n=55 in 52 chapters
+Supreme Magus Verhen  # n=55 in 49 chapters
+Mana Reactor  # n=55 in 28 chapters
+Archmage Verhen  # n=54 in 44 chapters
+Red Dragon  # n=54 in 40 chapters
+Aunt Loka  # n=54 in 44 chapters
+Tiamat Fear  # n=53 in 24 chapters
+Lesser Divine  # n=53 in 45 chapters
+Call of the Void  # n=53 in 41 chapters
+Griffon Fetters  # n=53 in 29 chapters
+Magic Empress  # n=51 in 47 chapters
+Book of Knowledge  # n=51 in 29 chapters
+Small World  # n=51 in 27 chapters
+Ernas Household  # n=50 in 46 chapters
+Spirit Fusion  # n=50 in 25 chapters
+Elder Hydra  # n=50 in 35 chapters
+Hati Queen  # n=50 in 39 chapters
+
+# ============================================================
+# REVIEW — dual-use words, NOT enabled
+# ============================================================
+# Each of these is used in this novel BOTH as a name/term and as an ordinary word.
+# Because masking is case-insensitive, uncommenting one freezes the ordinary word too
+# (protecting "Rain" also stops any repair to the weather). Uncomment only the ones
+# where that trade is right for this novel.
+# ============================================================
+# Dragon  # capitalized 2814x in 1132 chapters, but also lowercase 145x
+# Kingdom  # capitalized 2814x in 1457 chapters, but also lowercase 31x
+# Spirit  # capitalized 2055x in 998 chapters, but also lowercase 437x
+# Council  # capitalized 1881x in 871 chapters, but also lowercase 22x
+# Warp  # capitalized 1638x in 1082 chapters, but also lowercase 19x
+# King  # capitalized 1530x in 770 chapters, but also lowercase 80x
+# Divine  # capitalized 1499x in 861 chapters, but also lowercase 20x
+# Royal  # capitalized 1359x in 760 chapters, but also lowercase 127x
+# Beast  # capitalized 1350x in 926 chapters, but also lowercase 697x
+# Eyes  # capitalized 1323x in 670 chapters, but also lowercase 6670x
+# Void  # capitalized 1317x in 529 chapters, but also lowercase 116x
+# Mom  # capitalized 1266x in 912 chapters, but also lowercase 160x
+# Chaos  # capitalized 1209x in 459 chapters, but also lowercase 218x
+# Origin  # capitalized 1181x in 598 chapters, but also lowercase 109x
+# Master  # capitalized 1151x in 639 chapters, but also lowercase 1089x
+# Queen  # capitalized 1133x in 626 chapters, but also lowercase 24x
+# Desert  # capitalized 1130x in 672 chapters, but also lowercase 86x
+# Gate  # capitalized 969x in 608 chapters, but also lowercase 98x
+# Mother  # capitalized 926x in 573 chapters, but also lowercase 1764x
+# Spirit Magic  # capitalized 861x in 533 chapters, but also lowercase 248x
+# Professor  # capitalized 844x in 489 chapters, but also lowercase 29x
+# Adamant  # capitalized 822x in 477 chapters, but also lowercase 68x
+# Maelstrom  # capitalized 762x in 354 chapters, but also lowercase 23x
+# Forgemastering  # capitalized 750x in 485 chapters, but also lowercase 56x
+# Demon  # capitalized 651x in 344 chapters, but also lowercase 110x
+# Ears  # capitalized 623x in 232 chapters, but also lowercase 551x
+# Empire  # capitalized 616x in 353 chapters, but also lowercase 68x
+# Golems  # capitalized 608x in 184 chapters, but also lowercase 211x
+# Awakening  # capitalized 581x in 406 chapters, but also lowercase 52x
+# Warped  # capitalized 522x in 443 chapters, but also lowercase 19x
+# Hands  # capitalized 522x in 278 chapters, but also lowercase 2951x
+# Ranger  # capitalized 495x in 326 chapters, but also lowercase 6x
+# Blink  # capitalized 469x in 327 chapters, but also lowercase 147x
+# Overlord  # capitalized 461x in 282 chapters, but also lowercase 19x
+# Association  # capitalized 446x in 287 chapters, but also lowercase 15x
+# Grandma  # capitalized 446x in 349 chapters, but also lowercase 30x
+# Fury  # capitalized 430x in 236 chapters, but also lowercase 612x
+# Tyrant  # capitalized 428x in 232 chapters, but also lowercase 43x
+# Archmage  # capitalized 394x in 275 chapters, but also lowercase 16x
+# Crown  # capitalized 361x in 245 chapters, but also lowercase 114x
+# Domination  # capitalized 355x in 208 chapters, but also lowercase 8x
+# Count  # capitalized 354x in 136 chapters, but also lowercase 324x
+# Supreme  # capitalized 332x in 261 chapters, but also lowercase 15x
+# Annihilation  # capitalized 321x in 138 chapters, but also lowercase 15x
+# Constable  # capitalized 315x in 225 chapters, but also lowercase 44x
+# Sage  # capitalized 314x in 180 chapters, but also lowercase 4x
+# Forge  # capitalized 293x in 169 chapters, but also lowercase 72x
+# Captain  # capitalized 290x in 198 chapters, but also lowercase 109x
+# Forbidden Magic  # capitalized 288x in 218 chapters, but also lowercase 67x
+# Elder  # capitalized 286x in 175 chapters, but also lowercase 113x
+# Vampire  # capitalized 284x in 168 chapters, but also lowercase 190x
+# Warping  # capitalized 281x in 256 chapters, but also lowercase 10x
+# Sculpting  # capitalized 241x in 191 chapters, but also lowercase 6x
+# Engine  # capitalized 241x in 72 chapters, but also lowercase 12x
+# Majesty  # capitalized 238x in 169 chapters, but also lowercase 15x
+# Sapling  # capitalized 226x in 54 chapters, but also lowercase 6x
+# Hall  # capitalized 220x in 153 chapters, but also lowercase 160x
+# Harbinger  # capitalized 204x in 104 chapters, but also lowercase 5x
+# Mage Association  # capitalized 194x in 156 chapters, but also lowercase 3x
+# Frost  # capitalized 191x in 76 chapters, but also lowercase 45x
+# Spirit Spell  # capitalized 174x in 143 chapters, but also lowercase 6x
+# Lesser  # capitalized 164x in 129 chapters, but also lowercase 376x
+# Firstborn  # capitalized 164x in 85 chapters, but also lowercase 38x
+# Bastion  # capitalized 159x in 81 chapters, but also lowercase 5x
+# Brood  # capitalized 159x in 67 chapters, but also lowercase 9x
+# Ruin  # capitalized 159x in 92 chapters, but also lowercase 313x
+# Infirmary  # capitalized 158x in 69 chapters, but also lowercase 5x
+# Auntie  # capitalized 143x in 100 chapters, but also lowercase 13x
+# Doppelganger  # capitalized 143x in 45 chapters, but also lowercase 8x
+# Healers  # capitalized 137x in 102 chapters, but also lowercase 127x
+# Reactor  # capitalized 132x in 49 chapters, but also lowercase 6x
+# Forgotten  # capitalized 128x in 68 chapters, but also lowercase 423x
+# Hexagram  # capitalized 123x in 71 chapters, but also lowercase 3x
+# Horsemen  # capitalized 121x in 93 chapters, but also lowercase 7x
+# Cursed Flames  # capitalized 111x in 85 chapters, but also lowercase 5x
+# Corpse  # capitalized 110x in 53 chapters, but also lowercase 429x
+# Gala  # capitalized 109x in 75 chapters, but also lowercase 172x
+# Banshee  # capitalized 101x in 55 chapters, but also lowercase 5x
+# Cursed Elements  # capitalized 96x in 59 chapters, but also lowercase 22x
+# Trouble  # capitalized 95x in 80 chapters, but also lowercase 490x
+# Red Sun  # capitalized 94x in 50 chapters, but also lowercase 5x
+# Emerald Dragon  # capitalized 94x in 58 chapters, but also lowercase 9x
+# Grandpa  # capitalized 92x in 84 chapters, but also lowercase 17x
+# Camellia  # capitalized 89x in 54 chapters, but also lowercase 16x
+# Scanner  # capitalized 88x in 59 chapters, but also lowercase 7x
+# Ghoul  # capitalized 87x in 39 chapters, but also lowercase 23x
+# Sealed Space  # capitalized 85x in 43 chapters, but also lowercase 4x
+# Moonlight  # capitalized 83x in 63 chapters, but also lowercase 21x
+# Tower Tier  # capitalized 82x in 59 chapters, but also lowercase 14x
+# Armory  # capitalized 82x in 56 chapters, but also lowercase 29x
+# Hushed  # capitalized 80x in 77 chapters, but also lowercase 3x
+# Mindscape  # capitalized 80x in 58 chapters, but also lowercase 6x
+# Black Tide  # capitalized 78x in 34 chapters, but also lowercase 13x
+# Crank  # capitalized 76x in 48 chapters, but also lowercase 3x
+# Royal Palace  # capitalized 76x in 66 chapters, but also lowercase 9x
+# Absolution  # capitalized 65x in 34 chapters, but also lowercase 3x
+# Valor  # capitalized 63x in 20 chapters, but also lowercase 10x
+# Fusion Magic  # capitalized 60x in 46 chapters, but also lowercase 247x
+# Sunset  # capitalized 60x in 35 chapters, but also lowercase 40x
+# Tower Warp  # capitalized 57x in 53 chapters, but also lowercase 10x
+# Duchy  # capitalized 56x in 56 chapters, but also lowercase 3x
+# Throne Room  # capitalized 55x in 45 chapters, but also lowercase 47x
+# Wardens  # capitalized 55x in 51 chapters, but also lowercase 10x
+# Lifestream  # capitalized 54x in 48 chapters, but also lowercase 4x
+# Royal Constable  # capitalized 54x in 49 chapters, but also lowercase 17x

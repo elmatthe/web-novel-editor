@@ -48,3 +48,16 @@ files/pdf-example-chapters/
 
 # Agent config — not shipped
 AI-WORKSPACE.md
+.claude/
+.codex/
+.vscode/
+
+# --- Credentials (Plan 2b) — must never be committed ---
+# Cloud API keys live in the per-user app-data directory, NOT in the repo. A repo-root
+# .env is a documented developer override only; these rules exist so an accidental one
+# can never be staged.
+.env
+.env.*
+*.key
+*.pem
+secrets.json

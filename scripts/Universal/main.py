@@ -1,6 +1,6 @@
 """Webnovel Editor — application entry point.
 
-Launched by the startup scripts (`Setup_and_Run.bat` / `Setup_and_Run.command`)
+Launched by the startup scripts (`Setup_and_Run-Web-Novel-Editor.bat` / `Setup_and_Run-Web-Novel-Editor.command`)
 via `python scripts/Universal/main.py`. Opens the Tkinter GUI (Phase 2).
 
 `--check` runs the full import/startup chain (tkinter + the GUI package) and exits
