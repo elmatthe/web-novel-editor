@@ -83,6 +83,21 @@ DECISIONS.md #062–#070.
   this project. Google publishes no free-tier table, so this is the only figure that exists — and it
   is why a 3,000-chapter cloud run stays impractical on the free tier however well the waiting works.
 
+### Changed — `verify` now catches version drift between config.toml and the CHANGELOG
+- A fourth check fails the gate when `config.toml`'s `[project] version` disagrees with the
+  CHANGELOG's newest entry. Added because it had already drifted silently: CHANGELOG and BRIEFING
+  said v0.13.0 for a whole plan while `config.toml` still shipped `"0.12.0"`. Nothing consumed the
+  mismatch, which is exactly why nobody noticed — and `config.toml` is the file a release, a bug
+  report and a support conversation all quote. `config.toml` is now at `0.13.0`.
+
+### Changed — the launchers are named for the project
+- `Setup_and_Run.bat` / `.command` → **`Setup_and_Run-Web-Novel-Editor.bat` / `.command`**, matching
+  the convention every other repo in this workspace uses. Pure rename: identical content, `.bat`
+  still CRLF and `.command` still LF per `.gitattributes`, and the `.command`'s executable bit
+  (`100755`) preserved so Finder double-click still works. `README.md`, `main.py`'s docstring and
+  `BRIEFING.md` follow; append-only history (CHANGELOG, DECISIONS, past handoff entries) keeps the
+  old names, because that is what those files were describing at the time.
+
 ### Changed — the dropdown and the log no longer imply a protected novel is unprotected
 - **"Has a special-fixes profile" and "has protected names" are two different things**, and one label
   was doing both jobs. Reverend Insanity — no profile, **1,429 protected terms** — showed as

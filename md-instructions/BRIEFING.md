@@ -333,7 +333,7 @@ Tech stack: Python 3.10+ (built on 3.12.10), Tkinter, pdfplumber, reportlab, nat
   `study-examples/`, `test-logs/`, and `qa-tools/` scratch.
 
 ## Packaging Decision (RESOLVED, do not revisit by accident)
-- **Distribution = the double-click launcher (`Setup_and_Run.bat` / `.command`). NO frozen
+- **Distribution = the double-click launcher (`Setup_and_Run-Web-Novel-Editor.bat` / `.command`). NO frozen
   PyInstaller exe for v1.** The launcher already gives a non-technical user "downloaded zip
   → running GUI" with nothing installed system-wide except Python-if-missing. A frozen exe
   would *add* risk, not remove it: unsigned one-file PyInstaller binaries trip Defender/
@@ -493,7 +493,7 @@ Inspecting the real extracted fixtures this session refined the prior recon:
   `scripts/rules/spacing_cleanup.py`, `scripts/rules/chapter_titles.py`,
   `scripts/pipelines/shadow_slave.py`, `scripts/pdf/builder.py`, both launchers, `README.md`,
   `md-instructions/build-spec.md`, `md-instructions/EDITING-RULES.md`, and regression tests.
-- Source: `Setup_and_Run.bat`, `Setup_and_Run.command` (M4 pip-fail guard);
+- Source: `Setup_and_Run-Web-Novel-Editor.bat`, `Setup_and_Run-Web-Novel-Editor.command` (M4 pip-fail guard);
   `scripts/utils/file_utils.py` (M2 `debug_text_path` replaces `sibling_path`; M3 new
   `open_in_file_manager`); `scripts/core/batch_runner.py` (uses `debug_text_path`);
   `scripts/gui/app.py` (M3 auto-open on completion); `scripts/pipelines/shadow_slave.py`

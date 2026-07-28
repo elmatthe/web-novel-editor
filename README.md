@@ -35,8 +35,8 @@ on) — and never has another novel's specific fixes applied to it.
 
 You do not need to open a terminal or install project dependencies by hand.
 
-- Windows: double-click `Setup_and_Run.bat`
-- macOS: double-click `Setup_and_Run.command`
+- Windows: double-click `Setup_and_Run-Web-Novel-Editor.bat`
+- macOS: double-click `Setup_and_Run-Web-Novel-Editor.command`
 
 Each launcher runs four numbered steps — checks Python, creates (or self-heals) a
 self-contained `.venv` folder in the project, installs the pinned dependencies (skipped when
@@ -47,7 +47,7 @@ Python 3.10 or later is required. If Python is missing or too old, the launcher 
 a plain-language message and explains what to do next.
 
 **Platform support:** Windows is the primary, fully-tested platform. The macOS
-`Setup_and_Run.command` is verified — a real macOS clean-room bootstrap plus a Finder
+`Setup_and_Run-Web-Novel-Editor.command` is verified — a real macOS clean-room bootstrap plus a Finder
 double-click (confirmed 2026-07-16). The `scripts/MacOS/` folder is a structural placeholder
 only (there is no macOS-exclusive code today).
 
