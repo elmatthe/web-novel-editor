@@ -9,6 +9,45 @@ its original decision date. New decisions continue to be appended here (newest o
 
 ---
 
+## 073 — `qwen/qwen3.6-27b` is NOT approved, and the reason is not "we forgot" — 2026-07-27 — Claude Code
+
+**Status:** Accepted. Records a **rejected** candidate so it is not re-proposed on sight.
+
+**Context:** Phase 0 correction #6 said "Groq offers no Qwen model in its production lineup." That is
+now out of date — `qwen/qwen3.6-27b` appears in `models.list()` for this key, and the 2026-07-27
+model audit surfaced it as the one new candidate. A future agent seeing a live Qwen model on Groq, in
+a project whose *local* default is `qwen3:14b`, will be tempted to add it.
+
+**Decision:** Not added. It fails two of this project's three standing conditions, checked against
+Groq's own current documentation rather than recalled:
+
+1. **Status is Preview, not stable.** Groq lists "Alibaba Cloud Qwen" under Preview models, which its
+   own docs define as "provided strictly for evaluation purposes and should not be used in production
+   environments, as they may be discontinued at short notice." `ensure_model_approved` refuses
+   anything that is not `status = "stable"` while `strict_free_tier_only` is on, so approving it as
+   `stable` would be a false record written to satisfy a rail rather than a true one.
+2. **Free-tier eligibility is not confirmed.** Groq's model table publishes it at $0.60/M input and
+   $3.00/M output, and the accompanying limits (250,000 TPM / 1,000 RPM) are the **developer plan's**
+   figures — Groq's own table is titled as developer-plan rate limits. There is no free-plan row for
+   it. Per #067 that makes `free_tier_confidence` `unknown` at best, which strict mode refuses.
+
+The third condition — does a real request succeed — was **not tested**, deliberately. Testing it
+requires an approved record to exist for the spend guard to clear, and writing a record for a model
+that already fails two conditions would mean writing `status = "stable"` and
+`free_tier_confidence = "confirmed"` as facts when neither is true. The guard was instead asked about
+it directly and refused it with `model_not_approved`, which is the rails behaving correctly.
+
+**Alternatives considered:** Adding it with `status = "preview"` — pointless, strict mode refuses it,
+so the record would be inert while implying the model was reviewed and available. Adding it with
+`free_tier_confidence = "unknown"` — same. Turning `strict_free_tier_only` off to try it — refused
+outright; that switch is the one Phase 7a exists to defend.
+
+**Consequences:** The approved list stays at eight models. If Groq later promotes this model to
+production **and** publishes a free-plan row for it, both conditions flip at once and the record can
+be written honestly. Until then this entry is the answer to "why isn't the Qwen model in here?"
+
+---
+
 ## 071 — The honest billing contract: fail-closed, and explicit about the limit of that — 2026-07-27 — Claude Code
 
 **Status:** Accepted. Retires the earlier promise that the app is "architecturally incapable of opting
