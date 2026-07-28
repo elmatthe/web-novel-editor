@@ -100,6 +100,17 @@ max_wait_seconds = 900
 # the limiter stops cleanly and checkpoints instead of guessing "per minute" again. Set
 # to 0 to disable. Phase 7b measured ~35 minutes of futile Gemini calls without it.
 unnamed_limit_escalation_seconds = 600
+# A per-DAY quota that arrives with a SHORT authoritative `RetryInfo.retryDelay`.
+# Google enforces its free-tier requests-per-day allowance as a refilling window: a 429
+# names `GenerateRequestsPerDayPerProjectPerModel-FreeTier` (genuinely per-day) and in
+# the same body says "Please retry in 53s" — and retrying then really does succeed.
+# Captured live 2026-07-27, 11 consecutive 429s, retryDelay 2-55 s (DECISIONS #072).
+# DECISIONS #069 splits waits "by duration, not by error code"; this is the number that
+# makes the implementation honour that. A per-day quota whose own retryDelay is at or
+# under this many seconds is WAITED, not checkpointed. Anything longer, or a per-day
+# quota carrying no retryDelay at all, still checkpoints and stops exactly as before.
+# Set to 0 to disable and always checkpoint on a daily quota.
+daily_quota_retry_delay_max_seconds = 120
 
 [ai.groq]
 enabled = false
@@ -128,6 +139,11 @@ max_wait_seconds = 900
 # the limiter stops cleanly and checkpoints instead of guessing "per minute" again. Set
 # to 0 to disable. Phase 7b measured ~35 minutes of futile Gemini calls without it.
 unnamed_limit_escalation_seconds = 600
+# 0 = OFF for Groq, deliberately. Groq's daily ceiling is tokens-per-day and it latches
+# correctly today: Phase 7b watched it refuse every subsequent chapter in 0.0 s with no
+# network call, which is the intended behaviour. Groq does not send a short retryDelay
+# on a TPD exhaustion, and nothing here should invite it to start being waited on.
+daily_quota_retry_delay_max_seconds = 0
 
 # ---------------------------------------------------------------------------
 # Approved cloud models (Plan 2b Phase 0 — reviewed 2026-07-24)

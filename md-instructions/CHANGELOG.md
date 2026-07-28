@@ -69,6 +69,20 @@ DECISIONS.md #062–#070.
   Renegade Immortal and **17,252 → 5,474** for Reverend Insanity, returning both to their zero-index
   cost. Protection is unchanged: the gate still validates against the whole index. DECISIONS #063.
 
+### Fixed — a refilling per-day quota no longer ends the run for the day
+- **Gemini's free-tier requests-per-day quota REFILLS, and the run now waits for it.** The 429 that
+  stopped a run names `GenerateRequestsPerDayPerProjectPerModel-FreeTier` (genuinely per-day,
+  `quotaValue: 20`) and in the same body says "Please retry in 53s" — and retrying then really does
+  succeed. The classifier was reading that correctly; the *handling* threw the 53 away and
+  checkpointed until tomorrow. DECISIONS #069 splits waits "by duration, not by error code", and the
+  implementation split them by code. A per-day quota is now waited when the delay came from the
+  provider, is positive, and is at or under a per-provider configured cap — and checkpoints exactly
+  as before otherwise. `config.toml` ships **120 s for Gemini, 0 (off) for Groq**, whose
+  tokens-per-day ceiling latches correctly today and must keep doing so. DECISIONS #072.
+- **Measured, for the record: the free-tier allowance is 20 requests/day for `gemini-3.6-flash`** on
+  this project. Google publishes no free-tier table, so this is the only figure that exists — and it
+  is why a 3,000-chapter cloud run stays impractical on the free tier however well the waiting works.
+
 ### Changed — the dropdown and the log no longer imply a protected novel is unprotected
 - **"Has a special-fixes profile" and "has protected names" are two different things**, and one label
   was doing both jobs. Reverend Insanity — no profile, **1,429 protected terms** — showed as

@@ -200,6 +200,11 @@ class LimiterSettings:
     max_attempts: int
     max_wait_seconds: float
     unnamed_limit_escalation_seconds: float = 0.0
+    #: Seconds. A per-DAY quota whose own ``RetryInfo.retryDelay`` is at or under this
+    #: is waited rather than checkpointed. 0 disables it, which is the pre-#072
+    #: behaviour and what Groq ships. Never a guess: it gates an authoritative number
+    #: the provider supplied, and gates nothing when the provider supplied none.
+    daily_quota_retry_delay_max_seconds: float = 0.0
 
     @property
     def min_interval_seconds(self) -> float:
@@ -236,6 +241,9 @@ class LimiterSettings:
             ),
             max_wait_seconds=number("max_wait_seconds"),
             unnamed_limit_escalation_seconds=number("unnamed_limit_escalation_seconds"),
+            daily_quota_retry_delay_max_seconds=number(
+                "daily_quota_retry_delay_max_seconds"
+            ),
         )
 
 
@@ -480,7 +488,40 @@ class RateLimiter:
         kind = self._escalate_if_unexplained(kind, exc, snapshot)
 
         if kind in DAILY_KINDS:
-            # Never a wait. Not once, not briefly, not "just until the reset".
+            # DECISIONS #069 splits waits "by duration, not by error code", and until
+            # #072 this branch split them by code: every per-day quota checkpointed the
+            # run, however short the wait actually was. Google's free tier turns out to
+            # enforce requests-per-day as a REFILLING window — the 429 names
+            # `GenerateRequestsPerDayPerProjectPerModel-FreeTier` and, in the same body,
+            # says "Please retry in 53s", and retrying then really does succeed. So an
+            # authoritative short delay is served here rather than thrown away.
+            #
+            # The three ways this stays conservative: the number must come from the
+            # provider (`retry_after_seconds` on the error, never a floor and never a
+            # guess), it must be at or under a configured cap, and the cap ships at 0 —
+            # off — for any provider not proven to behave this way. Groq's tokens-per-day
+            # keeps latching in 0.0 s with no network call, which is what Phase 7b
+            # measured and what it should keep doing.
+            authoritative_delay = _float_or_none(
+                getattr(exc, "retry_after_seconds", None)
+            )
+            cap = self.settings.daily_quota_retry_delay_max_seconds
+            if (
+                authoritative_delay is not None
+                and cap > 0
+                and 0 < authoritative_delay <= cap
+            ):
+                return WaitDecision(
+                    kind,
+                    authoritative_delay,
+                    "retry_after_daily_refill",
+                    authoritative=True,
+                    daily=False,   # not a stop: the provider said to come back shortly
+                    retry=True,
+                    reset_seconds=authoritative_delay,
+                    reset_known=True,
+                )
+            # Otherwise: never a wait. Not once, not briefly, not "just until the reset".
             reset = _float_or_none(getattr(snapshot, "reset_requests_seconds", None))
             return WaitDecision(
                 kind,

@@ -51,6 +51,7 @@ from ai.provider import AIProvider
 from ai.providers.groq import RateLimitSnapshot, read_rate_limits
 from ai.rate_limits import (
     DAILY_KINDS,
+    WAIT_SLICE_SECONDS,
     FlooredRateLimiter,
     HeaderDrivenRateLimiter,
     LimiterSettings,
@@ -1292,3 +1293,156 @@ def test_the_escalated_run_refuses_the_next_chapter_without_a_network_call():
         paced.complete(request)
     assert inner.calls == calls_after, "a stopped run still contacted the provider"
     assert calls_after > calls_before
+
+
+# --------------------------------------------------------------------------
+# A per-day quota that REFILLS (DECISIONS #072, captured live 2026-07-27)
+# --------------------------------------------------------------------------
+# Google enforces its free-tier requests-per-day allowance as a refilling window. The
+# same 429 body that names `GenerateRequestsPerDayPerProjectPerModel-FreeTier`
+# (`quotaValue: 20`) carries `RetryInfo.retryDelay` of 2-55 seconds, and retrying after
+# that delay really does succeed. Until #072 the limiter threw that number away and
+# checkpointed the run for the rest of the day.
+#
+# The classifier was never wrong -- Google really does say "per day". DECISIONS #069
+# splits waits "by duration, not by error code", and this is the branch that finally
+# does that.
+
+def _daily(message: str, *, retry_after: float | None = None) -> DailyQuotaExhausted:
+    exc = DailyQuotaExhausted(message, retryable=False)
+    exc.retry_after_seconds = retry_after
+    return exc
+
+
+GEMINI_REFILL_MESSAGE = (
+    "Gemini free daily quota for gemini-3.6-flash is used up (Quota exceeded for "
+    "metric: generate_content_free_tier_requests, quotaId: "
+    "GenerateRequestsPerDayPerProjectPerModel-FreeTier, limit: 20)."
+)
+
+
+def test_a_daily_quota_with_a_short_retry_delay_is_waited_not_checkpointed():
+    """The live case: genuinely per-day, and the provider says come back in 53s."""
+    limiter, _clock, sleeper = build_limiter(
+        provider_name="gemini", daily_quota_retry_delay_max_seconds=120
+    )
+    exc = _daily(GEMINI_REFILL_MESSAGE, retry_after=53.0)
+
+    decision = limiter.decide_for_error(exc)
+
+    assert decision.kind is LimitKind.REQUESTS_PER_DAY   # classification unchanged
+    assert decision.retry is True
+    assert decision.daily is False                       # so no checkpoint is written
+    assert decision.authoritative is True
+    assert decision.seconds == 53.0
+    assert decision.source == "retry_after_daily_refill"
+    # Deciding never sleeps; serving does. Pinned so the two stay separable.
+    assert limiter.note_quota_stop(decision, exc) is None
+    assert sleeper.calls == []
+
+
+def test_a_daily_quota_with_NO_retry_delay_still_checkpoints_and_stops():
+    """The genuinely-daily case must be untouched. No number from the provider, no wait."""
+    limiter, _clock, _sleeper = build_limiter(
+        provider_name="gemini", daily_quota_retry_delay_max_seconds=120
+    )
+    exc = _daily(GEMINI_REFILL_MESSAGE, retry_after=None)
+
+    decision = limiter.decide_for_error(exc)
+
+    assert decision.retry is False and decision.daily is True
+    assert decision.seconds == 0.0 and decision.source == "daily"
+    stop = limiter.note_quota_stop(decision, exc)
+    assert stop is not None and stop.is_daily is True
+
+
+def test_a_daily_quota_whose_retry_delay_exceeds_the_cap_still_checkpoints():
+    """A "come back in 6 hours" per-day quota is a stop, not a sleep (DECISIONS #069)."""
+    limiter, _clock, _sleeper = build_limiter(
+        provider_name="gemini", daily_quota_retry_delay_max_seconds=120
+    )
+    decision = limiter.decide_for_error(
+        _daily(GEMINI_REFILL_MESSAGE, retry_after=21_600.0)
+    )
+
+    assert decision.retry is False and decision.daily is True
+    assert decision.source == "daily"
+
+
+@pytest.mark.parametrize("delay", [0.0, -1.0])
+def test_a_non_positive_retry_delay_is_not_treated_as_permission_to_continue(delay):
+    """Zero is not a wait, and a negative number is nonsense. Both checkpoint."""
+    limiter, _clock, _sleeper = build_limiter(
+        provider_name="gemini", daily_quota_retry_delay_max_seconds=120
+    )
+    decision = limiter.decide_for_error(_daily(GEMINI_REFILL_MESSAGE, retry_after=delay))
+    assert decision.retry is False and decision.daily is True
+
+
+def test_the_refill_wait_is_off_unless_the_provider_is_configured_for_it():
+    """Cap 0 = the pre-#072 behaviour, exactly. This is the Groq-safety property."""
+    limiter, _clock, _sleeper = build_limiter(
+        provider_name="gemini", daily_quota_retry_delay_max_seconds=0
+    )
+    decision = limiter.decide_for_error(_daily(GEMINI_REFILL_MESSAGE, retry_after=53.0))
+    assert decision.retry is False and decision.daily is True
+
+
+def test_groq_tokens_per_day_still_latches_even_with_a_short_delay_attached():
+    """Groq TPD behaviour must not move. Its shipped cap is 0, so even a provider that
+    started sending a short retryDelay could not make a TPD exhaustion wait."""
+    settings = LimiterSettings.from_settings(
+        provider_settings({"groq": CLOUD_DEFAULTS["groq"]}, "groq"), provider="groq"
+    )
+    assert settings.daily_quota_retry_delay_max_seconds == 0
+
+    limiter, _clock, _sleeper = build_limiter(
+        provider_name="groq",
+        daily_quota_retry_delay_max_seconds=(
+            settings.daily_quota_retry_delay_max_seconds
+        ),
+    )
+    exc = _daily(
+        "Rate limit reached for model llama-3.3-70b-versatile: tokens per day (TPD).",
+        retry_after=30.0,
+    )
+    decision = limiter.decide_for_error(exc)
+
+    assert decision.kind is LimitKind.TOKENS_PER_DAY
+    assert decision.retry is False and decision.daily is True
+    stop = limiter.note_quota_stop(decision, exc)
+    assert stop is not None and stop.is_daily is True
+
+
+def test_the_shipped_config_enables_the_refill_wait_for_gemini_and_not_for_groq():
+    ai_table = load_config(CONFIG_PATH)
+    gemini = LimiterSettings.from_settings(
+        provider_settings(ai_table, "gemini"), provider="gemini"
+    )
+    groq = LimiterSettings.from_settings(
+        provider_settings(ai_table, "groq"), provider="groq"
+    )
+    assert gemini.daily_quota_retry_delay_max_seconds > 0
+    assert groq.daily_quota_retry_delay_max_seconds == 0
+
+
+def test_a_refill_wait_is_actually_served_against_the_injected_clock():
+    """End to end through the real wait path: the delay is slept, in bounded slices,
+    and the fake clock is what moves -- nothing here sleeps for real."""
+    clock = FakeClock()
+    sleeper = RecordingSleeper(clock)
+    limiter, _clock, _sleeper = build_limiter(
+        clock=clock,
+        sleeper=sleeper,
+        provider_name="gemini",
+        daily_quota_retry_delay_max_seconds=120,
+    )
+    started = clock.monotonic()
+    decision = limiter.decide_for_error(_daily(GEMINI_REFILL_MESSAGE, retry_after=53.0))
+    assert decision.retry is True
+
+    slept = limiter._serve(decision.seconds)
+    assert slept == pytest.approx(53.0, abs=0.51)
+    assert clock.monotonic() - started == pytest.approx(53.0, abs=0.51)
+    # Served as many short slices so Stop is never blocked behind a countdown.
+    assert max(sleeper.calls) <= WAIT_SLICE_SECONDS

@@ -815,3 +815,58 @@ def test_malformed_error_bodies_never_raise_out_of_the_classifier(body):
     error.details = body
     assert quota_period(error) is None
     assert retry_delay_seconds(error) is None
+
+
+# ---------------------------------------------------------------------------
+# The per-day quota that REFILLS (DECISIONS #072) -- captured live 2026-07-27
+# ---------------------------------------------------------------------------
+# The 429 that stopped the frozen re-run, verbatim from `error.details`:
+#
+#   quotaId:     GenerateRequestsPerDayPerProjectPerModel-FreeTier
+#   quotaMetric: generativelanguage.googleapis.com/generate_content_free_tier_requests
+#   quotaValue:  20
+#   RetryInfo.retryDelay: "53s"
+#
+# Both halves are true at once: it IS the per-day quota, and the wait IS 53 seconds.
+# The classifier was never wrong. What was wrong was throwing the 53 away.
+
+def test_the_real_captured_429_reads_as_per_day_AND_carries_a_short_delay():
+    """The evidence for #072, pinned so the premise cannot rot."""
+    error = RealisticAPIError(
+        429, [_violation("GenerateRequestsPerDayPerProjectPerModel-FreeTier")],
+        retry_delay="53s",
+    )
+    assert quota_period(error) == "day"
+    assert retry_delay_seconds(error) == 53.0
+
+
+def test_a_daily_quota_error_carries_the_retry_delay_to_the_limiter():
+    """The adapter must SURFACE the delay; the limiter decides what to do with it.
+
+    Before #072 `retry_after_seconds` was attached only to `RateLimited`, so a per-day
+    429 reached the limiter with the one number that could have kept the run going
+    already discarded.
+    """
+    guard = provider(_Client(), model_id=MODEL)
+    error = RealisticAPIError(
+        429, [_violation("GenerateRequestsPerDayPerProjectPerModel-FreeTier")],
+        retry_delay="53s",
+    )
+    with pytest.raises(DailyQuotaExhausted) as caught:
+        guard._raise_transport_error(error)
+
+    assert caught.value.retry_after_seconds == 53.0
+    # Still non-retryable at the adapter level: the LIMITER owns the wait decision,
+    # not the adapter, and not the editor own retry loop.
+    assert caught.value.retryable is False
+
+
+def test_a_daily_quota_error_with_no_retry_info_surfaces_none_not_a_guess():
+    guard = provider(_Client(), model_id=MODEL)
+    error = RealisticAPIError(
+        429, [_violation("GenerateRequestsPerDayPerProjectPerModel-FreeTier")],
+        retry_delay=None,
+    )
+    with pytest.raises(DailyQuotaExhausted) as caught:
+        guard._raise_transport_error(error)
+    assert caught.value.retry_after_seconds is None

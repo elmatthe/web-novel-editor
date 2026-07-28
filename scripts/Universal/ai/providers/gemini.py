@@ -677,18 +677,27 @@ class GeminiProvider:
             # the STRUCTURED QuotaFailure violations first, because the redacted,
             # length-bounded message is not long enough to reach it.
             period = quota_period(exc)
+            delay = retry_delay_seconds(exc)
             if period == "day" or "perday" in squashed or "daily" in squashed:
-                raise DailyQuotaExhausted(
+                exhausted = DailyQuotaExhausted(
                     f"Gemini's free daily quota for {self.model_id} is used up "
                     f"({message}). Requests-per-day quotas reset at midnight "
                     f"Pacific time.",
                     retryable=False,
-                ) from exc
+                )
+                # Google's per-day free-tier quota REFILLS, and the same 429 that names
+                # it per-day carries a `RetryInfo.retryDelay` of seconds (2-55 s
+                # observed live 2026-07-27). Surfacing it here is what lets the limiter
+                # honour DECISIONS #069's "by duration, not by error code" rule; the
+                # limiter still decides, and still checkpoints when the delay is long,
+                # absent, or the provider's cap is 0. DECISIONS #072.
+                exhausted.retry_after_seconds = delay
+                raise exhausted from exc
             limited = RateLimited(
                 f"Gemini is rate limiting this project ({message}).", retryable=True
             )
             # The limiter prefers this over its configured floor when it is present.
-            limited.retry_after_seconds = retry_delay_seconds(exc)
+            limited.retry_after_seconds = delay
             raise limited from exc
         if code is not None and 500 <= code < 600:
             raise ProviderUnavailable(

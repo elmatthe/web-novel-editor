@@ -48,6 +48,62 @@ be written honestly. Until then this entry is the answer to "why isn't the Qwen 
 
 ---
 
+## 072 — A per-day quota that REFILLS is waited, not checkpointed — 2026-07-27 — Claude Code
+
+**Status:** Accepted. **Refines #069; does not reverse it.** #069's rule stands verbatim — this is the
+change that makes the implementation obey it.
+
+**Context:** After the 2026-07-27 re-run stopped on "daily quota exhausted", a full chapter-sized
+request succeeded minutes later, and each `--resume` recovered a chapter or two before stopping again.
+That is not how a daily limit behaves, so the raw 429 body was captured (an observer on the adapter's
+error path; 11 consecutive 429s recorded). **The classifier turned out to be right, and the handling
+turned out to be wrong.** Google says, in one body:
+
+```
+quotaId:     GenerateRequestsPerDayPerProjectPerModel-FreeTier      <- genuinely per-day
+quotaValue:  20                                                     <- 20 requests/day, free tier
+RetryInfo.retryDelay: "53s"                                         <- come back in 53 seconds
+```
+
+Both halves are true at once. Google enforces the free-tier requests-per-day allowance as a
+**refilling window**, and tells you when the next slot opens. Observed retryDelay across the 11
+captures: 2, 5, 6, 15, 24, 25, 26, 35, 43, 53, 55 seconds — and waiting really did let more chapters
+through.
+
+**Decision:** #069 says waits are split **"by duration, not by error code."** The implementation split
+them by code: `if kind in DAILY_KINDS` returned "never a wait" regardless of how long the wait
+actually was. Now, a per-day quota is waited **iff all three hold**:
+
+1. the delay came from the **provider** (`retry_after_seconds` on the error) — never a floor, never a
+   guess, never a header the limiter interpreted;
+2. it is **positive and at or under** `daily_quota_retry_delay_max_seconds` for that provider; and
+3. that cap is **greater than zero**, which it is only where the behaviour has been observed.
+
+Everything else is untouched. A per-day quota with no retryDelay, a retryDelay longer than the cap,
+a zero or negative delay, or a provider whose cap is 0 all checkpoint and stop exactly as before.
+The classification itself never changes — the decision still reports `REQUESTS_PER_DAY`.
+
+`config.toml` ships **120 s for Gemini and 0 (off) for Groq.** Groq's daily ceiling is
+tokens-per-day, it latches correctly today (Phase 7b watched it refuse every subsequent chapter in
+0.0 s with no network call), and it does not send a short retryDelay on a TPD exhaustion. A test
+builds the shipped Groq settings and asserts the cap is 0, so this cannot start applying to Groq by
+accident.
+
+**Alternatives considered:** Reclassifying the error as per-minute so the existing wait path handles
+it — rejected: it would be a lie about what Google said, and it would defeat #068, which exists
+precisely to stop per-day quotas being read as per-minute. Reusing `max_wait_seconds` (900 s) as the
+cap — rejected: that number governs a different question (how long *this session* will sleep on a
+per-minute wait) and silently reusing it would mean a 15-minute "daily" wait gets slept. Sleeping
+through the full daily reset — still rejected, and still for #069's original reason.
+
+**Consequences:** A Gemini free-tier run now serves its 20-request allowance without stopping at the
+first 429 and demanding the user come back tomorrow. The stop is still there and still real for a
+genuinely long wait. **What this does NOT change: the free-tier allowance is 20 requests per day for
+`gemini-3.6-flash` on this project** — a measured number that nobody publishes, and the reason a
+3,000-chapter cloud run remains impractical on the free tier regardless of how well the waiting works.
+
+---
+
 ## 071 — The honest billing contract: fail-closed, and explicit about the limit of that — 2026-07-27 — Claude Code
 
 **Status:** Accepted. Retires the earlier promise that the app is "architecturally incapable of opting

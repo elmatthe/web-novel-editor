@@ -81,6 +81,9 @@ CLOUD_DEFAULTS: dict[str, dict[str, Any]] = {
         "max_attempts": 3,
         "max_wait_seconds": 900,
         "unnamed_limit_escalation_seconds": 600,
+        # Google's free-tier requests-per-day quota refills, and its 429 says how long
+        # to wait. See the long note in `config.toml` and DECISIONS #072.
+        "daily_quota_retry_delay_max_seconds": 120,
     },
     "groq": {
         "enabled": False,
