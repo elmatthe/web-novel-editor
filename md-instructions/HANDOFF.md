@@ -4,8 +4,19 @@
 
 **Plan 2b (Cloud AI Providers — Gemini, Groq) is COMPLETE through Phase 8, v0.13.0, on
 `feature/plan-2b-cloud-providers`. It has NOT been merged to `main` and awaits the author's
-sign-off.** `verify` is green at **1238 passed / 9 skipped**, and identical in the clean room with
-`ollama`, `groq` and `google.genai` import-blocked and every key unset.
+sign-off.** `verify` is green at **1252 passed / 9 skipped** after the 2026-07-27 post-click-through
+pass (see the work log directly below); it was 1238 / 9 at the end of Phase 8, and identical in the
+clean room with `ollama`, `groq` and `google.genai` import-blocked and every key unset.
+
+**The author's pre-merge click-through found three things, all addressed 2026-07-27.** Three approved
+models were uncallable — the gpt-oss pair through a wrong `reasoning_effort` value we were sending
+(fixed, both verified live), `gemini-2.5-flash` through genuine withdrawal by Google (record
+removed) — and a lost provider now names its own cause instead of one generic sentence. The
+rejection-rate worry was **measured, not guessed: no regression.** On all 20 frozen chapters
+measurable in both runs the gate outcome is identical chapter for chapter, despite index growth of
+14× on one novel. The misleading "no profile yet" label is gone. **Two open questions are the
+author's:** whether to approve `qwen/qwen3.6-27b`, and whether to close the Task 2 gap (Renegade
+Immortal / Reverend Insanity were quota-blocked, and they are the novels behind the observed rate).
 
 **The author's Phase 8 decisions, now shipped:** no default cloud provider — cloud is opt-in per run,
 every run, with no persisted preference (DECISIONS #064); Renegade Immortal's real profile is correct
@@ -59,6 +70,161 @@ first phase that makes a real cloud call, so it needs a key and the billing/plan
 manually in the provider's own console (done 2026-07-25 — see the Phase 7a log). **Every cloud run
 now passes `ai.spend_guard.ensure_free_tier_run_allowed` at `ai.factory.create_provider` before an
 adapter exists**, and a refusal stops the run in a dialog rather than degrading to script-only.
+
+## Work Log — 2026-07-27 — Claude Code — Post-click-through: model audit, rejection-rate check, honest labels
+
+Ran on HOME-PC, on `feature/plan-2b-cloud-providers`, **after** Phase 8 and in response to the
+author's pre-merge click-through. Three commits, one per task, all pushed. **Still UNMERGED.**
+`scripts/verify.py` **PASS — 1252 passed, 9 skipped**, up from Phase 8's 1238 / 9 (+14 tests).
+
+### Task 1 — why three approved models were unreachable
+
+The author's batches logged "AI provider unavailable" for `gemini-2.5-flash`, `openai/gpt-oss-20b`
+and `openai/gpt-oss-120b`; nothing was sent and the batch finished script-only. **Two different
+causes, neither recoverable from the log.** Settled by one live single-request probe per model
+through the normal guarded path (`gui.ai_settings.build_ai_editor` → spend guard → factory; no
+bypass, nothing weakened). Harness: `files/qa-tools/scratch/model-audit/` (gitignored).
+
+**A cheap negative result first, and it matters.** `models.list()` returns **all nine** approved IDs
+on this account — 56 Gemini models, 15 Groq. So retirement was not the answer and `health_check()`
+reported OK for all nine. **Being listed is not being callable**, and the existing retirement check
+(`ensure_model_available`) can only ever see the list.
+
+| model | real cause | what changed |
+|---|---|---|
+| `openai/gpt-oss-20b` / `-120b` | **our bug.** HTTP 400 on *every* request: the adapter sent `reasoning_effort = "none"`, a qwen3-only value. gpt-oss accepts only `low\|medium\|high`. | Now `"low"` (`_MIN_REASONING_EFFORT`). **Both models verified callable by live probe.** Records kept. |
+| `gemini-2.5-flash` | **genuinely withdrawn.** HTTP 404: *"This model models/gemini-2.5-flash is no longer available to new users."* | Record **removed** from `config.toml`, with the probe output recorded in place so nobody re-adds it on a hunch. |
+
+Deleting two live, free, working models because of our own parameter bug would have been the wrong
+fix, so the gpt-oss records stay. Google's own deprecation page names `gemini-3.6-flash` and
+`gemini-3.1-flash-lite` as the 2.5-flash replacements — both already approved, so removing the
+record costs nothing. Groq's reference and Google's were both re-read (Context7), not recalled.
+
+**The message.** One sentence covered a withdrawn model, a refused key, an exhausted quota and a
+dropped connection — four problems with four different fixes — while a whole batch quietly finished
+script-only, which is the failure mode hardest to notice. `AIEditor` now records the exception
+**kind** beside the text (`unavailable_kind`, `unavailable_reason`, `unavailable_description`), and
+`ai.editor.describe_unavailable` joins a plain-English cause to the provider's own words. The run
+log now reads e.g. *"⚠ AI stopped — the chosen AI model is not available — Gemini does not offer
+'gemini-2.5-flash' to this key (404 …). Remaining chapters will use deterministic output."*
+
+**Not done, deliberately:** the spend guard and the approved-model exact-match rule are untouched.
+
+**Carry-forward item checked, and it does NOT apply.** The Phase 3 note ("two of the four Groq
+models are the named *replacements* for models shutting down 2026-08-16") refers to the gpt-oss pair
+being replacements, not being replaced. All four Groq records are current and callable.
+**Proposed for the author's decision, NOT added:** `qwen/qwen3.6-27b` now appears in Groq's live
+lineup, which retires Phase 0 correction #6 ("Groq offers no Qwen model"). It is the only new
+candidate the audit surfaced. Adding it is a review commitment and the author's call.
+
+### Task 2 — rejection-rate regression check (DIAGNOSIS ONLY; nothing was changed)
+
+Re-ran the **same frozen 40 chapters**, `gemini-3.6-flash` only, same prompt/gate versions, same
+guarded path, free tier only. The guard cleared every time and refused nothing. The Phase 7b
+`results.jsonl` and `bundle/` were preserved as `results_phase7b.jsonl` / `bundle_phase7b`.
+
+**Gemini's free daily quota bound the run at 20 of 40 chapters** (20 measured requests, ~99,000
+tokens, in a 28-minute window, on top of whatever the author's own batches spent earlier the same
+day). 22 further `--resume` rounds recovered 5 more chapters and then latched hard for 16
+consecutive rounds. The 20 unmeasured chapters are excluded from every quality figure, per 7b's own
+rule — a 429 says nothing about edit quality.
+
+| | measured | accepted | fallback | faithful echo | reasons |
+|---|---|---|---|---|---|
+| Phase 7b baseline | 38 / 40 | 36 (94.7%) | 2 | 19 | `protected_term_changed_or_moved` ×2 |
+| This re-run | 20 / 40 | 18 (90.0%) | 2 | 12 | `protected_term_changed_or_moved` ×2 |
+
+**The headline is the like-for-like column, and it is unambiguous: on all 20 chapters measured in
+both runs, the outcome is identical chapter for chapter. Zero changed.** 18/20 accepted in both, and
+the two rejections are the **same two chapters** (The Noble Queen `dialogue_heavy` Ch. 539 and
+`longest/cleanest` Ch. 105) with the **same reason**. Those two are also the whole of 7b's 2/38, so
+the two runs agree on every rejection either of them has ever recorded for this model.
+
+**The 94.7% → 90.0% difference is a sampling artefact, not a regression.** The 20 chapters that
+survived the quota are exactly the Shadow Slave and Noble Queen strata — which contained *both* of
+7b's rejections. The 18 Renegade Immortal / Reverend Insanity chapters, all accepted in 7b, went
+unmeasured. Restricting 7b to the same 20 gives 18/20 as well.
+
+**Renegade Immortal chapter 182 is NOT in the frozen set** (the RI strata are 208, 237, 497, 518,
+841, 1000, 1123, 1426, 1448, 2023), so this run says nothing about it.
+
+**Read on the per-chunk scoping change (#063): it does not explain any delta, and the evidence is
+stronger than "no delta observed."** These 20 chapters ran with materially *larger* indexes than in
+7b — Shadow Slave 352 → 540 terms, The Noble Queen 26 → 370 — so both the prompt-scoping change and
+a 14× index growth landed between the two runs, and the gate outcome still did not move on a single
+chapter. That is what would be expected if the block really is advisory under MASK, which is the
+premise #063 rests on.
+
+**Alternative explanations for the author's own higher rate, in the order I would rank them:**
+1. **Different population.** The author was running Renegade Immortal and Reverend Insanity, whose
+   indexes went 0 → 861 and 0 → 1,429 *after* 7b. `protected_term_changed_or_moved` is the gate
+   comparing every occurrence of every indexed term; more terms is mechanically more surface for it
+   to fire on. **The frozen set could not speak to these two novels today — every one of their
+   chapters was quota-blocked.** This is the gap in the diagnosis and I would close it first.
+2. **Sample size.** 12 attempts concentrated on one chapter that every model rejected. One hard
+   chapter dominates a 12-attempt sample; it does not dominate a 40-chapter one.
+3. **A genuinely hard chapter.** Every model rejecting RI 182 identically points at the chapter, not
+   at the prompt layer — a prompt-layer regression would not be model-independent.
+4. The scoping change itself. Ranked last: contradicted by the 20-chapter like-for-like above.
+
+**Recommended next step (the author's call, not taken):** re-run with
+`--novels "Renegade Immortal" "Reverend Insanity"` on a fresh daily window, and separately run
+RI 182 on its own. Those measure the population the author actually saw.
+
+**A second finding, reported not fixed.** The daily-quota classification looks too eager. The run
+stopped with `kind = requests_per_day`, `is_daily = True` — yet a full chapter-sized request
+succeeded minutes later, and each `--resume` recovered a chapter or two before latching again. A
+genuinely daily quota does not do that. The Phase 8 fix (DECISIONS #068) is working as designed —
+it latches in 0.2 s with no network call, versus 7b's ~35 minutes of futile retries — but if the
+period is being read as "day" when the provider means something shorter, a long batch stops for the
+rest of the day when waiting minutes would have continued it. `files/qa-tools/scratch/model-audit/
+quota_detail.py` exists to capture the raw `google.rpc.QuotaFailure` violations next time a 429 is
+reproducible; today's attempt succeeded instead of 429ing, so the `quotaId` is still uncaptured.
+
+### Task 3 — the misleading profile label
+
+"Has a special-fixes profile" and "has protected names" are two different things and one label was
+doing both jobs. Reverend Insanity — no profile, **1,429 protected terms** — showed as
+`Reverend Insanity — no profile yet` and logged `No novel-specific profile — universal-only editing`
+one line above `Loaded 1429 protected term(s)`. True on the letter, opposite on the reading.
+
+| | before | after |
+|---|---|---|
+| dropdown, registered profile | `Shadow Slave` | `Shadow Slave` (unchanged) |
+| dropdown, no profile + terms | `Reverend Insanity — no profile yet` | `Reverend Insanity — names protected` |
+| dropdown, no profile + no terms | `Circle of Inevitability — no profile yet` | `Circle of Inevitability — universal rules only` |
+| log, no profile + terms | `No novel-specific profile for 'Reverend Insanity' — universal-only editing.` | `No novel-specific fix-up rules for 'Reverend Insanity' — universal editing rules apply, and its 1429 protected name(s) are preserved.` |
+| log, no profile + no terms | *(same line as above)* | `No novel-specific fix-up rules and no protected names for 'Lord of the Mysteries' — universal editing rules only.` |
+| per-file, AI accepted, 0 edits | `done (AI accepted)` | `done (0 edits, AI accepted)` |
+| per-file, AI accepted, 7 edits | `done (7 edits)` | `done (7 edits, AI accepted)` |
+| per-file, AI rejected | `done (7 edits)` — identical to the line above | `done (7 edits, script-only (AI rejected))` |
+| per-file, AI outage | `done (7 edits)` | `done (7 edits, script-only (AI unavailable))` |
+
+`NAMES_PROTECTED_MARKER` / `UNIVERSAL_ONLY_MARKER` replace the single `NO_PROFILE_MARKER` (kept as
+an alias for the bare state); `clean_novel_name` strips both, longest-first. The count behind the
+marker comes from `load_protected_lexicon` — **the same function the run uses** — so the dropdown and
+the "Loaded N protected term(s)" line cannot drift apart. The GUI's explanatory label under the
+dropdown was rewritten to match. Only the display strings changed: dispatch, protection, masking and
+the gate are untouched.
+
+### One incidental fix, declared
+
+`files/tests/test_launchers.py` hardcoded `Setup_and_Run.bat`, so the author's in-progress rename to
+`Setup_and_Run-Web-Novel-Editor.bat` failed **nine** tests — including the macOS ones — and blocked
+`verify` entirely. The path is now resolved by glob. **The rename itself is untouched and
+unstaged**: `Setup_and_Run.bat` is still tracked-and-deleted in the working tree and
+`Setup_and_Run.command` still has the old name, so the rename is half-finished and is the author's
+to complete. `config.toml` also still reads `version = "0.12.0"` while CHANGELOG and BRIEFING are at
+`0.13.0`; `verify` does not check it, and I left it alone.
+
+### Needs the author
+1. **`qwen/qwen3.6-27b`** — add to the approved list, or not?
+2. **The Task 2 gap** — a fresh-window run restricted to Renegade Immortal and Reverend Insanity,
+   plus RI 182 on its own, is what would actually measure the population behind the observed rate.
+3. **The quota-period finding** — worth a look before merge, or after?
+4. The launcher rename and the `config.toml` version, both left as found.
+5. Still standing from Phase 8: the 197 REVIEW terms, and the untracked
+   `md-instructions/plan-2-ai-editor-integration.md`.
 
 ## Work Log — 2026-07-27 — Claude Code — Plan 2b Phase 8 (adopt decision, bug hunt, docs, release gate)
 
@@ -3451,6 +3617,47 @@ summary record.
 ---
 
 ## Session Sync Log (newest first)
+
+### 2026-07-27 — HOME-PC — PUSHED (post-click-through: model audit, rejection-rate check, honest labels — UNMERGED)
+
+Branch `feature/plan-2b-cloud-providers`, three commits, pushed to `origin`. `verify` PASS —
+**1252 passed, 9 skipped** (was 1238 / 9). Plan 2b remains unmerged pending the author's sign-off.
+
+`daa30de` — Find the root launcher by shape, not by an exact filename
+- M `files/tests/test_launchers.py` — resolve `Setup_and_Run*.{bat,command}` by glob
+
+`661e762` — Make the three uncallable approved models callable, or gone, and say why
+- M `config.toml` — `gemini-2.5-flash` record removed (404 "no longer available to new users");
+  the probe evidence replaces it as a comment so it is not re-added on a hunch
+- M `scripts/Universal/ai/providers/groq.py` — `_MIN_REASONING_EFFORT = "low"`; `"none"` is
+  qwen3-only and was a hard 400 on every gpt-oss request
+- M `scripts/Universal/ai/editor.py` — `describe_unavailable`, `_mark_unavailable_from`, and the
+  `unavailable_kind` / `unavailable_reason` / `unavailable_description` properties
+- M `scripts/Universal/core/batch_runner.py` — the outage line names its cause
+- M `files/tests/test_groq_provider.py` — pins the constant against the values gpt-oss rejects
+- M `files/tests/test_cloud_keys_and_consent.py` — approved-record count 9 → 8
+- M `files/tests/test_plan2a_phase5.py` — outage-naming tests
+- M `md-instructions/CHANGELOG.md`
+
+`cc9bc06` — Say what a novel IS protected by, instead of what it lacks
+- M `scripts/Universal/core/novel_registry.py` — `NAMES_PROTECTED_MARKER` /
+  `UNIVERSAL_ONLY_MARKER`, `protected_term_count`, marker-agnostic `clean_novel_name`
+- M `scripts/Universal/core/batch_runner.py` — profile line moved below the lexicon load and made
+  term-aware; the per-file line reports the edit count AND the AI verdict
+- M `scripts/Universal/gui/app.py` — dropdown explanatory label rewritten
+- M `files/tests/test_novel_registry.py`, `test_app.py`, `test_pause_and_condensed_log.py`,
+  `test_plan2a_phase5.py`
+- M `md-instructions/CHANGELOG.md`
+
+**Deliberately NOT staged** (the author's working-tree state, left exactly as found): the unstaged
+deletion of `Setup_and_Run.bat`, the untracked `Setup_and_Run-Web-Novel-Editor.bat`, the untracked
+`md-instructions/plan-2-ai-editor-integration.md`, and `config.toml`'s `version = "0.12.0"`.
+
+**Local and gitignored, nothing committed:** `files/qa-tools/scratch/model-audit/`
+(`probe_models.py`, `quota_detail.py`, `audit.json`) and the Phase 7b archive
+`files/qa-tools/scratch/pilot-2b/results_phase7b.jsonl` + `bundle_phase7b/` beside the new
+`results.jsonl`. No corpus text and no provider key left `files/qa-tools/scratch/`.
+
 
 ### 2026-07-27 — HOME-PC — PUSHED (Plan 2b Phase 8: adopt decision, bug hunt, docs, release gate — PLAN COMPLETE, UNMERGED)
 - Branch: `feature/plan-2b-cloud-providers` (4 commits this session on top of `afd9280`)
