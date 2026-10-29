@@ -89,10 +89,25 @@ def _changelog_top_version() -> str:
     raise AssertionError("no version heading found in CHANGELOG.md")
 
 
-def _config_version() -> str:
-    import tomllib
+def _toml_module():
+    """``tomllib`` (stdlib, Python 3.11+) or the pinned ``tomli`` backport (3.10).
 
-    data = tomllib.loads((_repo_root() / "config.toml").read_text(encoding="utf-8"))
+    ``config.toml`` declares ``python_minimum = "3.10"``, so this test must not import
+    ``tomllib`` unconditionally (Phase 01A fixed exactly that mismatch).
+    """
+    import sys
+
+    if sys.version_info >= (3, 11):
+        import tomllib
+
+        return tomllib
+    import tomli
+
+    return tomli
+
+
+def _config_version() -> str:
+    data = _toml_module().loads((_repo_root() / "config.toml").read_text(encoding="utf-8"))
     return str(data["project"]["version"])
 
 
@@ -113,3 +128,54 @@ def test_verify_gate_actually_checks_the_config_version():
     assert verify.check_config_version(_changelog_top_version()) is True
     # And it must FAIL on a mismatch, or it is decoration.
     assert verify.check_config_version("99.99.99") is False
+
+
+def test_tomli_backport_reads_the_config_exactly_like_the_stdlib():
+    """The Python 3.10 path: the pinned ``tomli`` must agree with ``tomllib`` byte for key.
+
+    Both are exercised on every interpreter that has them, so the 3.10 fallback is not
+    an untested branch even though this machine runs a newer Python.
+    """
+    import tomli
+
+    text = (_repo_root() / "config.toml").read_text(encoding="utf-8")
+    parsed = tomli.loads(text)
+    assert parsed["project"]["python_minimum"] == "3.10"
+    try:
+        import tomllib
+    except ModuleNotFoundError:  # Python 3.10: nothing further to compare against
+        return
+    assert tomllib.loads(text) == parsed
+
+
+def test_committed_config_holds_only_project_metadata_and_no_credentials():
+    """No credential may be committed - checked by shape, not by keyword - and since
+    Phase 01A the file carries project metadata only (no AI tables)."""
+    import re
+
+    text = (_repo_root() / "config.toml").read_text(encoding="utf-8")
+    parsed = _toml_module().loads(text)
+    assert set(parsed) == {"project"}, f"unexpected tables: {sorted(parsed)}"
+
+    assigned = re.findall(
+        r"(?im)^\s*([A-Za-z0-9_]*(?:api_?key|apikey|secret|password|credential"
+        r"|access_token|auth_token|api_token)[A-Za-z0-9_]*)\s*=",
+        text,
+    )
+    assert assigned == [], f"credential-shaped assignment in config.toml: {assigned}"
+    for shape in (r"AIza[0-9A-Za-z_\-]{16,}", r"gsk_[0-9A-Za-z]{16,}", r"sk-[0-9A-Za-z_\-]{16,}"):
+        assert not re.search(shape, text), f"a key-shaped value is present: {shape}"
+
+
+def test_requirements_declare_no_ai_sdk():
+    """The three provider SDKs are gone from the declared dependencies for good."""
+    import re
+
+    lines = (_repo_root() / "scripts" / "requirements.txt").read_text(encoding="utf-8").splitlines()
+    declared = {
+        re.split(r"[=<>!~ ]", line.strip(), maxsplit=1)[0].lower()
+        for line in lines
+        if line.strip() and not line.lstrip().startswith("#")
+    }
+    assert declared.isdisjoint({"ollama", "google-genai", "google-generativeai", "groq"})
+    assert {"pdfplumber", "reportlab", "natsort", "tomli", "pytest"} <= declared

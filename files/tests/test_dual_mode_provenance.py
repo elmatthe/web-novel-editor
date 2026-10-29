@@ -241,35 +241,7 @@ def test_replacement_log_metadata_header_is_optional(tmp_path: Path) -> None:
     assert json.loads(lines[0])["record"] == "run_metadata"
 
 
-# -- author-ruled normalizations land BEFORE the AI/gate ever see the text ----------------
-
-class _CaptureProvider:
-    """Records every request the AI stage is handed, and echoes it back unchanged."""
-
-    def __init__(self) -> None:
-        self.texts: list[str] = []
-        self.system_prompts: list[str] = []
-
-    def capabilities(self):
-        from ai.models import ProviderCapabilities
-
-        return ProviderCapabilities("capture", True, ("fake-1",), 8000, 4096)
-
-    def health_check(self):
-        from ai.models import ProviderStatus
-
-        return ProviderStatus.OK
-
-    def list_models(self):
-        return ["fake-1"]
-
-    def complete(self, request):
-        from ai.models import CompletionResult
-
-        self.texts.append(request.text)
-        self.system_prompts.append(request.system_prompt)
-        return CompletionResult(request.text, "fake-1", 0.01, "stop", False)
-
+# -- author-ruled normalizations land in the scripted output itself -----------------------
 
 @pytest.mark.parametrize(
     "novel_name, typo, canonical",
@@ -278,21 +250,19 @@ class _CaptureProvider:
         ("Renegade Immortal", "Ligou", "Liguo"),
     ],
 )
-def test_normalization_reaches_the_ai_stage_already_canonical(
-    tmp_path: Path, monkeypatch, novel_name: str, typo: str, canonical: str
+def test_normalization_is_applied_in_the_run_batch_output(
+    tmp_path: Path, novel_name: str, typo: str, canonical: str
 ) -> None:
-    """The AI provider must never be shown the source typo.
+    """The author-ruled spelling is in the text the PDF is built from, not just the pipeline.
 
-    The substitution runs inside the scripted pipeline (Block B), and `run_batch` hands
-    the pipeline's output to `AIEditor.edit`. So by the time any model or the validation
-    gate sees the chapter, only the canonical spelling exists. Proven by capturing what
-    the provider is actually sent rather than by inspecting the final file.
+    The substitution runs inside the scripted pipeline (Block B) and `run_batch` writes
+    exactly that text. Proven through the full `run_batch` seam by reading the
+    ``DEBUG_<name>.txt`` sidecar (the text handed to the PDF builder), which is the
+    script-only successor of the old "model is never shown the typo" proof (Phase 01A).
     """
     pytest.importorskip("pdfplumber")
     pytest.importorskip("reportlab")
 
-    from ai.editor import AIEditor, EditorOptions
-    from ai.models import RunPolicy
     from core.batch_runner import run_batch
 
     body = (
@@ -301,28 +271,18 @@ def test_normalization_reaches_the_ai_stage_already_canonical(
     )
     src = _make_bait_pdf(tmp_path, body=body, name=f"norm_{canonical}.pdf")
 
-    provider = _CaptureProvider()
-    editor = AIEditor(
-        lambda: provider,
-        EditorOptions("fake-1", RunPolicy.PREFER_AI,
-                      request_overhead_tokens=0, safety_margin_tokens=0),
-    )
+    out_dir = tmp_path / f"out_norm_{canonical}"
     logs: list[str] = []
     summary = run_batch(
         [src],
-        str(tmp_path / f"out_norm_{canonical}"),
+        str(out_dir),
         novel_name=novel_name,
         write_debug_text=True,
         gui_log=lambda m, level="info": logs.append(m),
-        ai_editor=editor,
     )
     assert summary["succeeded"] == 1, f"run failed: {logs}"
-    assert provider.texts, "the AI stage was never invoked"
 
-    # What the model was actually sent.
-    seen = "\n".join(provider.texts)
-    assert typo not in seen, f"the AI stage was shown the source typo {typo!r}"
-
-    # The canonical form reached the AI either literally or as a protected placeholder;
-    # either way the typo is gone before any model or gate looks at the chapter.
-    assert canonical in seen or "__WE_P_" in seen
+    (debug,) = out_dir.glob("DEBUG_*.txt")
+    built = debug.read_text(encoding="utf-8")
+    assert typo not in built, f"the built text still carries the source typo {typo!r}"
+    assert f"King {canonical}" in built and f"{canonical}'s" in built

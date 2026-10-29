@@ -1,4 +1,10 @@
-"""Per-user runtime paths and atomic settings persistence."""
+"""Per-user runtime paths and atomic JSON persistence.
+
+Extracted from the retired ``ai.settings`` (Phase 01A) with no behaviour change: the
+per-user application-data location is kept exactly where earlier releases put it, so
+existing ``settings.json`` files (and any legacy key files that sit beside them, which
+this application never reads) are untouched.
+"""
 
 from __future__ import annotations
 
@@ -34,6 +40,12 @@ def settings_path(**kwargs) -> Path:
 
 
 def write_settings_atomic(path: Path, settings: Mapping[str, Any]) -> None:
+    """Write ``settings`` as JSON via tempfile + fsync + ``os.replace``.
+
+    The file on disk is always a complete, valid document: a crash leaves either the
+    old version or the new one, never a partial write, and no temp file is left behind
+    on failure.
+    """
     path.parent.mkdir(parents=True, exist_ok=True)
     payload = json.dumps(dict(settings), indent=2, sort_keys=True) + "\n"
     fd, temp_name = tempfile.mkstemp(

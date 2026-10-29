@@ -665,3 +665,209 @@ def test_app_stop_button_state_placement_and_reset(tmp_path, monkeypatch):
         assert not app.stop_event.is_set()
     finally:
         app.destroy()
+
+
+# ---------------------------------------------------------------------------
+# Layout, pace readout and script-only start (re-homed from test_ai_gui_controls in
+# Phase 01A, when the AI card and its test module were removed)
+# ---------------------------------------------------------------------------
+def _new_app():
+    """Construct the window, withdrawn. A Tk failure is reported by conftest, not hidden."""
+    tk = pytest.importorskip("tkinter")
+    from gui import app as appmod
+
+    try:
+        app = appmod.WebnovelEditorApp()
+    except tk.TclError:
+        pytest.skip("no display available for Tk")
+    app.withdraw()
+    app.update_idletasks()
+    return appmod, app
+
+
+def test_the_window_has_no_ai_or_cloud_controls():
+    """Phase 01A removed the optional AI pass: no widget may mention it."""
+    _appmod, app = _new_app()
+    try:
+        banned = ("ai ", " ai", "provider", "ollama", "gemini", "groq", "api key",
+                  "model", "cloud", "consent", "quota")
+        texts = []
+        for widget in [app, *_all_descendants(app)]:
+            try:
+                texts.append(str(widget.cget("text")).lower())
+            except Exception:
+                continue
+        offenders = [t for t in texts if t and any(b in f" {t} " for b in banned)]
+        assert offenders == []
+        for attr in ("ai_model_combo", "ai_provider_combo", "ai_key_button",
+                     "opt_ai_enabled", "ai_status_var", "ai_prefs"):
+            assert not hasattr(app, attr), f"leftover AI member {attr}"
+    finally:
+        app.destroy()
+
+
+def test_start_passes_only_the_script_only_arguments(tmp_path, monkeypatch):
+    """Nothing AI- or checkpoint-shaped is handed to run_batch any more."""
+    appmod, app = _new_app()
+    pdf = tmp_path / "a.pdf"
+    pdf.write_bytes(b"%PDF-stub")
+    try:
+        calls = _wire_batch_spy(appmod, monkeypatch, tmp_path)
+        app.file_paths.append(str(pdf))
+        app._refresh_file_list()
+        app._start_batch()
+        app.update()
+        assert len(calls) == 1
+        assert set(calls[0]) == {
+            "pdf_paths", "output_dir", "write_replacement_log", "write_debug_text",
+            "dry_run", "novel_name", "mirror_root", "pause_gate", "stop_event",
+            "gui_log", "progress",
+        }
+    finally:
+        app.destroy()
+
+
+def test_the_log_sits_beside_the_controls_not_below_them():
+    """The log was clipped off the bottom of a 1080p screen when it was a bottom row.
+
+    It is the right-hand column, so the control stack's height no longer has to
+    accommodate it at all, and every control keeps its natural size at any window size.
+    """
+    _appmod, app = _new_app()
+    try:
+        assert int(app.log_text.master.grid_info()["column"]) == 1
+        for card in (app.file_listbox.master.master, app.novel_combo.master,
+                     app.run_button.master):
+            assert int(card.grid_info()["column"]) == 0
+    finally:
+        app.destroy()
+
+
+def test_the_window_can_be_made_short_enough_for_a_1080p_screen():
+    """The opening geometry is capped at `screenheight - 90`, but `minsize` overrides it,
+    so a MIN_HEIGHT above that cap means the bottom of the window is off the desktop.
+    1080p is the smallest display this is expected to run on."""
+    appmod, app = _new_app()
+    try:
+        usable = 1080 - 90
+        assert appmod.MIN_HEIGHT <= usable, (
+            f"MIN_HEIGHT is {appmod.MIN_HEIGHT}px but only {usable}px is usable on a "
+            f"1080p desktop - the bottom of the window cannot be reached"
+        )
+    finally:
+        app.destroy()
+
+
+def _grid_extent(app, appmod):
+    """Measured height and width the root grid actually needs.
+
+    A two-column grid (controls left, log right) cannot be measured by summing every
+    child: the log shares rows with the cards, so a flat sum double-counts. The real
+    requirement is per **row** for height and per **column** for width - the largest
+    requested size in each, plus that row's/column's padding. The log is excluded from
+    the height side only: it is the one widget allowed to shrink.
+    """
+    root = app.winfo_children()[0]
+    log_frame = app.log_text.master
+
+    rows: dict[int, int] = {}
+    cols: dict[int, int] = {}
+    for child in root.winfo_children():
+        info = child.grid_info()
+        row, col = int(info["row"]), int(info["column"])
+
+        def _pad(value):
+            return sum(value) if isinstance(value, tuple) else int(value)
+
+        pady, padx = _pad(info.get("pady", 0)), _pad(info.get("padx", 0))
+        height = pady if child is log_frame else child.winfo_reqheight() + pady
+        rows[row] = max(rows.get(row, 0), height)
+        cols[col] = max(cols.get(col, 0), child.winfo_reqwidth() + padx)
+
+    return (sum(rows.values()) + 2 * appmod.PAD_M,
+            sum(cols.values()) + 2 * appmod.PAD_M)
+
+
+def test_both_columns_fit_inside_the_minimum_window_width():
+    appmod, app = _new_app()
+    try:
+        _height, width = _grid_extent(app, appmod)
+        assert width <= appmod.MIN_WIDTH, (
+            f"the two columns need {width}px but the window can be as narrow as "
+            f"{appmod.MIN_WIDTH}px - the log or the controls would be clipped"
+        )
+    finally:
+        app.destroy()
+
+
+def _offset_below_toplevel(widget) -> int:
+    """A widget's y offset inside its window, valid without the window being shown."""
+    offset = 0
+    node = widget
+    while node.master is not None:
+        offset += node.winfo_y()
+        node = node.master
+    return offset
+
+
+def test_the_run_controls_sit_inside_the_minimum_window_height():
+    """Start/Pause/Stop are the controls the user must be able to reach."""
+    appmod, app = _new_app()
+    try:
+        app.update_idletasks()
+        for button in (app.run_button, app.pause_button, app.stop_button):
+            bottom = _offset_below_toplevel(button) + button.winfo_reqheight()
+            assert bottom <= appmod.MIN_HEIGHT, (
+                f"{button['text']!r} ends at {bottom}px, past the "
+                f"{appmod.MIN_HEIGHT}px minimum window height"
+            )
+    finally:
+        app.destroy()
+
+
+def test_every_fixed_row_fits_inside_the_minimum_window_height():
+    """Only the log flexes; every other row keeps its requested height at any window
+    size, so their total (plus padding) has to clear MIN_HEIGHT."""
+    appmod, app = _new_app()
+    try:
+        fixed, _width = _grid_extent(app, appmod)
+        assert fixed <= appmod.MIN_HEIGHT, (
+            f"fixed rows need {fixed}px but the window can be as short as "
+            f"{appmod.MIN_HEIGHT}px - the bottom controls would be clipped"
+        )
+    finally:
+        app.destroy()
+
+
+def test_progress_updates_publish_a_running_average_and_eta(monkeypatch):
+    appmod, app = _new_app()
+    try:
+        clock = {"now": 100.0}
+        monkeypatch.setattr(appmod.time, "monotonic", lambda: clock["now"])
+
+        app._begin_rate_tracking(4)
+        clock["now"] = 124.0
+        app._set_progress(2)
+        app.update_idletasks()
+
+        text = app.rate_var.get()
+        assert "12.0 s/chapter" in text
+        assert "24s" in text          # 2 chapters left at 12 s each
+    finally:
+        app.destroy()
+
+
+def test_rate_readout_clears_between_runs(monkeypatch):
+    appmod, app = _new_app()
+    try:
+        clock = {"now": 0.0}
+        monkeypatch.setattr(appmod.time, "monotonic", lambda: clock["now"])
+        app._begin_rate_tracking(2)
+        clock["now"] = 10.0
+        app._set_progress(1)
+        assert app.rate_var.get() != ""
+
+        app._begin_rate_tracking(2)
+        assert app.rate_var.get() == ""
+    finally:
+        app.destroy()

@@ -1,80 +1,62 @@
-"""Checkpointed runs — the atomic run manifest and the resume decision (Plan 2b Phase 5).
+"""Checkpointed runs — the atomic run manifest and the resume decision.
 
-A cloud run can be longer than a day. The previous design asked the user to leave the
-window open for roughly twelve days while the app slept through daily quota resets; this
-module is what replaces that. After **each completed file** the run's state is written
-atomically into the output folder, so the app can be closed at any moment — by the user,
-by a Windows update, or because the day's free quota is gone — and the run picked up
-later from exactly where it stopped.
+After **each completed file** the run's state can be written atomically into the output
+folder, so a run can be stopped at any moment and picked up later from exactly where it
+stopped. (Phase 01A retired the cloud-only wiring; script-only persistent resume is
+completed in Phase 02A. The seam is kept intact and tested.)
 
 Three rules shape everything here.
 
 **Checkpoints are file-boundary only.** A file is either fully checkpointed as complete
 or not checkpointed at all. The recording call sits on the far side of ``build_pdf`` and
-its sidecars, so a manifest entry means "the output exists". Nothing partial can be
-persisted even in principle: chunk state lives inside ``AIEditor.edit``, which is
-chapter-atomic and returns either accepted text or the deterministic baseline, so there
-is no partial chapter for this layer to see.
+its sidecars, so a manifest entry means "the output exists".
 
 **Never guess at partial state.** :func:`load_manifest` rejects rather than repairs — a
-missing, truncated, mis-shaped, or forward-versioned manifest returns ``None`` and the
-caller starts a fresh run. It never raises, because the caller is a GUI.
+missing, truncated, mis-shaped, or differently-versioned manifest returns ``None`` and
+the caller starts a fresh run. It never raises, because the caller is a GUI. In
+particular a **schema-1 manifest written by the retired cloud runs is refused**: it has
+no deterministic-output guarantees and may reference AI-edited outputs, so it is never
+converted into a script-only resume. It is left untouched on disk.
 
-**Nothing sensitive is written.** There is no field that could carry chapter text, and
-every free-text value goes through the Phase 1 redaction boundary and is length-bounded.
-The API key never reaches this layer at all; redaction is the second line, not the first.
+**Nothing sensitive is written.** There is no field that could carry chapter text.
 
-The writer is 2a's ``write_settings_atomic`` — tempfile + ``fsync`` + ``os.replace``, the
-same call Phase 1 used for ``secrets.json``. The whole manifest is rewritten each time
-rather than appended to: an append-only journal is cheap but is exactly the shape a kill
-can leave half-written, whereas a whole-file atomic replace means the file on disk is
-always a complete, valid manifest. The queue costs a few hundred KB for a 3,000-chapter
-run, rewritten once per file — noise against a multi-second-per-chapter AI pass.
+The writer is ``utils.settings.write_settings_atomic`` — tempfile + ``fsync`` +
+``os.replace``. The whole manifest is rewritten each time rather than appended to: an
+append-only journal is exactly the shape a kill can leave half-written, whereas a
+whole-file atomic replace means the file on disk is always a complete, valid manifest.
 """
 
 from __future__ import annotations
 
 import json
 import os
-import threading
 import time
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Callable, Mapping, Sequence
 
-from ai.redaction import redact, redact_obj
-from ai.settings import write_settings_atomic
+from utils.settings import write_settings_atomic
 
 MANIFEST_NAME = "run-manifest.json"
 
-#: Bumped only when the payload shape changes incompatibly. A manifest whose version is
-#: newer than this build understands is refused outright rather than partially read.
-SCHEMA_VERSION = 1
-
-#: Free text (a failure reason) is bounded before it is written. Nothing here is meant to
-#: be a log — the JSONL sidecar is where detail belongs.
-REASON_LIMIT = 200
+#: Bumped only when the payload shape changes incompatibly. Only this exact version is
+#: read: a newer one is refused rather than partially read, and schema 1 (the retired
+#: cloud-run manifests) is refused rather than converted.
+SCHEMA_VERSION = 2
 
 STATUS_COMPLETED = "completed"
 STATUS_FAILED = "failed"
 STATUS_SKIPPED = "skipped"
 
 STOP_USER = "user_stop"
-STOP_DAILY_QUOTA = "daily_quota"
-STOP_LONG_WAIT = "long_wait"
 
 #: The only keys an entry may ever carry. Asserted by a test, because the natural way to
 #: leak chapter text is to add a well-meaning "summary" or "preview" field later.
-ENTRY_KEYS = ("source", "status", "output", "ai_status", "size", "mtime_ns", "recorded_at")
+ENTRY_KEYS = ("source", "status", "output", "size", "mtime_ns", "recorded_at")
 
 
 def manifest_path(output_dir: str | Path) -> Path:
     return Path(output_dir) / MANIFEST_NAME
-
-
-def _safe_text(value: Any, limit: int = REASON_LIMIT) -> str:
-    text = redact(str(value or ""))
-    return text[:limit]
 
 
 def _identity(source: str) -> tuple[int, int]:
@@ -106,35 +88,19 @@ class RunCheckpoint:
         *,
         novel: str = "",
         mirror_root: str | None = None,
-        provider: str = "",
-        model_id: str = "",
-        prompt_version: str = "",
-        gate_version: str = "",
-        ai_policy: str = "",
-        stop_event: threading.Event | None = None,
         clock: Callable[[], float] = time.time,
         start_index: int = 0,
     ):
         self.output_dir = str(output_dir)
         self.queue = [str(item) for item in queue]
         self._clock = clock
-        self._stop_event = stop_event
         self._run = {
             "novel": novel,
             "mirror_root": mirror_root,
-            "provider": provider,
-            "model_id": _safe_text(model_id, 120),
-            "prompt_version": prompt_version,
-            "gate_version": gate_version,
-            "ai_policy": ai_policy,
             "started_at": clock(),
         }
         self._entries: list[dict[str, Any]] = []
         self._next_index = max(0, int(start_index))
-        # Held in memory, not read back from the file: the checkpoint written when the
-        # quota stop arrives is superseded moments later by the in-flight chapter's own
-        # checkpoint, and that second write must carry the quota stop forward.
-        self._quota_stop: dict[str, Any] | None = None
         self._stopped_reason = ""
         self._complete = False
 
@@ -147,10 +113,6 @@ class RunCheckpoint:
     def next_index(self) -> int:
         return self._next_index
 
-    @property
-    def quota_stop(self) -> dict[str, Any] | None:
-        return self._quota_stop
-
     def payload(self) -> dict[str, Any]:
         return {
             "schema_version": SCHEMA_VERSION,
@@ -159,20 +121,18 @@ class RunCheckpoint:
             "queue": list(self.queue),
             "next_index": self._next_index,
             "entries": [dict(entry) for entry in self._entries],
-            "quota_stop": self._quota_stop,
             "stopped_reason": self._stopped_reason,
             "complete": self._complete,
         }
 
     # -- recording ---------------------------------------------------------
-    def _record(self, source: str, status: str, output: str, ai_status: str) -> None:
+    def _record(self, source: str, status: str, output: str) -> None:
         size, mtime_ns = _identity(source)
         self._entries.append(
             {
                 "source": str(source),
                 "status": status,
                 "output": str(output or ""),
-                "ai_status": ai_status or "none",
                 "size": size,
                 "mtime_ns": mtime_ns,
                 "recorded_at": self._clock(),
@@ -181,65 +141,22 @@ class RunCheckpoint:
         self._next_index += 1
         self.write()
 
-    def record_completed(
-        self, source: str, output_path: str, *, ai_status: str = "none"
-    ) -> None:
+    def record_completed(self, source: str, output_path: str) -> None:
         """Record one file whose PDF and sidecars are already on disk.
 
         This is the only call that names an output, and it is the only one that means
         "done". It must never be reached with a partially written file.
         """
-        self._record(source, STATUS_COMPLETED, output_path, ai_status)
+        self._record(source, STATUS_COMPLETED, output_path)
 
     def record_failed(self, source: str, reason: str = "") -> None:
         """Record a file that failed. The queue still advances — a resumed run must not
-        retry a corrupt PDF forever. The reason is bounded and redacted, and is kept for
-        the user's benefit only; the JSONL sidecar holds the detail."""
-        self._record(source, STATUS_FAILED, "", "none")
+        retry a corrupt PDF forever. The reason is deliberately not persisted; the JSONL
+        sidecar holds the detail."""
+        self._record(source, STATUS_FAILED, "")
 
     def record_skipped(self, source: str, reason: str = "") -> None:
-        self._record(source, STATUS_SKIPPED, "", "none")
-
-    # -- the Phase 4 seam --------------------------------------------------
-    def on_quota_stop(self, stop: Any) -> None:
-        """Consume Phase 4's ``QuotaStop``. Hand this to ``limiter_for(...)``.
-
-        Read duck-typed through ``as_dict()``, so this module imports nothing from
-        ``ai.rate_limits`` and Phase 4's public shape stays untouched.
-
-        Writes the manifest immediately and then **sets the run's stop event**, which is
-        the whole mechanism: the callback fires on the worker thread inside
-        ``provider.complete()``, the quota error propagates into ``AIEditor``, which is
-        chapter-atomic and falls back to the deterministic text, that chapter is written
-        and checkpointed normally, and ``run_batch``'s existing between-files check ends
-        the batch. No busy loop, no background wait, no new seam — and the app can be
-        closed as soon as the current chapter finishes.
-        """
-        try:
-            record = stop.as_dict()
-        except Exception:  # pragma: no cover - defensive against a foreign object
-            record = None
-        if isinstance(record, Mapping):
-            # Redacted again here, deliberately. Phase 4 already redacts when it builds
-            # the QuotaStop, but this is the layer that *persists* it: the manifest owns
-            # its own no-secrets guarantee rather than trusting whoever constructed the
-            # object it was handed. The reason is bounded for the same reason.
-            self._quota_stop = {
-                key: (
-                    _safe_text(record[key])
-                    if isinstance(record[key], str)
-                    else redact_obj(record[key])
-                )
-                for key in sorted(record)
-            }
-            self._stopped_reason = (
-                STOP_DAILY_QUOTA if record.get("is_daily") else STOP_LONG_WAIT
-            )
-        else:
-            self._stopped_reason = STOP_LONG_WAIT
-        self.write()
-        if self._stop_event is not None:
-            self._stop_event.set()
+        self._record(source, STATUS_SKIPPED, "")
 
     def finish(self, *, stopped: bool = False) -> None:
         """Close the run. A run that consumed its queue is complete and is never offered
@@ -276,8 +193,10 @@ def load_manifest(path: str | Path) -> dict[str, Any] | None:
     version = payload.get("schema_version")
     if not isinstance(version, int) or isinstance(version, bool):
         return None
-    if version > SCHEMA_VERSION:
-        return None  # written by a newer build; half-reading it would invent state
+    if version != SCHEMA_VERSION:
+        # Newer: written by a later build, half-reading it would invent state.
+        # Older (schema 1): a retired cloud-run manifest - never converted to a resume.
+        return None
 
     queue = payload.get("queue")
     if not isinstance(queue, list) or not queue:
@@ -315,7 +234,6 @@ class ResumeOffer:
     missing_inputs: tuple[str, ...] = ()
     completed_count: int = 0
     stopped_reason: str = ""
-    quota_stop: dict[str, Any] | None = field(default=None)
 
 
 def _offer_from_payload(path: Path, payload: Mapping[str, Any]) -> ResumeOffer:
@@ -333,7 +251,6 @@ def _offer_from_payload(path: Path, payload: Mapping[str, Any]) -> ResumeOffer:
         "mirror_root": payload.get("run", {}).get("mirror_root"),
         "completed_count": completed,
         "stopped_reason": str(payload.get("stopped_reason") or ""),
-        "quota_stop": payload.get("quota_stop"),
     }
 
     if payload.get("complete") or not remaining:
@@ -419,13 +336,10 @@ def plan_resume(offer: ResumeOffer) -> dict[str, Any]:
 __all__ = [
     "ENTRY_KEYS",
     "MANIFEST_NAME",
-    "REASON_LIMIT",
     "SCHEMA_VERSION",
     "STATUS_COMPLETED",
     "STATUS_FAILED",
     "STATUS_SKIPPED",
-    "STOP_DAILY_QUOTA",
-    "STOP_LONG_WAIT",
     "STOP_USER",
     "ResumeOffer",
     "RunCheckpoint",

@@ -1,40 +1,25 @@
 """Plan 2b Phase 5 — checkpointed runs: the atomic run manifest and resume.
 
-Offline and hermetic. No provider SDK, no key, no network, and nothing waits: the
-checkpoint takes an injected clock, and the quota-stop path is driven by a fake limiter
-signal rather than a real limiter.
-
-**Every ``ai.*`` / ``core.*`` import in this file is at module level**, for the reason
-recorded in ``test_rate_limiting.py``: ``test_ai_foundation`` pops and re-imports the
-``ai`` package, and a module holding two generations of the same class fails only in the
-full-suite run.
+Offline and hermetic. No key, no network, and nothing waits: the checkpoint takes an
+injected clock. Phase 01A removed the cloud-only parts (provider/model/quota fields and
+the quota-stop seam); schema 2 is the script-only manifest.
 """
 
 from __future__ import annotations
 
 import json
 import os
-import threading
 from pathlib import Path
 
 import pytest
 
 import core.batch_runner as batch_runner
-from ai.editor import AIEditor, EditorOptions
-from ai.errors import DailyQuotaExhausted, ProviderUnavailable
-from ai.models import (
-    CompletionResult,
-    ProviderCapabilities,
-    ProviderStatus,
-    RunPolicy,
-)
-from ai.rate_limits import LimitKind, QuotaStop
-from ai.redaction import forget_secrets, register_secret
 from core.batch_runner import run_batch
 from core.novel_registry import NovelDispatch
 from pdf.extractor import extract_text_from_pdf
 from utils.file_utils import next_numbered_output_dir
 from core.run_manifest import (
+    ENTRY_KEYS,
     MANIFEST_NAME,
     SCHEMA_VERSION,
     ResumeOffer,
@@ -73,11 +58,6 @@ def make_checkpoint(tmp_path: Path, queue=None, **overrides) -> RunCheckpoint:
     queue = queue if queue is not None else make_queue(tmp_path)
     options = {
         "novel": "Shadow Slave",
-        "provider": "groq",
-        "model_id": "llama-3.3-70b-versatile",
-        "prompt_version": "1.0",
-        "gate_version": "1.0",
-        "ai_policy": "prefer_ai",
         "clock": FakeClock(),
     }
     options.update(overrides)
@@ -112,15 +92,13 @@ def test_a_manifest_is_written_after_each_completed_file(tmp_path):
 def test_the_manifest_carries_every_field_the_plan_requires(tmp_path):
     queue = make_queue(tmp_path, 2)
     checkpoint = make_checkpoint(tmp_path, queue)
-    checkpoint.record_completed(queue[0], f"{tmp_path}/out/one.pdf", ai_status="accepted")
+    checkpoint.record_completed(queue[0], f"{tmp_path}/out/one.pdf")
     payload = load_manifest(checkpoint.path)
 
     # run identity
-    assert payload["run"]["provider"] == "groq"
-    assert payload["run"]["model_id"] == "llama-3.3-70b-versatile"
-    assert payload["run"]["prompt_version"] == "1.0"
-    assert payload["run"]["gate_version"] == "1.0"
+    assert payload["schema_version"] == SCHEMA_VERSION == 2
     assert payload["run"]["novel"] == "Shadow Slave"
+    assert set(payload["run"]) == {"novel", "mirror_root", "started_at"}
     # queue position
     assert payload["queue"] == queue
     assert payload["next_index"] == 1
@@ -129,17 +107,17 @@ def test_the_manifest_carries_every_field_the_plan_requires(tmp_path):
     assert entry["source"] == queue[0]
     assert entry["status"] == "completed"
     assert entry["output"] == f"{tmp_path}/out/one.pdf"
-    assert entry["ai_status"] == "accepted"
     assert entry["size"] == os.path.getsize(queue[0])
 
 
-def test_the_manifest_records_accepted_and_fallback_separately(tmp_path):
-    queue = make_queue(tmp_path, 2)
+def test_the_manifest_has_no_provider_model_or_quota_fields(tmp_path):
+    queue = make_queue(tmp_path, 1)
     checkpoint = make_checkpoint(tmp_path, queue)
-    checkpoint.record_completed(queue[0], "a.pdf", ai_status="accepted")
-    checkpoint.record_completed(queue[1], "b.pdf", ai_status="fallback")
-    statuses = [e["ai_status"] for e in load_manifest(checkpoint.path)["entries"]]
-    assert statuses == ["accepted", "fallback"]
+    checkpoint.record_completed(queue[0], "out.pdf")
+    raw = checkpoint.path.read_text(encoding="utf-8")
+    for retired in ("provider", "model_id", "prompt_version", "gate_version",
+                    "ai_policy", "ai_status", "quota_stop"):
+        assert retired not in raw, f"retired cloud field {retired!r} is still written"
 
 
 def test_a_failed_file_is_recorded_as_failed_and_still_advances_the_queue(tmp_path):
@@ -192,21 +170,14 @@ def test_a_stopped_run_is_not_marked_complete(tmp_path):
 # --------------------------------------------------------------------------
 # No key, no chapter text
 # --------------------------------------------------------------------------
-def test_the_manifest_holds_no_api_key_and_no_chapter_text(tmp_path):
-    """A real key is registered and real prose is passed through the recording calls;
-    neither may reach the file."""
-    key = "gsk_LIVEKEYSHAPED000000000000000000000000000000000000"
+def test_the_manifest_holds_no_chapter_text(tmp_path):
+    """Real prose passed through the recording calls must never reach the file."""
     prose = "Sunny opened his eyes and the Nightmare Spell burned on his palm."
-    register_secret(key)
-    try:
-        queue = make_queue(tmp_path, 2)
-        checkpoint = make_checkpoint(tmp_path, queue, model_id=f"llama-{key[:8]}")
-        checkpoint.record_completed(queue[0], "out.pdf", ai_status="accepted")
-        checkpoint.record_failed(queue[1], f"InvalidResponse: rejected near '{prose}'")
-        raw = checkpoint.path.read_text(encoding="utf-8")
-    finally:
-        forget_secrets()
-    assert key not in raw
+    queue = make_queue(tmp_path, 2)
+    checkpoint = make_checkpoint(tmp_path, queue)
+    checkpoint.record_completed(queue[0], "out.pdf")
+    checkpoint.record_failed(queue[1], f"InvalidResponse: rejected near '{prose}'")
+    raw = checkpoint.path.read_text(encoding="utf-8")
     assert prose not in raw
     assert "Nightmare Spell" not in raw
 
@@ -216,15 +187,16 @@ def test_the_manifest_has_no_field_that_could_carry_chapter_text(tmp_path):
     checkpoint = make_checkpoint(tmp_path, queue)
     checkpoint.record_completed(queue[0], "out.pdf")
     payload = load_manifest(checkpoint.path)
-    allowed_entry_keys = {
-        "source", "status", "output", "ai_status", "size", "mtime_ns", "recorded_at",
+    allowed_entry_keys = set(ENTRY_KEYS)
+    assert allowed_entry_keys == {
+        "source", "status", "output", "size", "mtime_ns", "recorded_at",
     }
     for entry in payload["entries"]:
         assert set(entry) <= allowed_entry_keys, "an unexpected field could carry text"
 
 
 def test_a_failure_reason_is_accepted_and_deliberately_not_persisted(tmp_path):
-    """A provider failure message can quote the candidate text, which is precisely how
+    """A failure message can quote chapter text, which is precisely how
     chapter text would leak into a manifest. The reason is taken (so call sites read
     naturally) and dropped; the JSONL sidecar and the GUI log already carry the detail."""
     queue = make_queue(tmp_path, 1)
@@ -526,115 +498,6 @@ def test_the_newest_incomplete_run_is_the_one_offered(tmp_path):
 # --------------------------------------------------------------------------
 # The Phase 4 seam: QuotaStop
 # --------------------------------------------------------------------------
-def make_quota_stop(*, is_daily=True, kind="tokens_per_day", reset_known=False,
-                    reset_seconds=None, reason="daily quota used up (TPD)"):
-    """A real Phase 4 QuotaStop, built without a limiter."""
-    return QuotaStop(
-        provider="groq",
-        model_id="llama-3.3-70b-versatile",
-        kind=LimitKind(kind),
-        reason=reason,
-        reset_seconds=reset_seconds,
-        reset_known=reset_known,
-        is_daily=is_daily,
-        observed_monotonic=1234.5,
-        observed_wall=1_800_000_500.0,
-    )
-
-
-def test_a_daily_quota_stop_writes_the_manifest_immediately(tmp_path):
-    queue = make_queue(tmp_path, 5)
-    checkpoint = make_checkpoint(tmp_path, queue)
-    checkpoint.on_quota_stop(make_quota_stop())
-    payload = load_manifest(checkpoint.path)
-    assert payload is not None
-    assert payload["stopped_reason"] == "daily_quota"
-    assert payload["quota_stop"]["kind"] == "tokens_per_day"
-    assert payload["quota_stop"]["is_daily"] is True
-
-
-def test_a_quota_stop_sets_the_runs_stop_event_so_the_batch_halts_at_the_safe_seam(
-    tmp_path,
-):
-    stop = threading.Event()
-    checkpoint = make_checkpoint(tmp_path, stop_event=stop)
-    assert not stop.is_set()
-    checkpoint.on_quota_stop(make_quota_stop())
-    assert stop.is_set()
-
-
-def test_a_quota_stop_never_waits(tmp_path):
-    """No sleep of any kind: the run stops and the app can close."""
-    import time as real_time
-
-    checkpoint = make_checkpoint(tmp_path, stop_event=threading.Event())
-    started = real_time.monotonic()
-    checkpoint.on_quota_stop(make_quota_stop(reset_seconds=86_400.0, reset_known=True))
-    assert real_time.monotonic() - started < 1.0
-
-
-def test_an_unknown_reset_time_is_carried_through_as_unknown(tmp_path):
-    checkpoint = make_checkpoint(tmp_path)
-    checkpoint.on_quota_stop(make_quota_stop(reset_known=False, reset_seconds=None))
-    payload = load_manifest(checkpoint.path)
-    assert payload["quota_stop"]["reset_known"] is False
-    assert payload["quota_stop"]["reset_seconds"] is None
-
-
-def test_an_over_long_wait_stop_is_recorded_but_not_as_a_daily_quota(tmp_path):
-    checkpoint = make_checkpoint(tmp_path)
-    checkpoint.on_quota_stop(
-        make_quota_stop(is_daily=False, kind="requests_per_minute", reset_seconds=4_000.0)
-    )
-    payload = load_manifest(checkpoint.path)
-    assert payload["stopped_reason"] == "long_wait"
-    assert payload["quota_stop"]["is_daily"] is False
-
-
-def test_the_quota_stop_survives_the_next_files_checkpoint_write(tmp_path):
-    """The in-flight chapter finishes and checkpoints AFTER the quota stop fires; that
-    later whole-file write must carry the quota stop forward, not erase it."""
-    queue = make_queue(tmp_path, 5)
-    checkpoint = make_checkpoint(tmp_path, queue, stop_event=threading.Event())
-    checkpoint.on_quota_stop(make_quota_stop())
-    checkpoint.record_completed(queue[0], "one.pdf", ai_status="fallback")
-    payload = load_manifest(checkpoint.path)
-    assert payload["quota_stop"] is not None
-    assert payload["stopped_reason"] == "daily_quota"
-    assert payload["next_index"] == 1
-
-
-def test_the_quota_stop_record_in_the_manifest_carries_no_key(tmp_path):
-    key = "gsk_LIVEKEYSHAPED000000000000000000000000000000000000"
-    register_secret(key)
-    try:
-        checkpoint = make_checkpoint(tmp_path)
-        checkpoint.on_quota_stop(make_quota_stop(reason=f"quota gone for {key}"))
-        raw = checkpoint.path.read_text(encoding="utf-8")
-    finally:
-        forget_secrets()
-    assert key not in raw
-
-
-def test_a_foreign_object_on_the_quota_seam_does_not_crash_the_run(tmp_path):
-    checkpoint = make_checkpoint(tmp_path, stop_event=threading.Event())
-    checkpoint.on_quota_stop(object())
-    assert load_manifest(checkpoint.path) is not None
-
-
-def test_the_manifest_module_imports_no_rate_limits_module():
-    """QuotaStop is consumed duck-typed, so Phase 4's public shape stays untouched."""
-    source = (
-        REPO_ROOT / "scripts" / "Universal" / "core" / "run_manifest.py"
-    ).read_text(encoding="utf-8")
-    imports = [
-        line
-        for line in source.splitlines()
-        if line.startswith(("import ", "from ")) and "rate_limits" in line
-    ]
-    assert imports == []
-
-
 # --------------------------------------------------------------------------
 # The batch_runner seam — additive, inert when absent
 # --------------------------------------------------------------------------
@@ -643,38 +506,6 @@ BASELINE = (
     "After the very long journey through the silent city, he walk home alone. "
     "The lamps remained bright while the quiet road stretched toward the distant gate."
 )
-
-
-class SeamProvider:
-    """Minimal 2a provider; optionally raises on the Nth chapter."""
-
-    def __init__(self, *, transform=None, error_on=None, error=None):
-        self.transform = transform or (lambda text: text)
-        self.error_on = error_on
-        self.error = error
-        self.complete_calls = 0
-
-    def capabilities(self):
-        return ProviderCapabilities("fake", True, ("fake-1",), 5000, 2000)
-
-    def health_check(self):
-        return ProviderStatus.OK
-
-    def list_models(self):
-        return ["fake-1"]
-
-    def complete(self, request):
-        self.complete_calls += 1
-        if self.error_on is not None and self.complete_calls == self.error_on:
-            raise self.error
-        return CompletionResult(self.transform(request.text), "fake-1", 0.01, "stop", False)
-
-
-def seam_editor(provider, policy=RunPolicy.PREFER_AI):
-    return AIEditor(
-        lambda: provider,
-        EditorOptions("fake-1", policy, request_overhead_tokens=0, safety_margin_tokens=0),
-    )
 
 
 def seam_dispatch():
@@ -745,28 +576,6 @@ def test_the_manifest_is_written_after_each_completed_file_in_a_real_run(
     assert load_manifest(checkpoint.path)["next_index"] == 3
 
 
-def test_the_manifest_records_the_ai_outcome_of_each_file(tmp_path, monkeypatch):
-    built = []
-    wire(monkeypatch, built)
-    inputs = seam_inputs(tmp_path, 2)
-    provider = SeamProvider(
-        transform=lambda text: text.replace("he walk home", "he walks home"),
-        error_on=2,
-        error=ProviderUnavailable("provider down", retryable=False),
-    )
-    checkpoint = RunCheckpoint(str(tmp_path / "out"), inputs, clock=FakeClock())
-
-    run_batch(
-        inputs,
-        str(tmp_path / "out"),
-        ai_editor=seam_editor(provider),
-        checkpoint=checkpoint,
-    )
-
-    statuses = [e["ai_status"] for e in load_manifest(checkpoint.path)["entries"]]
-    assert statuses == ["accepted", "fallback"]
-
-
 def test_a_dry_run_writes_no_manifest(tmp_path, monkeypatch):
     built = []
     wire(monkeypatch, built)
@@ -831,82 +640,13 @@ def test_a_finished_run_marks_the_manifest_complete(tmp_path, monkeypatch):
 # --------------------------------------------------------------------------
 # Quota stop through the real batch loop
 # --------------------------------------------------------------------------
-def test_a_daily_quota_stop_mid_run_checkpoints_and_halts_at_the_between_files_seam(
-    tmp_path, monkeypatch
-):
-    """The whole Phase 4 -> Phase 5 path: the limiter's callback fires inside the
-    provider call, the in-flight chapter still completes deterministically, it is
-    checkpointed, and the batch ends without processing another file."""
-    built = []
-    wire(monkeypatch, built)
-    inputs = seam_inputs(tmp_path, 4)
-    stop = threading.Event()
-    checkpoint = RunCheckpoint(
-        str(tmp_path / "out"), inputs, stop_event=stop, clock=FakeClock()
-    )
-
-    quota_error = DailyQuotaExhausted("free daily quota is used up (TPD)")
-
-    class QuotaProvider(SeamProvider):
-        def complete(self, request):
-            self.complete_calls += 1
-            if self.complete_calls == 2:
-                # Exactly what RateLimitedProvider does: signal the seam, then raise.
-                checkpoint.on_quota_stop(make_quota_stop())
-                raise quota_error
-            return CompletionResult(request.text, "fake-1", 0.01, "stop", False)
-
-    summary = run_batch(
-        inputs,
-        str(tmp_path / "out"),
-        ai_editor=seam_editor(QuotaProvider()),
-        stop_event=stop,
-        checkpoint=checkpoint,
-    )
-
-    payload = load_manifest(checkpoint.path)
-    assert summary.get("stopped") is True
-    assert summary["succeeded"] == 2, "the in-flight chapter must still complete"
-    assert payload["next_index"] == 2, "the run stopped after the in-flight chapter"
-    assert payload["complete"] is False
-    assert payload["stopped_reason"] == "daily_quota"
-    assert payload["quota_stop"]["is_daily"] is True
-    # The chapter that hit the wall fell back to deterministic text, and says so.
-    assert payload["entries"][1]["ai_status"] == "fallback"
-    assert len(built) == 2
-
-
-def test_a_run_halted_by_a_daily_quota_is_offered_for_resume_tomorrow(
-    tmp_path, monkeypatch
-):
-    built = []
-    wire(monkeypatch, built)
-    inputs = seam_inputs(tmp_path, 4)
-    stop = threading.Event()
-    checkpoint = RunCheckpoint(
-        str(tmp_path / "out"), inputs, stop_event=stop, clock=FakeClock(), novel="Universal"
-    )
-    checkpoint.record_completed(inputs[0], "one.pdf")
-    checkpoint.on_quota_stop(make_quota_stop())
-    checkpoint.finish(stopped=True)
-
-    offer = find_resumable_run(tmp_path)
-    assert offer.available is True
-    assert offer.stopped_reason == "daily_quota"
-    assert offer.quota_stop["is_daily"] is True
-    assert offer.remaining == tuple(inputs[1:])
-
-
 def test_resuming_processes_exactly_the_files_the_first_run_did_not(
     tmp_path, monkeypatch
 ):
     built = []
     wire(monkeypatch, built)
     inputs = seam_inputs(tmp_path, 5)
-    stop = threading.Event()
-    first = RunCheckpoint(
-        str(tmp_path / "out"), inputs, stop_event=stop, clock=FakeClock()
-    )
+    first = RunCheckpoint(str(tmp_path / "out"), inputs, clock=FakeClock())
     run_batch(inputs[:2], str(tmp_path / "out"), checkpoint=first)
     # Pretend the app closed here: no finish() for the whole queue.
     first.finish(stopped=True)
@@ -941,34 +681,75 @@ def test_resuming_processes_exactly_the_files_the_first_run_did_not(
 # --------------------------------------------------------------------------
 # A real corpus chapter, to prove no prose reaches the manifest
 # --------------------------------------------------------------------------
-def test_a_real_chapter_run_puts_no_prose_and_no_key_in_the_manifest(tmp_path):
+def test_a_real_chapter_run_puts_no_prose_in_the_manifest(tmp_path):
     pdfs = sorted(str(p) for p in FIXTURES.glob("*.pdf"))[:2]
     if not pdfs:
         pytest.skip("fixtures not present (files/test-files/shadow_slave)")
 
-    key = "gsk_LIVEKEYSHAPED000000000000000000000000000000000000"
-    register_secret(key)
-    try:
-        checkpoint = RunCheckpoint(
-            str(tmp_path / "out"),
-            pdfs,
-            novel="Shadow Slave",
-            provider="groq",
-            model_id="llama-3.3-70b-versatile",
-            clock=FakeClock(),
-        )
-        summary = run_batch(
-            pdfs, str(tmp_path / "out"), novel_name="Shadow Slave", checkpoint=checkpoint
-        )
-        raw = checkpoint.path.read_text(encoding="utf-8")
-    finally:
-        forget_secrets()
+    checkpoint = RunCheckpoint(
+        str(tmp_path / "out"), pdfs, novel="Shadow Slave", clock=FakeClock()
+    )
+    summary = run_batch(
+        pdfs, str(tmp_path / "out"), novel_name="Shadow Slave", checkpoint=checkpoint
+    )
+    raw = checkpoint.path.read_text(encoding="utf-8")
 
     assert summary["succeeded"] >= 1
-    assert key not in raw
     # Real extracted prose from the fixture must appear nowhere in the manifest.
     text = extract_text_from_pdf(pdfs[0])
     words = [w for w in text.split() if len(w) > 6][:40]
     assert words, "the fixture produced no usable text to test against"
     for phrase in (" ".join(words[i:i + 5]) for i in range(0, len(words) - 5, 5)):
         assert phrase not in raw
+
+
+# --------------------------------------------------------------------------
+# Schema 2 is the only readable schema (Phase 01A)
+# --------------------------------------------------------------------------
+def _legacy_cloud_manifest(queue):
+    """A schema-1 manifest as the retired cloud runs wrote it."""
+    return {
+        "schema_version": 1,
+        "run": {"novel": "Shadow Slave", "provider": "groq", "model_id": "x",
+                "prompt_version": "1", "gate_version": "1", "ai_policy": "prefer_ai",
+                "mirror_root": None, "started_at": 1.0},
+        "output_dir": "out",
+        "queue": queue,
+        "next_index": 1,
+        "entries": [{"source": queue[0], "status": "completed", "output": "a.pdf",
+                     "ai_status": "accepted", "size": 1, "mtime_ns": 1, "recorded_at": 1.0}],
+        "quota_stop": None,
+        "stopped_reason": "user_stop",
+        "complete": False,
+    }
+
+
+def test_a_legacy_schema_1_cloud_manifest_is_refused_and_left_untouched(tmp_path):
+    """A cloud-run manifest may reference AI-edited outputs and has no deterministic
+    fingerprints, so it must never be converted into a script-only resume - and it must
+    never be modified or deleted either."""
+    queue = make_queue(tmp_path, 2)
+    run_dir = tmp_path / "shadow-slave-1"
+    run_dir.mkdir()
+    path = run_dir / MANIFEST_NAME
+    path.write_text(json.dumps(_legacy_cloud_manifest(queue)), encoding="utf-8")
+    before = path.read_bytes()
+
+    assert load_manifest(path) is None
+    offer = find_resumable_run(tmp_path)
+    assert offer.available is False
+    assert path.read_bytes() == before
+
+
+def test_a_stopped_run_is_offered_for_resume_from_exactly_where_it_stopped(tmp_path):
+    queue = make_queue(tmp_path, 4)
+    checkpoint = RunCheckpoint(
+        str(tmp_path / "out"), queue, novel="Universal", clock=FakeClock()
+    )
+    checkpoint.record_completed(queue[0], "one.pdf")
+    checkpoint.finish(stopped=True)
+
+    offer = find_resumable_run(tmp_path)
+    assert offer.available is True
+    assert offer.stopped_reason == "user_stop"
+    assert offer.remaining == tuple(queue[1:])
