@@ -9,6 +9,17 @@ its original decision date. New decisions continue to be appended here (newest o
 
 ---
 
+## 074 — Release target fixed at 0.4.0; legacy installer plan (2c) and product-AI direction superseded; runtime-storage contract — 2026-10-28 — Claude Code (Master Plan Phase 00)
+
+**Status:** Accepted. Fixed by the user's Master Plan Revision 2 (`files/plans/Web-Novel-Editor-Master-Implementation-Plan.md`); implementation stays gated (Gate 00 onward).
+**Context:** The product is being re-scoped to an offline, deterministic, script-only editor. The proposed `0.14.0` target and `plan-2c-installer-bootstrap.md` (AI onboarding, uninstaller, conflicting storage) no longer describe the product. The repository already contains a historical heading `v0.4.0 — 2026-06-21 — Phase 4: Editorial Rule Pipeline`.
+**Decision:**
+1. The release target is **`0.4.0`**, fixed (not a Gate 00 choice). This is an intentional numbering reset. The 2026-06-21 `v0.4.0` heading is left untouched; Phase 04 adds a *distinct* new heading and bumps every current version surface together. Until then `config.toml`, BRIEFING, the top CHANGELOG heading and README stay at `v0.13.0`. GitHub "Latest" must be set explicitly at release, because `v0.12.0` sorts above `v0.4.0` by semantic order.
+2. `md-instructions/plan-2c-installer-bootstrap.md` is **superseded** (notice added at its top; history preserved). So is every earlier direction to retain or extend Ollama, Gemini, Groq, model selection, prompts, quotas or billing safeguards. Development-agent instructions are unaffected.
+3. Storage contract: production editing data lives under `scripts/`; `files/runtime-data/`, `files/temp/`, `files/run-temp/`, `files/test-logs/` and `files/checkpoints/baselines/` are ignored writable/private state (anchored `.gitignore` rules added in Phase 00); phase reports under `files/checkpoints/` stay trackable. The existing per-user settings location is kept. The `Credentials (Plan 2b)` ignore block is preserved verbatim, and old key files are neither read, migrated nor deleted.
+**Alternatives considered:** Keeping `0.14.0` (rejected: the user fixed `0.4.0`); renaming the historical `v0.4.0` heading or tags (rejected: history is not rewritten).
+**Consequences:** Phase 04 must carry the numbering-reset sentence in the CHANGELOG, and the verifier's top-heading logic keeps working because the new heading is the top one. Any tooling that sorts versions semantically will rank `v0.12.0` above `v0.4.0`.
+
 ## 073 — `qwen/qwen3.6-27b` is NOT approved, and the reason is not "we forgot" — 2026-07-27 — Claude Code
 
 **Status:** Accepted. Records a **rejected** candidate so it is not re-proposed on sight.

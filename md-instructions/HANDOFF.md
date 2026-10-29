@@ -1,6 +1,16 @@
 # Web Novel Editor — Handoff
 
-## Current Focus
+## Current Focus — Master Plan, Phase 00 (discovery) DONE; STOPPED AT GATE 00
+
+**Snapshot (2026-10-28, Claude Code Sonnet 5.5 / high, HOME-PC).** Branch `feature/plan-2b-cloud-providers`, input HEAD `c8a5259` (= `origin`, 33 ahead of / 0 behind `main` `72d68ca`). Phase 00 of `files/plans/Web-Novel-Editor-Master-Implementation-Plan.md` (Revision 2) is complete: **no product code, test, dependency, config or launcher changed**, version fields stay v0.13.0, and release target **0.4.0** is fixed (DECISIONS 074; `plan-2c-installer-bootstrap.md` is superseded).
+
+- **Last verification:** unmodified `scripts/verify.py` through the offline dev harness (keys unset in the child only, network guard): exit 0, **1267 passed / 8 skipped / 0 failed**, Python 3.13.12, Windows. The 8 skips are corpus-name mismatches (tests want `*-v2` dirs; local dirs are `*-1`). **Tk tests skip intermittently** (3 of 6 runs showed 9-10 skips: Tcl library files unreadable at random; every test hides it as "no display"), so rerun if a Tk skip appears.
+- **Baseline:** 92 inputs x 9 profiles frozen in ignored `files/checkpoints/baselines/script-only/`; mandatory `Clan Valor` / `Valor Clan` / `Valor` invariant passes on every profile. Harness and logs in ignored `files/test-logs/p00/`.
+- **Full report and the 13 Gate 00 questions:** `files/checkpoints/WNE-P00-discovery.md`.
+- **Pending (user):** answer Gate 00 (base/branch, baseline, corpus naming, generic fixes, quote/OCR/page-number scope, defaults and Python floor, audit-row policy, writer/reviewer).
+- **Next exact action:** nothing until Gate 00 is answered. Then Phase 01A only. Do not infer approval; do not merge, tag or release.
+
+## Prior Focus — Plan 2b (superseded as active work by the Master Plan; kept for history)
 
 **Plan 2b (Cloud AI Providers — Gemini, Groq) is COMPLETE through Phase 8, v0.13.0, on
 `feature/plan-2b-cloud-providers`. It has NOT been merged to `main` and awaits the author's

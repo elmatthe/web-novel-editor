@@ -1,5 +1,11 @@
 # Webnovel Editor — Plan 2c: Installer & Bootstrap — target v0.14.0
 
+> **SUPERSEDED — 2026-10-28 (Master Plan, Phase 00). Do not implement this drop.** The authority is now
+> `files/plans/Web-Novel-Editor-Master-Implementation-Plan.md` (Revision 2). Its `v0.14.0` target is replaced by the
+> fixed release target **`0.4.0`**; its AI/Ollama onboarding, model prompts, uninstaller and the runtime-storage
+> directions that conflict with the Master Plan (§4.1, §6, §7.2) no longer apply. The text below is kept unchanged as
+> historical record only. Ruling: DECISIONS #074.
+
 > **Build this last.** 2c is technically independent of 2a/2b, but it is only *finished* once
 > the dependency set, provider contracts, key locations, Ollama model tag, and GUI capability
 > model are stable — which is the end of 2b. Running it earlier means onboarding a contract

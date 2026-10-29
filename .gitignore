@@ -61,3 +61,12 @@ AI-WORKSPACE.md
 *.key
 *.pem
 secrets.json
+
+# --- Private baselines / runtime state (Master Plan Phase 00; must never be committed) ---
+# Frozen script-only baselines contain copyrighted chapter text. Only the anchored paths
+# below are ignored: reports under files/checkpoints/ (e.g. WNE-P00-discovery.md) stay trackable.
+/files/checkpoints/baselines/
+/files/runtime-data/
+/files/temp/
+/files/run-temp/
+/files/test-logs/
