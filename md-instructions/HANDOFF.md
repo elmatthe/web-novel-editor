@@ -10,7 +10,11 @@ matches local HEAD, refreshed tracking and live remote. Preserve unrelated untra
   exclusive numbered allocation and frozen Unicode/casefold output mapping/preflight.
 - Focused verification: scanner/output-plan/output-layout tests; results recorded in the
   Phase 02A checkpoint at completion. Test scratch stays in ignored `files/temp/`.
-- Next: OS-backed run ownership, schema-3 durable publication/recovery, resume/retry,
+- Second slice: lifetime OS-backed run guard, exclusive owner metadata, PID creation
+  identity, fail-closed ownership and explicit stale recovery with preserved metadata;
+  bounded Windows 5/32 retries. Focused scanner/mapping/lock tests: 37 passed, including
+  a real offline child crash/recovery. First slice: `96b68ec` (pushed).
+- Next: schema-3 durable publication/recovery, resume/retry,
   minimal GUI adapters. Required full verifier and exact editorial comparison precede
   the final checkpoint. **STOP at Gate 02A; no Phase 02B authorization.**
 
