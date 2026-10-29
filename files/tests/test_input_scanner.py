@@ -101,14 +101,14 @@ def test_empty_folder_returns_empty_list(tmp_path):
     assert scan_folder(tmp_path) == []
 
 
-def test_folder_with_only_non_pdfs_returns_empty_list(tmp_path):
-    _touch(tmp_path, "notes.txt", "cover.jpg", "sub/data.csv")
+def test_folder_with_only_unsupported_files_returns_empty_list(tmp_path):
+    _touch(tmp_path, "notes.doc", "cover.jpg", "sub/data.csv")
     assert scan_folder(tmp_path) == []
 
 
 def test_non_pdf_files_are_ignored_among_pdfs(tmp_path):
     _touch(tmp_path, "1.pdf", "notes.txt", "2.pdf", "sub/3.pdf", "sub/skip.docx")
-    assert _names(scan_folder(tmp_path), tmp_path) == ["1.pdf", "2.pdf", "sub/3.pdf"]
+    assert _names(scan_folder(tmp_path), tmp_path) == ["1.pdf", "2.pdf", "notes.txt", "sub/3.pdf"]
 
 
 def test_pdf_extension_match_is_case_insensitive(tmp_path):
@@ -144,7 +144,33 @@ def test_upload_order_preserved_exactly(tmp_path):
 def test_upload_ignores_non_pdfs_but_keeps_order(tmp_path):
     _touch(tmp_path, "b.pdf", "notes.txt", "a.pdf")
     given = [str(tmp_path / n) for n in ("b.pdf", "notes.txt", "a.pdf")]
-    assert _names(scan_upload(given), tmp_path) == ["b.pdf", "a.pdf"]
+    assert _names(scan_upload(given), tmp_path) == ["b.pdf", "notes.txt", "a.pdf"]
+
+
+def test_mixed_folder_optional_recursion_and_active_output_exclusion(tmp_path):
+    _touch(tmp_path, "10.TXT", "2.pdf", "sub/1.txt", "outputs/run/x.pdf")
+    assert _names(scan_folder(tmp_path, recursive=False), tmp_path) == ["2.pdf", "10.TXT"]
+    assert _names(scan_folder(tmp_path, exclude=tmp_path / "outputs"), tmp_path) == [
+        "2.pdf", "10.TXT", "sub/1.txt",
+    ]
+
+
+def test_duplicate_resolved_paths_are_not_added_twice(tmp_path):
+    _touch(tmp_path, "a.pdf")
+    assert scan_upload([tmp_path / "a.pdf", tmp_path / "." / "a.pdf"]) == [tmp_path / "a.pdf"]
+
+
+def test_unreadable_directory_emits_warning(tmp_path, monkeypatch):
+    original = Path.iterdir
+    _touch(tmp_path, "private/a.txt")
+    def denied(path):
+        if path.name == "private":
+            raise PermissionError("denied")
+        return original(path)
+    monkeypatch.setattr(Path, "iterdir", denied)
+    warnings = []
+    assert scan_folder(tmp_path, warn=warnings.append) == []
+    assert "private" in warnings[0]
 
 
 def test_upload_returns_path_objects(tmp_path):

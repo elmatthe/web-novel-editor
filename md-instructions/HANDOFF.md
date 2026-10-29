@@ -1,6 +1,20 @@
 # Web Novel Editor — Handoff
 
-## Current Focus — Gate 01 test-harness remediation; STOPPED AT GATE 01
+## Current Focus — Phase 02A implementation; Gate 01 approved
+
+**Snapshot (2026-10-29, Codex CLI, HOME-PC).** Authorized Phase 02A only on
+`feature/0.4.0-script-only-editor`. Approved base `c6e68ed7a1ba77a1e7b69c5816a716296a76922d`
+matches local HEAD, refreshed tracking and live remote. Preserve unrelated untracked/ignored work.
+
+- First slice: mixed PDF/TXT scanner, recursion/exclusion/warnings, safe link checks;
+  exclusive numbered allocation and frozen Unicode/casefold output mapping/preflight.
+- Focused verification: scanner/output-plan/output-layout tests; results recorded in the
+  Phase 02A checkpoint at completion. Test scratch stays in ignored `files/temp/`.
+- Next: OS-backed run ownership, schema-3 durable publication/recovery, resume/retry,
+  minimal GUI adapters. Required full verifier and exact editorial comparison precede
+  the final checkpoint. **STOP at Gate 02A; no Phase 02B authorization.**
+
+## Previous Focus — Gate 01 test-harness remediation (now approved)
 
 **Snapshot (2026-10-29, Codex CLI, HOME-PC).** Working branch `feature/0.4.0-script-only-editor`; remediation input/live origin `753d9b496277f7fb7d106b3862b799dbbac17554`, following approved Gate 00 base `0c1ac0b`. Release target **0.4.0**; version fields stay v0.13.0 until Phase 04. Unrelated untracked work is preserved.
 

@@ -105,13 +105,18 @@ def next_numbered_output_dir(parent: Path, base: str) -> Path:
     return parent / f"{base}-{highest + 1}"
 
 
-def sanitize_output_filename(name: str) -> str:
+def sanitize_output_filename(name: str, *, truncate: bool = True) -> str:
     """Return a filesystem-safe version of `name` (stem only, no directory)."""
     name = os.path.basename(name)
     cleaned = "".join("_" if ch in _ILLEGAL or ord(ch) < 32 else ch for ch in name)
     cleaned = cleaned.strip(" .")  # trailing dots/spaces are invalid on Windows
-    if len(cleaned) > _MAX_STEM:
+    if truncate and len(cleaned) > _MAX_STEM:
         cleaned = cleaned[:_MAX_STEM].rstrip(" .")
+    if cleaned.split(".")[0].upper() in {
+        "CON", "PRN", "AUX", "NUL", *(f"COM{i}" for i in range(1, 10)),
+        *(f"LPT{i}" for i in range(1, 10)),
+    }:
+        cleaned = "_" + cleaned
     return cleaned or "untitled"
 
 

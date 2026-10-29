@@ -1,23 +1,16 @@
-"""Build the ordered input-file list for both GUI input modes (Plan 1, Phase 1).
+"""Extend the ordered file list for mixed PDF/TXT imports.
 
-Two entry points, one per input mode:
-
-* :func:`scan_upload` — Upload-PDFs mode. A flat list preserving the caller's order
-  exactly (the user's upload order is meaningful and must never be re-sorted).
-* :func:`scan_folder` — Select-Folder mode. A recursive scan following the ordering
-  contract: depth-first traversal; at each directory level the directory's OWN PDFs
-  come first in natural order, then its subfolders are descended into, themselves in
-  natural order.
-
-"Natural order" is numeric-aware, case-insensitive ordering via ``natsort``
-(1, 2, 10 — not 1, 10, 2), matching how a person numbers chapter files. Non-PDF
-files are ignored in both modes; the extension match is case-insensitive.
+Folder snapshots keep own files first, then naturally ordered subdirectories.
+Upload scanning preserves caller order so existing manual order is never undone.
+Directory links/reparse points are never traversed.
 """
 
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Iterable
+from typing import Callable, Iterable
+import os
+import stat
 
 from natsort import natsort_keygen, ns
 
@@ -26,36 +19,82 @@ from natsort import natsort_keygen, ns
 _NATURAL_KEY = natsort_keygen(alg=ns.IGNORECASE)
 
 
-def _is_pdf(path: Path) -> bool:
-    return path.suffix.lower() == ".pdf"
+def is_link(path: Path) -> bool:
+    """Include Windows junctions/reparse points, including on Python 3.10."""
+    info = path.lstat()
+    return stat.S_ISLNK(info.st_mode) or bool(
+        getattr(info, "st_file_attributes", 0) & 0x400
+    )
+
+
+def check_no_links(path: Path) -> None:
+    for part in (path, *path.parents):
+        if os.path.lexists(part) and is_link(part):
+            raise ValueError(f"Symlink/junction paths are not supported: {part}")
+
+
+def _eligible(path: Path) -> bool:
+    return path.suffix.lower() in {".pdf", ".txt"}
+
+
+def natural_order(paths: Iterable[Path]) -> list[Path]:
+    return sorted(paths, key=lambda p: (_NATURAL_KEY(p.name), p.name))
 
 
 def scan_upload(paths: Iterable[str | Path]) -> list[Path]:
-    """Return the uploaded files as Paths, order preserved, non-PDFs dropped."""
-    return [Path(p) for p in paths if _is_pdf(Path(p))]
+    """Return distinct eligible paths in caller order; reject link traversal."""
+    ordered = []
+    seen = set()
+    for value in paths:
+        path = Path(value)
+        if not _eligible(path):
+            continue
+        check_no_links(path.absolute())
+        identity = os.path.normcase(str(path.resolve()))
+        if identity not in seen:
+            ordered.append(path)
+            seen.add(identity)
+    return ordered
 
 
-def scan_folder(root: str | Path) -> list[Path]:
+def scan_folder(root: str | Path, *, recursive: bool = True,
+                exclude: str | Path | None = None,
+                warn: Callable[[str], None] | None = None) -> list[Path]:
     """Recursively collect every PDF under ``root`` in the contract order.
 
     Raises ``NotADirectoryError`` if ``root`` is not an existing directory.
     Unreadable subdirectories are skipped rather than aborting the whole scan.
     """
     root = Path(root)
+    check_no_links(root.absolute())
     if not root.is_dir():
         raise NotADirectoryError(f"Not a folder: {root}")
 
     ordered: list[Path] = []
 
     def _walk(directory: Path) -> None:
+        if exclude and directory.resolve().is_relative_to(Path(exclude).resolve()):
+            return
         try:
             entries = list(directory.iterdir())
-        except OSError:
+        except OSError as exc:
+            if warn:
+                warn(f"Could not read folder {directory}: {exc}")
             return
-        files = [e for e in entries if e.is_file() and _is_pdf(e)]
-        subdirs = [e for e in entries if e.is_dir()]
-        ordered.extend(sorted(files, key=lambda p: _NATURAL_KEY(p.name)))
-        for sub in sorted(subdirs, key=lambda p: _NATURAL_KEY(p.name)):
+        files, subdirs = [], []
+        for entry in entries:
+            try:
+                if is_link(entry):
+                    continue
+                if entry.is_file() and _eligible(entry):
+                    files.append(entry)
+                elif recursive and entry.is_dir():
+                    subdirs.append(entry)
+            except OSError as exc:
+                if warn:
+                    warn(f"Could not inspect {entry}: {exc}")
+        ordered.extend(natural_order(files))
+        for sub in natural_order(subdirs):
             _walk(sub)
 
     _walk(root)
