@@ -2,9 +2,8 @@
 
 * the autouse guard in ``conftest`` refuses and records outbound socket use, and a test
   that does not acknowledge a recorded attempt fails at teardown;
-* the guard's blind spot is covered: a *new Python interpreter* does not inherit an
-  in-process monkeypatch, so the subprocess smoke tests below install the guard through
-  a throwaway ``sitecustomize`` and an inherited ``PYTHONPATH``;
+* runtime subprocess smoke tests share the ``offline_python`` fixture, which installs
+  ``sitecustomize`` even with an explicit environment/PYTHONPATH and rejects attempt logs;
 * normal editing and a healthy launch (``main.py --check``) make zero network attempts;
 * importing the application loads none of the retired provider SDKs.
 
@@ -16,8 +15,6 @@ from __future__ import annotations
 
 import os
 import socket
-import subprocess
-import sys
 import textwrap
 from pathlib import Path
 
@@ -28,39 +25,6 @@ SCRIPTS = REPO_ROOT / "scripts"
 
 # A harmless attempted connection: the discard port on loopback, nothing is listening.
 _PROBE = ("127.0.0.1", 9)
-
-_SITECUSTOMIZE = textwrap.dedent(
-    """
-    import os, socket
-
-    _LOG = os.environ["WNE_GUARD_LOG"]
-
-    def _deny(kind):
-        def blocked(*args, **kwargs):
-            with open(_LOG, "a", encoding="utf-8") as fh:
-                fh.write(kind + "\\n")
-            raise OSError("network disabled by the test suite (" + kind + ")")
-        return blocked
-
-    socket.socket.connect = _deny("socket.connect")
-    socket.socket.connect_ex = _deny("socket.connect_ex")
-    socket.create_connection = _deny("socket.create_connection")
-    socket.socket.sendto = _deny("socket.sendto")
-    """
-)
-
-
-def _guarded_env(tmp_path: Path) -> tuple[dict, Path]:
-    guard_dir = tmp_path / "guard"
-    guard_dir.mkdir(exist_ok=True)
-    (guard_dir / "sitecustomize.py").write_text(_SITECUSTOMIZE, encoding="utf-8")
-    log = tmp_path / "attempts.log"
-    env = dict(os.environ)
-    env["PYTHONPATH"] = os.pathsep.join([str(guard_dir), str(SCRIPTS)])
-    env["WNE_GUARD_LOG"] = str(log)
-    env["PYTHONDONTWRITEBYTECODE"] = "1"
-    return env, log
-
 
 # -- the in-process guard -----------------------------------------------------------------
 
@@ -104,8 +68,7 @@ def test_a_swallowed_connection_error_is_still_visible(network_attempts):
 # -- the guard reaches a new interpreter --------------------------------------------------
 
 
-def test_the_guard_reaches_a_child_interpreter(tmp_path):
-    env, log = _guarded_env(tmp_path)
+def test_the_guard_reaches_a_child_interpreter(tmp_path, offline_python):
     code = (
         "import socket\n"
         "try:\n"
@@ -113,31 +76,29 @@ def test_the_guard_reaches_a_child_interpreter(tmp_path):
         "except OSError as exc:\n"
         "    print('refused:', exc)\n"
     )
-    completed = subprocess.run(
-        [sys.executable, "-c", code], env=env, cwd=tmp_path,
-        capture_output=True, text=True, timeout=30, check=False,
-    )
-    assert "refused: network disabled" in completed.stdout, completed.stdout + completed.stderr
-    assert log.read_text(encoding="utf-8").strip() == "socket.create_connection"
+    with pytest.raises(AssertionError, match="child attempted network access"):
+        offline_python.run(
+            ["-c", code], cwd=tmp_path,
+            capture_output=True, text=True, timeout=30, check=False,
+        )
+    assert offline_python.attempt_log.read_text(encoding="utf-8").strip() == "socket.create_connection"
+    offline_python.attempt_log.write_text("", encoding="utf-8")  # deliberate guard probe acknowledged
 
 
 # -- the application makes no network attempt ---------------------------------------------
 
 
-def test_a_healthy_launch_check_makes_no_network_attempt(tmp_path):
-    env, log = _guarded_env(tmp_path)
-    completed = subprocess.run(
-        [sys.executable, str(SCRIPTS / "main.py"), "--check"],
-        env=env, cwd=tmp_path, capture_output=True, text=True, timeout=60, check=False,
+def test_a_healthy_launch_check_makes_no_network_attempt(tmp_path, offline_python):
+    completed = offline_python.run(
+        [str(SCRIPTS / "main.py"), "--check"],
+        cwd=tmp_path, capture_output=True, text=True, timeout=60, check=False,
     )
     assert completed.returncode == 0, completed.stdout + completed.stderr
     assert "Startup check passed." in completed.stdout
-    assert not log.exists() or log.read_text(encoding="utf-8") == ""
 
 
-def test_the_application_imports_load_no_retired_sdk(tmp_path):
+def test_the_application_imports_load_no_retired_sdk(tmp_path, offline_python):
     """Importing every shipped package must not pull in a provider SDK or HTTP client."""
-    env, log = _guarded_env(tmp_path)
     code = textwrap.dedent(
         """
         import sys
@@ -151,8 +112,9 @@ def test_the_application_imports_load_no_retired_sdk(tmp_path):
         print("LOADED:" + ",".join(loaded))
         """
     )
-    completed = subprocess.run(
-        [sys.executable, "-c", code], env=env, cwd=tmp_path,
+    env = dict(os.environ, PYTHONPATH=str(SCRIPTS))
+    completed = offline_python.run(
+        ["-c", code], env=env, cwd=tmp_path,
         capture_output=True, text=True, timeout=60, check=False,
     )
     assert completed.returncode == 0, completed.stdout + completed.stderr
@@ -175,3 +137,64 @@ def test_a_batch_run_makes_no_network_attempt(tmp_path, network_attempts):
     summary = run_batch([str(src)], str(tmp_path / "out"), novel_name="Shadow Slave")
     assert summary["succeeded"] == 1
     assert network_attempts == []
+
+
+def test_application_imports_rejects_a_swallowed_connection(tmp_path, offline_python):
+    probe = '\ntry:\n    socket.create_connection(("127.0.0.1", 9), timeout=1)\nexcept OSError:\n    pass\n'
+    bootstrap = offline_python.guard_dir / "sitecustomize.py"
+    bootstrap.write_text(bootstrap.read_text(encoding="utf-8") + probe, encoding="utf-8")
+    with pytest.raises(AssertionError, match="child attempted network access"):
+        test_the_application_imports_load_no_retired_sdk(tmp_path, offline_python)
+    assert offline_python.attempt_log.read_text(encoding="utf-8").strip() == "socket.create_connection"
+    offline_python.attempt_log.write_text("", encoding="utf-8")  # deliberate guard probe acknowledged
+
+
+@pytest.mark.parametrize("operation", ["connect", "connect_ex", "create_connection", "sendto"])
+def test_explicit_child_environment_cannot_hide_a_swallowed_attempt(tmp_path, offline_python, operation):
+    (tmp_path / "custom_module.py").write_text("VALUE = 17\n", encoding="utf-8")
+    env = dict(os.environ, PYTHONPATH=str(tmp_path))
+    original = dict(env)
+    code = textwrap.dedent(
+        f"""
+        import socket, pathlib, custom_module
+        assert custom_module.VALUE == 17
+        sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM if {operation!r} == 'sendto' else socket.SOCK_STREAM)
+        try:
+            if {operation!r} == 'create_connection':
+                socket.create_connection(('127.0.0.1', 9), timeout=1)
+            elif {operation!r} == 'sendto':
+                sock.sendto(b'x', ('127.0.0.1', 9))
+            else:
+                getattr(sock, {operation!r})(('127.0.0.1', 9))
+        except OSError:
+            pass
+        finally:
+            sock.close()
+        pathlib.Path('finished').write_text('caught and finished', encoding='utf-8')
+        """
+    )
+    with pytest.raises(AssertionError, match="child attempted network access"):
+        offline_python.run(["-c", code], env=env, cwd=tmp_path, capture_output=True, timeout=30)
+    assert (tmp_path / "finished").read_text(encoding="utf-8") == "caught and finished"
+    assert env == original  # the supplied environment was copied, never edited
+    assert offline_python.attempt_log.read_text(encoding="utf-8").strip() == f"socket.{operation}"
+    offline_python.attempt_log.write_text("", encoding="utf-8")  # deliberate guard probe acknowledged
+
+
+def test_the_guard_reaches_descendant_interpreters(tmp_path, offline_python):
+    code = textwrap.dedent(
+        r"""
+        import subprocess, sys
+        probe = 'import socket\ntry:\n socket.create_connection(("127.0.0.1", 9), timeout=1)\nexcept OSError:\n pass\n'
+        subprocess.run([sys.executable, '-c', probe], check=True)
+        """
+    )
+    with pytest.raises(AssertionError, match="child attempted network access"):
+        offline_python.run(["-c", code], cwd=tmp_path, capture_output=True, text=True, timeout=30)
+    assert offline_python.attempt_log.read_text(encoding="utf-8").strip() == "socket.create_connection"
+    offline_python.attempt_log.write_text("", encoding="utf-8")  # deliberate guard probe acknowledged
+
+
+def test_a_child_cannot_silently_disable_sitecustomize(offline_python):
+    with pytest.raises(AssertionError, match="guard did not initialize"):
+        offline_python.run(["-S", "-c", "pass"], capture_output=True, timeout=30)

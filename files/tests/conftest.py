@@ -29,6 +29,8 @@ from pathlib import Path
 
 import pytest
 
+from .offline_python import OfflinePython
+
 _REPO_ROOT = Path(__file__).resolve().parents[2]
 _SCRIPTS = _REPO_ROOT / "scripts"
 
@@ -77,6 +79,18 @@ def pytest_configure(config):
 def network_attempts(request):
     """The list of refused outbound attempts for this test (clear it to acknowledge)."""
     return request.node._wne_network_attempts
+
+
+@pytest.fixture
+def offline_python(tmp_path_factory):
+    """Runtime smoke tests use this runner, including with an explicit env/PYTHONPATH.
+
+    Mocked dependency provisioning remains separate: shell syntax tests and installer
+    mocks do not run a runtime interpreter and do not use this fixture.
+    """
+    runner = OfflinePython(tmp_path_factory.mktemp("offline-python"))
+    yield runner
+    runner.assert_no_attempts()
 
 
 @pytest.fixture(autouse=True)

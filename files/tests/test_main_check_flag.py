@@ -10,8 +10,6 @@ without the flag must proceed to `launch()`.
 from __future__ import annotations
 
 import shutil
-import subprocess
-import sys
 from pathlib import Path
 
 import pytest
@@ -53,7 +51,7 @@ def test_without_check_flag_launches(monkeypatch):
     assert called["launch"] is True, "a normal run must reach launch()"
 
 
-def test_release_shaped_startup_needs_no_dev_tree_and_no_ai_sdk(tmp_path):
+def test_release_shaped_startup_needs_no_dev_tree_and_no_ai_sdk(tmp_path, offline_python):
     """Copy only the shipped scripts tree (no ``files/``, no ``.git``) and run ``--check``.
 
     Re-homed from the Ollama test in Phase 01A. If ordinary startup ever imports one of
@@ -76,8 +74,8 @@ def test_release_shaped_startup_needs_no_dev_tree_and_no_ai_sdk(tmp_path):
     )
     assert not (tmp_path / "release" / "files").exists()
     assert not (tmp_path / "release" / ".git").exists()
-    completed = subprocess.run(
-        [sys.executable, str(universal / "main.py"), "--check"],
+    completed = offline_python.run(
+        [str(universal / "main.py"), "--check"],
         cwd=tmp_path / "release",
         text=True,
         capture_output=True,

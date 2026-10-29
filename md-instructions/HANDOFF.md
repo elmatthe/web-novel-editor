@@ -1,13 +1,13 @@
 # Web Novel Editor — Handoff
 
-## Current Focus — Master Plan, Phase 01 (remove AI, migrate, consolidate) — DONE; STOPPED AT GATE 01
+## Current Focus — Gate 01 test-harness remediation; STOPPED AT GATE 01
 
-**Snapshot (2026-10-28, Claude Code Sonnet 5.5 / high, HOME-PC).** Working branch `feature/0.4.0-script-only-editor`, cut from the approved Gate 00 checkpoint `0c1ac0b`. Old branch `feature/plan-2b-cloud-providers` is untouched at `0c1ac0b` (rollback point for v0.13.0 cloud work). Release target **0.4.0** is fixed (DECISIONS 074); version fields stay v0.13.0 until Phase 04.
+**Snapshot (2026-10-29, Codex CLI, HOME-PC).** Working branch `feature/0.4.0-script-only-editor`; remediation input/live origin `753d9b496277f7fb7d106b3862b799dbbac17554`, following approved Gate 00 base `0c1ac0b`. Release target **0.4.0**; version fields stay v0.13.0 until Phase 04. Unrelated untracked work is preserved.
 
-- **State:** 01A, 01B and 01C complete, verified and pushed.
-- **Verification:** 708 tests pass offline (offline guard + strict Tk active, 0 skipped, corpus tests mandatory-capable); `verify.py` PASS; of 828 frozen script-only results 810 are identical and the 18 that differ are exactly the approved `carcassess` promotion and the two retired Shadow Slave fixes (synthetic input only). Full evidence, test ledger and review handoff: `files/checkpoints/WNE-P01-ai-removal.md`.
-- **Pending (user):** a fresh independent Claude Code session reviews `0c1ac0b..HEAD`; then your Gate 01 decision. Known intermittent fault: Tcl/Tk library read failures (the strict-Tk guard now reports them as errors; rerun and record).
-- **Next exact action:** none until Gate 01 is decided. Do not begin Phase 02A, merge, tag or release.
+- **State:** the independent review blocked Gate 01 on exactly two P2 coverage defects. Only those harness defects are remediated: precise watermark/punctuation accounting and shared guarded runtime Python subprocesses. No product/editorial changes.
+- **Verification:** exploit regressions failed before repair; focused strict checks passed 45/45. The final strict full-verifier result, actual Tk execution, Bash PATH skip/syntax check and preservation hashes are logged under ignored `files/test-logs/gate01-remediation/` and reported against the resulting SHA in the final CLI response. Frozen editorial evidence remains 810 identical / 18 approved changes out of 828. Details: `files/checkpoints/WNE-P01-ai-removal.md`.
+- **Pending:** fresh independent CLI re-review of `753d9b4..` the remediation commit, followed by the user's Gate 01 decision. The remediation writer cannot independently approve its own fixes. Real Tcl errors must remain visible; no machine changes are authorized.
+- **Next exact action:** re-review the scoped remediation after its verified feature-branch commit/push. Do not begin Phase 02A, merge, tag or release.
 
 ## Prior Focus — Plan 2b (superseded as active work by the Master Plan; kept for history)
 

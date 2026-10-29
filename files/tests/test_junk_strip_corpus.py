@@ -21,6 +21,7 @@ in-memory; nothing is ever written into a corpus folder.
 from __future__ import annotations
 
 import os
+from difflib import SequenceMatcher
 
 import pytest
 
@@ -186,6 +187,18 @@ def _residual_junk_lines(text: str) -> list[str]:
     return residual
 
 
+# The pinned Noble Queen re-scrape has no remaining domain markers. Supplement (never
+# replace) its real sample with a labelled synthetic positive so removal is non-vacuous.
+_CONFIRMED_JUNK_FIXTURE = "A * note and # sigil.\nnovelfire.net\nThe road continued."
+
+
+def test_synthetic_junk_fixture_has_a_confirmed_marker_and_preserves_prose():
+    assert _residual_junk_lines(_CONFIRMED_JUNK_FIXTURE)
+    cleaned = junk_strip.strip_junk(_CONFIRMED_JUNK_FIXTURE)
+    assert not _residual_junk_lines(cleaned)
+    assert cleaned == "A * note and # sigil.\nThe road continued."
+
+
 @pytest.mark.local_corpus
 @pytest.mark.parametrize(
     "corpus,known_dirty",
@@ -195,27 +208,29 @@ def _residual_junk_lines(text: str) -> list[str]:
 def test_no_confirmed_marker_survives_strip_junk(request, corpus, known_dirty):
     path = require_corpus(request, corpus)
     sample = _sample_files(path, known_dirty)
+    inputs = [(name, extractor.extract_text_from_pdf(os.path.join(path, name))) for name in sample]
+    if corpus == NQ and corpus_pins.is_pinned(path):
+        inputs.append(("synthetic-confirmed-domain", _CONFIRMED_JUNK_FIXTURE))
     processed, dirty_before, residuals = 0, 0, []
-    for name in sample:
-        raw = extractor.extract_text_from_pdf(os.path.join(path, name))
+    synthetic_dirty = 0
+    for name, raw in inputs:
         if junk_strip.detect_error_page(raw):
             continue  # error pages are the flag class, covered separately
         cleaned = junk_strip.strip_junk(raw)
         processed += 1
-        # "Affected" = carried a detectable junk line OR strip_junk changed the text.
-        # The legacy corpora always had the former; the cleaner re-scrapes only have
-        # the latter, and both prove the stripping path was genuinely exercised.
-        if _residual_junk_lines(raw) or cleaned != raw:
+        if _residual_junk_lines(raw):
             dirty_before += 1
+            synthetic_dirty += int(name == "synthetic-confirmed-domain")
         leftover = _residual_junk_lines(cleaned)
         if leftover:
             residuals.append((name, leftover[:2]))
     print(
         f"\n[{corpus}] sampled={len(sample)} processed={processed} "
-        f"dirty-before-clean={dirty_before} residual-after-clean={len(residuals)}"
+        f"confirmed-corpus={dirty_before - synthetic_dirty} "
+        f"confirmed-synthetic={synthetic_dirty} residual-after-clean={len(residuals)}"
     )
-    assert processed, "sample unexpectedly empty"
-    assert dirty_before, "sample should contain recorded dirty files"
+    assert processed > synthetic_dirty, "corpus sample unexpectedly empty"
+    assert dirty_before, "sample must contain a confirmed junk marker before stripping"
     assert not residuals, f"junk survived strip_junk: {residuals[:5]}"
 
 
@@ -242,21 +257,82 @@ def test_error_page_files_are_flagged_and_never_stripped_empty(request):
 
 
 def _is_watermark_line(line: str) -> bool:
-    return junk_strip._find_junk_match(line)[0] is not None or "freewebnovel" in line.lower()
+    # Exact standalone templates observed in the hash-pinned Supreme Magus fixtures.
+    # A domain match or a mention in prose does not establish a removable whole line.
+    return line.strip() in {
+        "*** This chapter is updated by FreeWebnovel.Com",
+        "*** Enjoy exclusive adventures from freewebnovel",
+    }
 
 
 def _unexplained_loss(raw: str, cleaned: str, char: str) -> int:
-    """How many ``char`` were lost other than on a whole line that is a site watermark.
+    """Count unexplained punctuation changes in aligned line ranges.
 
-    The current Supreme Magus re-scrape carries ``*** <site> watermark`` lines whose
-    asterisks are part of the junk (``strip_junk`` is *meant* to remove those lines).
-    Every other asterisk/hash must survive, so a partial in-line loss or the removal of
-    any non-watermark line still shows up as a non-zero count here.
+    A DELETE range can exempt an exact standalone watermark. A one-to-one line edit
+    can exempt its complete decorative prefix only when the entire remainder is
+    unchanged. Sequence alignment retains duplicate occurrences; each aligned line
+    is checked separately so other edits cannot spend a watermark's punctuation.
     """
-    kept = set(cleaned.splitlines())
-    removed = [ln for ln in raw.splitlines() if char in ln and ln not in kept]
-    explained = sum(ln.count(char) for ln in removed if _is_watermark_line(ln))
-    return (raw.count(char) - cleaned.count(char)) - explained
+    before, after = raw.splitlines(), cleaned.splitlines()
+    unexplained = 0
+    for tag, i, j, k, end in SequenceMatcher(None, before, after, autojunk=False).get_opcodes():
+        if tag == "equal":
+            continue
+        removed, inserted = before[i:j], after[k:end]
+        if tag == "replace" and len(removed) == len(inserted):
+            for old, new in zip(removed, inserted):
+                if _is_watermark_line(old) and new == old.removeprefix("*** "):
+                    continue  # exactly the whole decorative watermark prefix was removed
+                unexplained += abs(old.count(char) - new.count(char))
+            continue
+        explained = (
+            sum(line.count(char) for line in removed if _is_watermark_line(line))
+            if tag == "delete" else 0
+        )
+        unexplained += abs(
+            sum(line.count(char) for line in removed)
+            - sum(line.count(char) for line in inserted) - explained
+        )
+    return unexplained
+
+
+_WATERMARK = "*** This chapter is updated by FreeWebnovel.Com"
+
+
+@pytest.mark.parametrize(
+    "raw,broken",
+    [
+        (_WATERMARK, _WATERMARK.replace("***", "**")),
+        ('He said, "On freewebnovel, # means rank and * means note."',
+         'He said, "On freewebnovel,  means rank and  means note."'),
+        ("freewebnovel #\nThe # sigil remained.",
+         "freewebnovel # \nThe  sigil remained."),
+        (_WATERMARK + "\nThe * sigil remained.", "The  sigil remained."),
+        ("A * note.\nA * note.", "A * note."),
+        (_WATERMARK + "\n" + _WATERMARK + "\nA * note.",
+         _WATERMARK + "\nA  note."),
+    ],
+    ids=["partial-watermark", "legitimate-site-mention", "loss-elsewhere",
+         "removed-watermark-and-prose-loss", "duplicate-prose", "duplicate-watermark-and-loss"],
+)
+def test_punctuation_check_rejects_unexplained_deletions(raw, broken):
+    assert any(_unexplained_loss(raw, broken, char) > 0 for char in "*#")
+
+
+@pytest.mark.parametrize("copies", [1, 2, 3])
+def test_punctuation_check_counts_completely_removed_duplicate_watermarks(copies):
+    raw = "\n".join([_WATERMARK] * copies + ["A * note and # sigil."])
+    cleaned = "\n".join([_WATERMARK] * (copies - 1) + ["A * note and # sigil."])
+    assert all(_unexplained_loss(raw, cleaned, char) == 0 for char in "*#")
+
+
+def test_punctuation_check_accepts_only_the_complete_decorative_watermark_span():
+    watermark = "*** Enjoy exclusive adventures from freewebnovel"
+    raw = watermark + "\nA * note and # sigil."
+    cleaned = watermark.removeprefix("*** ") + "\nA * note and # sigil."
+    assert junk_strip.strip_junk(raw) == cleaned
+    assert all(_unexplained_loss(raw, cleaned, char) == 0 for char in "*#")
+    assert _unexplained_loss(raw, cleaned.replace("A * note", "A  note"), "*") == 1
 
 
 @pytest.mark.local_corpus

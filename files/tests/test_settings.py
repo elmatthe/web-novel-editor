@@ -9,8 +9,6 @@ from __future__ import annotations
 
 import json
 import os
-import subprocess
-import sys
 from pathlib import Path, PurePosixPath, PureWindowsPath
 
 import pytest
@@ -77,12 +75,12 @@ def test_a_failed_replace_keeps_the_old_file_and_leaves_no_residue(tmp_path, mon
     assert list(tmp_path.glob("*.tmp")) == []
 
 
-def test_importing_the_utilities_has_no_filesystem_side_effects(tmp_path):
+def test_importing_the_utilities_has_no_filesystem_side_effects(tmp_path, offline_python):
     """Run in a fresh interpreter from an empty directory: nothing may be created."""
     env = dict(os.environ)
     env["PYTHONPATH"] = str(REPO_ROOT / "scripts")
-    completed = subprocess.run(
-        [sys.executable, "-c", "import utils.settings, utils.pace"],
+    completed = offline_python.run(
+        ["-c", "import utils.settings, utils.pace"],
         cwd=tmp_path, env=env, capture_output=True, text=True, timeout=30, check=False,
     )
     assert completed.returncode == 0, completed.stderr
