@@ -53,6 +53,8 @@ from profiles.supreme_magus.special_fixes import SM_SPECIAL_FIXES
 from profiles.the_noble_queen.canonical_names import NQ_CANONICAL_NAMES
 from profiles.the_noble_queen.special_fixes import NQ_SPECIAL_FIXES
 
+from . import corpus_pins
+
 _REPO_ROOT = Path(__file__).resolve().parents[2]
 _CORPUS_ROOT = _REPO_ROOT / "files" / "pdf-example-chapters"
 
@@ -324,11 +326,9 @@ def test_expanded_sm_lexicon_masks_without_placeholder_leak() -> None:
 # -- optional local-corpus layer ---------------------------------------------------------------
 
 def _require_corpus(request, name: str) -> Path:
-    path = _CORPUS_ROOT / name
-    present = path.is_dir() and any(
-        f.lower().endswith(".pdf") for f in os.listdir(path)
-    )
-    if not present:
+    # Legacy `-v2` directory first, then the current re-scrape (hash-pinned fixtures).
+    path = corpus_pins.resolve(name)
+    if path is None:
         msg = f"local corpus '{name}' not present under files/pdf-example-chapters/"
         if request.config.getoption("--require-local-corpora"):
             pytest.fail(f"--require-local-corpora given but {msg}", pytrace=False)
@@ -344,10 +344,19 @@ def test_sm_corpus_artifact_chapters_are_fixed_in_sm_mode(request) -> None:
 
     corpus = _require_corpus(request, "Supreme_Magus-v2")
     _, lex = _lexicon_for("Supreme Magus")
-    checks = [
-        ("Chapter 1829_ Truths and Secrets (Part 1).pdf", "Thn1d", "Thrud"),
-        ("Chapter 2678_ From War To... (Part 2).pdf", "Ragnar?k", "Ragnarök"),
-    ]
+    if corpus_pins.is_pinned(corpus):
+        # Current re-scrape: the chapters carrying each recorded artifact are pinned
+        # (and hash-verified) rather than named from the old corpus.
+        checks = [
+            (name, entry["garbled"], entry["fixed"])
+            for name, entry in corpus_pins.pinned_entries(corpus, "artifact").items()
+        ]
+        assert {c[1] for c in checks} == {"Thn1d", "Ragnar?k"}
+    else:
+        checks = [
+            ("Chapter 1829_ Truths and Secrets (Part 1).pdf", "Thn1d", "Thrud"),
+            ("Chapter 2678_ From War To... (Part 2).pdf", "Ragnar?k", "Ragnarök"),
+        ]
     for filename, garbled, fixed in checks:
         src_path = corpus / filename
         if not src_path.is_file():
@@ -367,18 +376,26 @@ def test_nq_corpus_chapter_protected_terms_survive_profile_mode(request) -> None
     from pdf.extractor import extract_text_from_pdf
 
     corpus = _require_corpus(request, "The_Noble_Queen-v2")
-    src_path = corpus / "Chapter 621 - Chapter 621_ Lioness.pdf"
+    if corpus_pins.is_pinned(corpus):
+        (pinned_name,) = corpus_pins.pinned_entries(corpus, "protected_terms")
+        src_path = corpus / pinned_name
+    else:
+        src_path = corpus / "Chapter 621 - Chapter 621_ Lioness.pdf"
     if not src_path.is_file():
         pytest.skip("expected corpus file missing: Chapter 621")
     raw = extract_text_from_pdf(str(src_path))
     _, lex = _lexicon_for("The Noble Queen")
     out = the_noble_queen.run_pipeline(raw, lex)
     assert "__WE_" not in out
+    seen = 0
     for term in ("Noble", "Honey"):
         rx = re.compile(rf"(?<![A-Za-z]){term}(?![A-Za-z])")
         n_in, n_out = len(rx.findall(raw)), len(rx.findall(out))
+        seen += n_in
         if n_in:
             assert n_out >= n_in, f"{term!r}: source={n_in} output={n_out}"
+    # Not vacuous: the chapter must actually contain at least one protected term.
+    assert seen, "chapter contains neither protected term - the check proved nothing"
 
 
 # -- author-ruled spelling normalizations (2026-07-26) ------------------------------------

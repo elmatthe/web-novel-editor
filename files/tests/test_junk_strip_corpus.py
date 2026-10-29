@@ -6,6 +6,12 @@ their corpus paths at test time (never hardcoded to exist), skip with an
 explicit visible reason when a corpus is absent, and become mandatory
 (fail loudly instead of skipping) under `pytest --require-local-corpora`.
 
+Corpus resolution (Phase 01A): the original `-v2` directories are tried first, then
+the current re-scrapes (`the-noble-queen-1`, `supreme-magus-1`, `shadow-slave-1`).
+For a current directory the sample comes from `corpus_pins.json` and every file's
+SHA-256 is verified before use (see `corpus_pins.py`), so the 8 tests that used to skip
+now run against verified fixtures rather than a silently different corpus.
+
 Coverage is a deterministic bounded sample per the Phase-1 §8 sampling rule:
 every file the Phase-1 scan recorded as carrying a junk marker, plus the
 first/middle/last file of each corpus by sorted filename. All work is
@@ -21,17 +27,17 @@ import pytest
 from pdf import extractor
 from rules import junk_strip
 
+from . import corpus_pins
+
 
 _REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 _CORPUS_ROOT = os.path.join(_REPO_ROOT, "files", "pdf-example-chapters")
 
 
 def _resolve_corpus(name: str):
-    """Path of a corpus folder if it exists locally with PDFs inside, else None."""
-    path = os.path.join(_CORPUS_ROOT, name)
-    if os.path.isdir(path) and any(f.lower().endswith(".pdf") for f in os.listdir(path)):
-        return path
-    return None
+    """Path of a corpus folder (legacy name first, then the current re-scrape), else None."""
+    path = corpus_pins.resolve(name)
+    return str(path) if path is not None else None
 
 
 def _gate(path, strict: bool, name: str):
@@ -151,7 +157,14 @@ SM_ERROR_PAGES = [
 
 
 def _sample_files(corpus_path: str, known_dirty: list[str]) -> list[str]:
-    """Deterministic sample: recorded dirty files + first/middle/last by name."""
+    """Deterministic sample: recorded dirty files + first/middle/last by name.
+
+    A current (re-scrape) directory uses the hash-verified pins instead of the legacy
+    recorded list, which names files that only existed in the old `-v2` corpora.
+    """
+    if corpus_pins.is_pinned(corpus_path):
+        return sorted(corpus_pins.pinned_entries(
+            corpus_path, "sample", "dirty", "modified"))
     all_pdfs = sorted(f for f in os.listdir(corpus_path) if f.lower().endswith(".pdf"))
     picks = {all_pdfs[0], all_pdfs[len(all_pdfs) // 2], all_pdfs[-1]}
     missing = [f for f in known_dirty if not os.path.isfile(os.path.join(corpus_path, f))]
@@ -189,7 +202,10 @@ def test_no_confirmed_marker_survives_strip_junk(request, corpus, known_dirty):
             continue  # error pages are the flag class, covered separately
         cleaned = junk_strip.strip_junk(raw)
         processed += 1
-        if _residual_junk_lines(raw):
+        # "Affected" = carried a detectable junk line OR strip_junk changed the text.
+        # The legacy corpora always had the former; the cleaner re-scrapes only have
+        # the latter, and both prove the stripping path was genuinely exercised.
+        if _residual_junk_lines(raw) or cleaned != raw:
             dirty_before += 1
         leftover = _residual_junk_lines(cleaned)
         if leftover:
@@ -206,8 +222,12 @@ def test_no_confirmed_marker_survives_strip_junk(request, corpus, known_dirty):
 @pytest.mark.local_corpus
 def test_error_page_files_are_flagged_and_never_stripped_empty(request):
     path = require_corpus(request, SM)
+    error_pages = (
+        sorted(corpus_pins.pinned_entries(path, "error_page"))
+        if corpus_pins.is_pinned(path) else SM_ERROR_PAGES
+    )
     found = 0
-    for name in SM_ERROR_PAGES:
+    for name in error_pages:
         full = os.path.join(path, name)
         if not os.path.isfile(full):
             continue
@@ -217,8 +237,26 @@ def test_error_page_files_are_flagged_and_never_stripped_empty(request):
         # detect-and-flag only: content is not auto-stripped to nothing
         assert "Cloudflare Ray ID" in cleaned, name
         found += 1
-    print(f"\n[{SM}] error pages verified: {found}/{len(SM_ERROR_PAGES)}")
+    print(f"\n[{SM}] error pages verified: {found}/{len(error_pages)}")
     assert found, "no recorded error-page files found in the corpus"
+
+
+def _is_watermark_line(line: str) -> bool:
+    return junk_strip._find_junk_match(line)[0] is not None or "freewebnovel" in line.lower()
+
+
+def _unexplained_loss(raw: str, cleaned: str, char: str) -> int:
+    """How many ``char`` were lost other than on a whole line that is a site watermark.
+
+    The current Supreme Magus re-scrape carries ``*** <site> watermark`` lines whose
+    asterisks are part of the junk (``strip_junk`` is *meant* to remove those lines).
+    Every other asterisk/hash must survive, so a partial in-line loss or the removal of
+    any non-watermark line still shows up as a non-zero count here.
+    """
+    kept = set(cleaned.splitlines())
+    removed = [ln for ln in raw.splitlines() if char in ln and ln not in kept]
+    explained = sum(ln.count(char) for ln in removed if _is_watermark_line(ln))
+    return (raw.count(char) - cleaned.count(char)) - explained
 
 
 @pytest.mark.local_corpus
@@ -241,8 +279,8 @@ def test_corpus_asterisks_and_hashes_survive_strip_junk(request, corpus, known_d
         if junk_strip.detect_error_page(raw):
             continue
         cleaned = junk_strip.strip_junk(raw)
-        assert cleaned.count("*") == raw.count("*"), name
-        assert cleaned.count("#") == raw.count("#"), name
+        assert _unexplained_loss(raw, cleaned, "*") == 0, name
+        assert _unexplained_loss(raw, cleaned, "#") == 0, name
         checked += 1
     print(f"\n[{corpus}] asterisk/hash preservation verified on {checked} files")
     assert checked, "sample unexpectedly empty"
@@ -252,8 +290,11 @@ def test_corpus_asterisks_and_hashes_survive_strip_junk(request, corpus, known_d
 def test_clean_shadow_slave_sample_is_untouched(request):
     # The SS corpus is confirmed clean: strip_junk must be a byte no-op on it.
     path = require_corpus(request, "webscraped_shadow_slave")
-    all_pdfs = sorted(f for f in os.listdir(path) if f.lower().endswith(".pdf"))
-    sample = [all_pdfs[0], all_pdfs[len(all_pdfs) // 2], all_pdfs[-1]]
+    if corpus_pins.is_pinned(path):
+        sample = sorted(corpus_pins.pinned_entries(path, "sample"))
+    else:
+        all_pdfs = sorted(f for f in os.listdir(path) if f.lower().endswith(".pdf"))
+        sample = [all_pdfs[0], all_pdfs[len(all_pdfs) // 2], all_pdfs[-1]]
     for name in sample:
         raw = extractor.extract_text_from_pdf(os.path.join(path, name))
         assert junk_strip.strip_junk(raw) == raw, f"clean SS chapter altered: {name}"
