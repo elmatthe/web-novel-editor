@@ -80,7 +80,7 @@ def test_a_failed_replace_keeps_the_old_file_and_leaves_no_residue(tmp_path, mon
 def test_importing_the_utilities_has_no_filesystem_side_effects(tmp_path):
     """Run in a fresh interpreter from an empty directory: nothing may be created."""
     env = dict(os.environ)
-    env["PYTHONPATH"] = str(REPO_ROOT / "scripts" / "Universal")
+    env["PYTHONPATH"] = str(REPO_ROOT / "scripts")
     completed = subprocess.run(
         [sys.executable, "-c", "import utils.settings, utils.pace"],
         cwd=tmp_path, env=env, capture_output=True, text=True, timeout=30, check=False,

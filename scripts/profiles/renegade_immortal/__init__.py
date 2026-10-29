@@ -8,7 +8,7 @@ empty by test, so there was no way to give this novel a novel-specific fix witho
 registering it.
 
 The canonical-name floor is deliberately empty: this novel's 837 protected terms live in
-`scripts/Universal/resources/novel-index/renegade-immortal.txt`, which the registry loads
+`scripts/resources/novel-index/renegade-immortal.txt`, which the registry loads
 on top of the floor exactly as before. Protection is therefore byte-identical to the
 pre-promotion universal-fallback behaviour — the only change is that special fixes now
 fire.

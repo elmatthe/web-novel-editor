@@ -1,4 +1,4 @@
-"""Phase 9 — the `--check` startup preflight on `scripts/Universal/main.py`.
+"""Phase 9 — the `--check` startup preflight on `scripts/main.py`.
 
 The launchers run `python <main> --check` with the console interpreter *before* detaching
 to `pythonw` (Windows) / launching the GUI (macOS), so a fatal startup error is visible
@@ -61,9 +61,9 @@ def test_release_shaped_startup_needs_no_dev_tree_and_no_ai_sdk(tmp_path):
     """
     _require_tkinter()
     root = Path(__file__).resolve().parents[2]
-    universal = tmp_path / "release" / "scripts" / "Universal"
+    universal = tmp_path / "release" / "scripts"
     shutil.copytree(
-        root / "scripts" / "Universal", universal,
+        root / "scripts", universal,
         ignore=shutil.ignore_patterns("__pycache__"),
     )
     for sdk in ("ollama", "groq"):

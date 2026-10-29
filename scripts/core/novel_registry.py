@@ -4,10 +4,10 @@ This module maps a selected novel name to everything needed to edit it:
 
   * its editorial **pipeline** (`run_pipeline`),
   * its built-in **canonical-name floor** (the protected-term set), and
-  * its **novel-index filename** under `scripts/Universal/resources/novel-index/`.
+  * its **novel-index filename** under `scripts/resources/novel-index/`.
 
 It also derives the **roster** of novels shown in the GUI dropdown straight from the index
-files in `scripts/Universal/resources/novel-index/` (one entry per `*.txt`), so adding a novel is a data
+files in `scripts/resources/novel-index/` (one entry per `*.txt`), so adding a novel is a data
 exercise (drop an index file + an optional profile) — never a GUI/code edit. Since
 v0.11.0 the roster leads with an injected **"Universal"** entry (the default selection —
 universal-only editing as an explicit, named choice), and profile-less novels carry a
@@ -25,7 +25,7 @@ is **not** in the registry falls back cleanly to **universal-only** editing:
     which runs the shared universal rules in order with **no** forced novel-specific
     substitutions), driven by
   * an **empty** canonical floor plus whatever the user has added to
-    `scripts/Universal/resources/novel-index/<novel>.txt`.
+    `scripts/resources/novel-index/<novel>.txt`.
 
 So a profile-less novel (e.g. Lord of the Mysteries) gets universal grammar, unicode
 stripping, the mandatory em-dash sweep, etc., never crashes, and never picks up another
@@ -61,8 +61,8 @@ from profiles.shadow_slave.canonical_names import SS_CANONICAL_NAMES
 from profiles.supreme_magus.canonical_names import SM_CANONICAL_NAMES
 from profiles.the_noble_queen.canonical_names import NQ_CANONICAL_NAMES
 
-# Shipped runtime data: scripts/Universal/resources/novel-index/ (one dir up from
-# scripts/Universal/core/). Lives under the shipped scripts/ tree, not dev-only files/.
+# Shipped runtime data: scripts/resources/novel-index/ (one dir up from
+# scripts/core/). Lives under the shipped scripts/ tree, not dev-only files/.
 NOVEL_INDEX_DIR = Path(__file__).resolve().parents[1] / "resources" / "novel-index"
 
 # The entry selected by default in the GUI dropdown. "Universal" is not an index-derived
@@ -123,7 +123,7 @@ class NovelDispatch:
             ``run_pipeline(text, lexicon, *, repl_log, gui_log, dry_run) -> str``.
         canonical_names: the built-in protected-term floor for this novel
             (empty frozenset for the universal-only fallback).
-        index_filename: the `scripts/Universal/resources/novel-index/<file>.txt` basename whose user terms are
+        index_filename: the `scripts/resources/novel-index/<file>.txt` basename whose user terms are
             loaded on top of the floor ("" when there is no associated index).
         has_profile: True for a real per-novel editorial profile; False when this is the
             universal-only fallback.

@@ -9,7 +9,7 @@ substitution map from `profiles/lord_of_mysteries`, which is shared by every pro
 novel and pinned empty by test).
 
 The canonical-name floor stays empty (`RI_CANONICAL_NAMES`); the novel's 837 protected
-terms come from `scripts/Universal/resources/novel-index/renegade-immortal.txt` via the
+terms come from `scripts/resources/novel-index/renegade-immortal.txt` via the
 registry/lexicon, exactly as before.
 
 Signature matches the profile interface contract:

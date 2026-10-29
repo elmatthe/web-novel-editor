@@ -35,7 +35,7 @@ PY_MIN_MINOR="10"
 PYTHON_BREW_FORMULA="python@3.11"
 
 REQUIREMENTS="scripts/requirements.txt"
-MAIN_SCRIPT="scripts/Universal/main.py"
+MAIN_SCRIPT="scripts/main.py"
 
 VENV_DIR=".venv"
 VENV_ACTIVATE=".venv/bin/activate"

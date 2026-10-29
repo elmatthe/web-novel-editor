@@ -24,7 +24,7 @@ from pathlib import Path
 import pytest
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
-UNIVERSAL = REPO_ROOT / "scripts" / "Universal"
+SCRIPTS = REPO_ROOT / "scripts"
 
 # A harmless attempted connection: the discard port on loopback, nothing is listening.
 _PROBE = ("127.0.0.1", 9)
@@ -56,7 +56,7 @@ def _guarded_env(tmp_path: Path) -> tuple[dict, Path]:
     (guard_dir / "sitecustomize.py").write_text(_SITECUSTOMIZE, encoding="utf-8")
     log = tmp_path / "attempts.log"
     env = dict(os.environ)
-    env["PYTHONPATH"] = os.pathsep.join([str(guard_dir), str(UNIVERSAL)])
+    env["PYTHONPATH"] = os.pathsep.join([str(guard_dir), str(SCRIPTS)])
     env["WNE_GUARD_LOG"] = str(log)
     env["PYTHONDONTWRITEBYTECODE"] = "1"
     return env, log
@@ -127,7 +127,7 @@ def test_the_guard_reaches_a_child_interpreter(tmp_path):
 def test_a_healthy_launch_check_makes_no_network_attempt(tmp_path):
     env, log = _guarded_env(tmp_path)
     completed = subprocess.run(
-        [sys.executable, str(UNIVERSAL / "main.py"), "--check"],
+        [sys.executable, str(SCRIPTS / "main.py"), "--check"],
         env=env, cwd=tmp_path, capture_output=True, text=True, timeout=60, check=False,
     )
     assert completed.returncode == 0, completed.stdout + completed.stderr

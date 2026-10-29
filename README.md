@@ -48,8 +48,8 @@ a plain-language message and explains what to do next.
 
 **Platform support:** Windows is the primary, fully-tested platform. The macOS
 `Setup_and_Run-Web-Novel-Editor.command` is verified — a real macOS clean-room bootstrap plus a Finder
-double-click (confirmed 2026-07-16). The `scripts/MacOS/` folder is a structural placeholder
-only (there is no macOS-exclusive code today).
+double-click (confirmed 2026-07-16). There is no macOS-exclusive code; the obsolete
+`scripts/Windows/` and `scripts/MacOS/` placeholder folders were removed in 0.4.0 development.
 
 ## Status
 
@@ -102,8 +102,8 @@ QA evidence, not files that ship with the app.
 
 ## For developers
 
-- Source: `scripts/Universal/` (entry point `scripts/Universal/main.py`); shipped runtime data
-  under `scripts/Universal/resources/`
+- Source: `scripts/` (entry point `scripts/main.py`); shipped runtime data under
+  `scripts/resources/`
 - Editing rules: `md-instructions/EDITING-RULES.md`
 - Project state: `md-instructions/BRIEFING.md` · Decisions: `md-instructions/DECISIONS.md`
 - Tests: `files/tests/` (dev-only)

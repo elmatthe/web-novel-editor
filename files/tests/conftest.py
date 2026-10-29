@@ -1,15 +1,15 @@
 """Pytest bootstrap for the webnovel-editor suite.
 
 The tests live in ``files/tests/`` (dev-only, not shipped) while the packages
-they exercise ship from ``scripts/Universal/`` (``core``, ``rules``,
-``pipelines``, ``gui``, ...). Insert that ``Universal`` directory onto
+they exercise ship from ``scripts/`` (``core``, ``rules``,
+``pipelines``, ``gui``, ...). Insert that ``scripts`` directory onto
 ``sys.path`` so ``import core`` / ``import rules`` / ... resolve the same way
-``scripts/Universal/main.py`` does at runtime, no matter where pytest is invoked
+``scripts/main.py`` does at runtime, no matter where pytest is invoked
 from.
 
 Layout (relative to this file):
     <repo>/files/tests/conftest.py   <- this file  (parents[2] == <repo>)
-    <repo>/scripts/Universal/        <- package root added below
+    <repo>/scripts/                  <- package root added below
 
 Also registers the optional local-corpus test layer (Phase 2):
   * the ``local_corpus`` marker for tests that need the gitignored PDF corpora
@@ -30,10 +30,10 @@ from pathlib import Path
 import pytest
 
 _REPO_ROOT = Path(__file__).resolve().parents[2]
-_UNIVERSAL = _REPO_ROOT / "scripts" / "Universal"
+_SCRIPTS = _REPO_ROOT / "scripts"
 
-if str(_UNIVERSAL) not in sys.path:
-    sys.path.insert(0, str(_UNIVERSAL))
+if str(_SCRIPTS) not in sys.path:
+    sys.path.insert(0, str(_SCRIPTS))
 
 
 def pytest_addoption(parser):

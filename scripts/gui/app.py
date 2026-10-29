@@ -272,7 +272,7 @@ class WebnovelEditorApp(tk.Tk):
             row=0, column=0, sticky="w", padx=(0, PAD_S))
 
         # Roster: "Universal" first (the default), then one entry per index file under
-        # scripts/Universal/resources/novel-index/, profile-less novels marked "no
+        # scripts/resources/novel-index/, profile-less novels marked "no
         # profile yet". Display strings may carry that marker, so every selection is
         # passed through clean_novel_name before it reaches run_batch's novel_name ->
         # pipeline dispatch or the output-folder naming.

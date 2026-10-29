@@ -3,7 +3,7 @@
 Unlike Shadow Slave, Supreme Magus and The Noble Queen — whose floors were ported from
 hand-curated legacy master indexes — this novel's protected terms were built on
 2026-07-26 by frequency analysis straight into
-`scripts/Universal/resources/novel-index/renegade-immortal.txt` (837 terms, each counted
+`scripts/resources/novel-index/renegade-immortal.txt` (837 terms, each counted
 in the novel's own corpus). There is no separate hand-curated list to enshrine as a floor,
 and duplicating the index here would create two sources of truth that could drift.
 

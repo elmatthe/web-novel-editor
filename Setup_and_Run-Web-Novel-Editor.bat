@@ -33,7 +33,7 @@ set "PY_MIN_MINOR=10"
 set "PYTHON_WINGET_ID=Python.Python.3.11"
 
 set "REQUIREMENTS=scripts\requirements.txt"
-set "MAIN_SCRIPT=scripts\Universal\main.py"
+set "MAIN_SCRIPT=scripts\main.py"
 
 set "VENV_DIR=.venv"
 set "VENV_ACTIVATE=.venv\Scripts\activate.bat"
