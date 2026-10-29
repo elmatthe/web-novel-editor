@@ -671,13 +671,12 @@ def test_error_page_content_is_never_auto_stripped():
     assert "more details." in out
 
 
-@pytest.mark.parametrize("pipeline_name", ["shadow_slave", "lord_of_mysteries"])
-def test_pipelines_flag_error_page_without_stripping_it(pipeline_name):
-    import importlib
-
+@pytest.mark.parametrize("novel", ["Shadow Slave", "Universal"])
+def test_pipelines_flag_error_page_without_stripping_it(novel):
+    from core.novel_registry import resolve_dispatch
     from core.protected_lexicon import ProtectedLexicon
 
-    pipeline = importlib.import_module(f"pipelines.{pipeline_name}")
+    pipeline = resolve_dispatch(novel)
     log = ReplacementLog()
     gui_lines: list[str] = []
     out = pipeline.run_pipeline(
@@ -691,13 +690,12 @@ def test_pipelines_flag_error_page_without_stripping_it(pipeline_name):
     assert "Cloudflare Ray ID" in out
 
 
-@pytest.mark.parametrize("pipeline_name", ["shadow_slave", "lord_of_mysteries"])
-def test_pipelines_do_not_flag_ordinary_chapters(pipeline_name):
-    import importlib
-
+@pytest.mark.parametrize("novel", ["Shadow Slave", "Universal"])
+def test_pipelines_do_not_flag_ordinary_chapters(novel):
+    from core.novel_registry import resolve_dispatch
     from core.protected_lexicon import ProtectedLexicon
 
-    pipeline = importlib.import_module(f"pipelines.{pipeline_name}")
+    pipeline = resolve_dispatch(novel)
     log = ReplacementLog()
     pipeline.run_pipeline(
         "Chapter 1: Dawn\nA quiet morning settled over the keep.",
@@ -771,7 +769,7 @@ def test_strip_junk_is_idempotent_with_no_new_log_entries():
 
 def test_full_universal_pipeline_is_idempotent_on_cleaned_text():
     from core.protected_lexicon import ProtectedLexicon
-    from pipelines import lord_of_mysteries
+    from core.novel_registry import resolve_dispatch
 
     dirty = (
         "Chapter 12: The Mirror\n"
@@ -780,9 +778,9 @@ def test_full_universal_pipeline_is_idempotent_on_cleaned_text():
         "It was a quiet ending to a loud day, and everyone knew it."
     )
     lex = ProtectedLexicon()
-    once = lord_of_mysteries.run_pipeline(dirty, lex, repl_log=ReplacementLog())
+    once = resolve_dispatch("Universal").run_pipeline(dirty, lex, repl_log=ReplacementLog())
     log2 = ReplacementLog()
-    twice = lord_of_mysteries.run_pipeline(once, lex, repl_log=log2)
+    twice = resolve_dispatch("Universal").run_pipeline(once, lex, repl_log=log2)
     assert twice == once
     assert not [e for e in log2.entries if e.rule.startswith("junk_strip.")]
 

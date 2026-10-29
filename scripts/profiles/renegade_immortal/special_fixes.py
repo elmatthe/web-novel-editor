@@ -31,9 +31,7 @@ when this map is consulted and the fix could never fire. Only the canonical "Lig
 
 from __future__ import annotations
 
-RI_SPECIAL_FIXES: dict[str, str] = {
-    # Xu Liguo (the devil sealed in Wang Lin's body) — author-ruled canonical 2026-07-26.
-    # Longest key first is enforced by the applier, not by this ordering.
-    "Ligou": "Liguo",
-    "Ligo": "Liguo",
-}
+from profiles.loader import load_corrections
+
+#: Approved literal corrections; the data lives in profiles/corrections/renegade-immortal.toml.
+RI_SPECIAL_FIXES: dict[str, str] = load_corrections("renegade-immortal")

@@ -40,13 +40,7 @@ from core.protected_lexicon import (
     load_protected_lexicon,
 )
 from core.replacement_log import ReplacementLog
-from pipelines import (
-    lord_of_mysteries,
-    renegade_immortal,
-    shadow_slave,
-    supreme_magus,
-    the_noble_queen,
-)
+from pipelines.universal import UNIVERSAL_PROFILE
 from profiles.renegade_immortal.special_fixes import RI_SPECIAL_FIXES
 from profiles.supreme_magus.canonical_names import SM_CANONICAL_NAMES
 from profiles.supreme_magus.special_fixes import SM_SPECIAL_FIXES
@@ -77,7 +71,8 @@ def _lexicon_for(novel: str):
 def test_resolve_dispatch_noble_queen_uses_real_profile(name: str) -> None:
     d = resolve_dispatch(name)
     assert d.has_profile is True
-    assert d.run_pipeline is the_noble_queen.run_pipeline
+    assert d.run_pipeline.profile.name == "The Noble Queen"
+    assert d.run_pipeline.profile.special_fixes is NQ_SPECIAL_FIXES
     assert d.canonical_names is NQ_CANONICAL_NAMES
     assert d.index_filename == "the-noble-queen.txt"
 
@@ -88,7 +83,8 @@ def test_resolve_dispatch_noble_queen_uses_real_profile(name: str) -> None:
 def test_resolve_dispatch_supreme_magus_uses_real_profile(name: str) -> None:
     d = resolve_dispatch(name)
     assert d.has_profile is True
-    assert d.run_pipeline is supreme_magus.run_pipeline
+    assert d.run_pipeline.profile.name == "Supreme Magus"
+    assert d.run_pipeline.profile.special_fixes is SM_SPECIAL_FIXES
     assert d.canonical_names is SM_CANONICAL_NAMES
     assert d.index_filename == "supreme-magus.txt"
 
@@ -110,7 +106,7 @@ def test_unauthored_novels_still_fall_back_to_universal_only() -> None:
     for name in ("Reverend Insanity", "Circle of Inevitability", "Re Monster"):
         d = resolve_dispatch(name)
         assert d.has_profile is False
-        assert d.run_pipeline is lord_of_mysteries.run_pipeline
+        assert d.run_pipeline.profile is UNIVERSAL_PROFILE
         assert d.canonical_names == frozenset()
 
 
@@ -129,7 +125,7 @@ def test_renegade_immortal_promotion_kept_its_protection_identical() -> None:
 def test_shadow_slave_dispatch_untouched_by_new_registrations() -> None:
     d = resolve_dispatch("Shadow Slave")
     assert d.has_profile is True
-    assert d.run_pipeline is shadow_slave.run_pipeline
+    assert d.run_pipeline.profile.name == "Shadow Slave"
 
 
 # -- floors + index supersets ---------------------------------------------------------------
@@ -202,7 +198,7 @@ def test_sm_special_fixes_apply_in_sm_mode_and_are_logged() -> None:
 
     _, lex = _lexicon_for("Supreme Magus")
     log = ReplacementLog()
-    out = supreme_magus.run_pipeline(_SM_BAIT, lex, repl_log=log)
+    out = resolve_dispatch("Supreme Magus").run_pipeline(_SM_BAIT, lex, repl_log=log)
     for garbled in ("Thn1d", "S0lus", "lnxialot", "Ragnar?k", "Ragnar??k",
                     "Silven/ving", "Fn'ya", "O1pal", "L0crias"):
         assert garbled not in out
@@ -215,14 +211,14 @@ def test_sm_special_fixes_apply_in_sm_mode_and_are_logged() -> None:
 
 def test_sm_special_fixes_do_not_apply_in_universal_or_other_profiles() -> None:
     """Cross-novel isolation: the SM bait passes through every OTHER mode unchanged."""
-    for novel, pipeline in (
-        ("Reverend Insanity", lord_of_mysteries.run_pipeline),  # universal fallback
-        ("Renegade Immortal", renegade_immortal.run_pipeline),  # its own profile
-        ("Shadow Slave", shadow_slave.run_pipeline),
-        ("The Noble Queen", the_noble_queen.run_pipeline),
+    for novel, profile_name in (
+        ("Reverend Insanity", "Universal"),          # universal fallback
+        ("Renegade Immortal", "Renegade Immortal"),  # its own profile
+        ("Shadow Slave", "Shadow Slave"),
+        ("The Noble Queen", "The Noble Queen"),
     ):
         d, lex = _lexicon_for(novel)
-        assert d.run_pipeline is pipeline
+        assert d.run_pipeline.profile.name == profile_name
         out = d.run_pipeline(_SM_BAIT, lex)
         assert "Thn1d" in out and "Ragnar?k" in out  # garbled forms untouched
         assert "Thrud" not in out and "Ragnarök" not in out
@@ -238,7 +234,10 @@ def test_ss_special_fixes_do_not_apply_in_new_profiles() -> None:
     for novel in ("The Noble Queen", "Supreme Magus"):
         d, lex = _lexicon_for(novel)
         out = d.run_pipeline(bait, lex)
-        assert "Almanach" in out and "carcassess" in out
+        # SS's Almanach fix is profile data and does not leak. `carcassess` is the one
+        # bounded universal fix (Phase 01C), so it IS corrected in every mode.
+        assert "Almanach" in out
+        assert "carcassess" not in out and "carcasses" in out
 
 
 # -- spec exclusions hold ---------------------------------------------------------------------
@@ -257,7 +256,7 @@ def test_no_profanity_uncensor_was_ported() -> None:
         '"What the f*ck is this place?" he asked, and nobody in the long quiet '
         "hall had any answer for him that evening at all.\n"
     )
-    out = supreme_magus.run_pipeline(bait, lex)
+    out = resolve_dispatch("Supreme Magus").run_pipeline(bait, lex)
     assert "f*ck" in out and "fuck" not in out.replace("f*ck", "")
 
 
@@ -270,7 +269,7 @@ def test_rejected_rnade_fix_cannot_corrupt_containing_words() -> None:
         "Bernadette curtsied to the court and the assembled nobles watched her in "
         "complete silence for a long while before anyone spoke a single word.\n"
     )
-    out = supreme_magus.run_pipeline(bait, lex)
+    out = resolve_dispatch("Supreme Magus").run_pipeline(bait, lex)
     assert "Bernadette" in out
 
 
@@ -319,7 +318,7 @@ def test_expanded_sm_lexicon_masks_without_placeholder_leak() -> None:
     """594 terms + variants mask and unmask cleanly — no __WE_ token survives."""
     _, lex = _lexicon_for("Supreme Magus")
     assert len(expand_lexicon_variants(lex.terms)) >= len(lex.terms)
-    out = supreme_magus.run_pipeline(_SM_BAIT, lex)
+    out = resolve_dispatch("Supreme Magus").run_pipeline(_SM_BAIT, lex)
     assert "__WE_" not in out
 
 
@@ -363,7 +362,7 @@ def test_sm_corpus_artifact_chapters_are_fixed_in_sm_mode(request) -> None:
             pytest.skip(f"expected corpus file missing: {filename}")
         raw = extract_text_from_pdf(str(src_path))
         assert garbled in raw, f"recorded artifact absent from source {filename}"
-        out = supreme_magus.run_pipeline(raw, lex)
+        out = resolve_dispatch("Supreme Magus").run_pipeline(raw, lex)
         assert garbled not in out
         assert fixed in out
 
@@ -385,7 +384,7 @@ def test_nq_corpus_chapter_protected_terms_survive_profile_mode(request) -> None
         pytest.skip("expected corpus file missing: Chapter 621")
     raw = extract_text_from_pdf(str(src_path))
     _, lex = _lexicon_for("The Noble Queen")
-    out = the_noble_queen.run_pipeline(raw, lex)
+    out = resolve_dispatch("The Noble Queen").run_pipeline(raw, lex)
     assert "__WE_" not in out
     seen = 0
     for term in ("Noble", "Honey"):

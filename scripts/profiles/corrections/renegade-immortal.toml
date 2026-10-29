@@ -1,0 +1,10 @@
+# Renegade Immortal - approved literal name/term corrections.
+#
+# Author-ruled 2026-07-26: Ligou/Ligo -> Liguo. Longest key wins (Ligo is a prefix of
+# Ligou); the applier sorts longest-first, so file order is not significant.
+# Keys are matched as plain substrings while protected terms are masked; every key
+# must be a token that cannot occur in legitimate prose.
+
+[corrections]
+"Ligou" = "Liguo"
+"Ligo" = "Liguo"

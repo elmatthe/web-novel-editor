@@ -1,13 +1,13 @@
 # Web Novel Editor — Handoff
 
-## Current Focus — Master Plan, Phase 01 (remove AI, migrate, consolidate) — IN PROGRESS
+## Current Focus — Master Plan, Phase 01 (remove AI, migrate, consolidate) — DONE; STOPPED AT GATE 01
 
 **Snapshot (2026-10-28, Claude Code Sonnet 5.5 / high, HOME-PC).** Working branch `feature/0.4.0-script-only-editor`, cut from the approved Gate 00 checkpoint `0c1ac0b`. Old branch `feature/plan-2b-cloud-providers` is untouched at `0c1ac0b` (rollback point for v0.13.0 cloud work). Release target **0.4.0** is fixed (DECISIONS 074); version fields stay v0.13.0 until Phase 04.
 
-- **State:** 01A (AI removal + shared-utility/test extraction + offline/strict-Tk guards) complete and verified; 01B (move) and 01C (consolidate) next.
-- **Verification so far:** full suite green offline (offline guard + strict Tk active); all 828 frozen script-only results identical after 01A. Details and the node-by-node test ledger: `files/checkpoints/WNE-P01-ai-removal.md`.
-- **Pending (user):** none until Gate 01. A fresh independent Claude Code session reviews after Phase 01.
-- **Next exact action:** finish the slices listed above, then STOP at Gate 01. Do not begin Phase 02A, merge, tag or release.
+- **State:** 01A, 01B and 01C complete, verified and pushed.
+- **Verification:** 708 tests pass offline (offline guard + strict Tk active, 0 skipped, corpus tests mandatory-capable); `verify.py` PASS; of 828 frozen script-only results 810 are identical and the 18 that differ are exactly the approved `carcassess` promotion and the two retired Shadow Slave fixes (synthetic input only). Full evidence, test ledger and review handoff: `files/checkpoints/WNE-P01-ai-removal.md`.
+- **Pending (user):** a fresh independent Claude Code session reviews `0c1ac0b..HEAD`; then your Gate 01 decision. Known intermittent fault: Tcl/Tk library read failures (the strict-Tk guard now reports them as errors; rerun and record).
+- **Next exact action:** none until Gate 01 is decided. Do not begin Phase 02A, merge, tag or release.
 
 ## Prior Focus — Plan 2b (superseded as active work by the Master Plan; kept for history)
 

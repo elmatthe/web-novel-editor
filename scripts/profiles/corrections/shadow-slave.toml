@@ -1,0 +1,11 @@
+# Shadow Slave - approved literal name/term corrections.
+#
+# Approved name/term corrections only. `carcassess` was promoted to the universal
+# engine (pipelines/universal.py) and `threestoried` / `tompost shelf` were retired in
+# Phase 01C (DECISIONS 075); none fired in any other novel's corpus.
+# Keys are matched as plain substrings while protected terms are masked; every key
+# must be a token that cannot occur in legitimate prose.
+
+[corrections]
+"Almanach" = "Almanac"
+"Obers" = "Obels"

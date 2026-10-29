@@ -142,7 +142,7 @@ def test_the_application_imports_load_no_retired_sdk(tmp_path):
         """
         import sys
         import core.batch_runner, core.novel_registry, core.run_manifest
-        import pipelines.shadow_slave, pipelines.lord_of_mysteries
+        import pipelines.universal
         import pdf.builder, pdf.extractor
         import gui.app
         banned = ("ollama", "groq", "google.genai", "google.generativeai", "httpx",

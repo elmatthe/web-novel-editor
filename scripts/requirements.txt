@@ -17,5 +17,6 @@ pytest==9.1.1
 # (1,2,10 not 1,10,2). Latest stable verified on PyPI 2026-07-17 (Plan 1 Phase 1).
 natsort==8.4.0
 # tomli: TOML reader for Python 3.10, which has no stdlib tomllib (that arrives in 3.11).
-# Kept so the declared 3.10 floor stays honest; `import tomllib` is used where available.
+# A RUNTIME dependency on 3.10 since Phase 01C (profiles/loader.py reads the corrections
+# files); `tomllib` is used on 3.11+.
 tomli==2.4.1

@@ -11,8 +11,8 @@ import importlib
 
 
 def test_pipeline_wiring_imports():
-    """The Shadow Slave pipeline (and thus every stage import) resolves cleanly."""
-    mod = importlib.import_module("pipelines.shadow_slave")
+    """The one universal pipeline (and thus every stage import) resolves cleanly."""
+    mod = importlib.import_module("pipelines.universal")
     assert callable(mod.run_pipeline)
 
 

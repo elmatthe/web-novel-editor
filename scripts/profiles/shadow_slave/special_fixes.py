@@ -1,8 +1,13 @@
 """Shadow Slave forced recurring typo substitutions.
 
-Seeded verbatim from the build spec's Forced Recurring Typo Substitutions section.
-These are always applied (corrections, not protections) and are distinct from the
-novel-index protection system. The rule that applies them is finalized in Phase 4.
+Originally seeded verbatim from the build spec's Forced Recurring Typo Substitutions
+section. These are always applied (corrections, not protections) and are distinct from the
+novel-index protection system.
+
+Phase 01C (Gate 00 decision, DECISIONS 075): only approved name/term corrections remain
+here (`Almanach`, `Obers`). `carcassess` -> `carcasses` was promoted to the universal
+engine as a bounded whole-word fix; `threestoried` and `tompost shelf` were retired (a
+style choice and a phrase-specific typo, neither with any corpus evidence).
 
 Note: `Obel` is a canonical name (protected); `Obers` is a misprint of `Obels`
 (plural) and is force-corrected here.
@@ -10,10 +15,7 @@ Note: `Obel` is a canonical name (protected); `Obers` is a misprint of `Obels`
 
 from __future__ import annotations
 
-SS_SPECIAL_FIXES: dict[str, str] = {
-    "Almanach": "Almanac",
-    "carcassess": "carcasses",
-    "threestoried": "three-storied",
-    "tompost shelf": "topmost shelf",
-    "Obers": "Obels",
-}
+from profiles.loader import load_corrections
+
+#: Approved literal corrections; the data lives in profiles/corrections/shadow-slave.toml.
+SS_SPECIAL_FIXES: dict[str, str] = load_corrections("shadow-slave")

@@ -9,6 +9,20 @@ its original decision date. New decisions continue to be appended here (newest o
 
 ---
 
+## 075 — One universal pipeline; three Gate 00 correction dispositions; profile corrections as data — 2026-10-28 — Claude Code (Master Plan Phase 01C)
+
+**Status:** Accepted. Implements the user's Gate 00 approvals; no other editorial change was made.
+**Context:** The editing sequence existed five times (`shadow_slave`, `supreme_magus`, `the_noble_queen`, `renegade_immortal`, `lord_of_mysteries`). A Phase 00 line diff showed identical stage order, call order, dash passes and special-fix applier; the copies differed only in the profile map imported and in whether three audit summary rows were written. Shadow Slave's map also mixed name corrections with generic typo fixes, none of which fires in any other corpus.
+**Decision:**
+1. **One engine.** `scripts/pipelines/universal.py` (the former `shadow_slave.py`, moved with `git mv`, so the original character classes are byte-identical) holds the only copy of the three-block sequence. A novel is a `PipelineProfile` (its corrections and an audit-row flag); the registry binds profiles, and the four other pipeline modules and the empty `profiles/lord_of_mysteries/` placeholder were deleted.
+2. **Audit rows unchanged.** Shadow Slave, Supreme Magus and The Noble Queen keep the `quote_normalize` / `slash_replace` / `em_dash` summary rows; Universal, Renegade Immortal and the index-only novels still have none. Rows count as edits in the condensed log, so unifying them would have changed counts for five of nine profiles. A test pins that the flag never changes the text.
+3. **`carcassess` -> `carcasses` is a bounded universal fix** (whole word only, exact lowercase, applied while protected terms are masked, recorded as `special_fixes`/`forced_substitution`). Negative fixtures: in-word (`Scarcassess`), longer word, capitalised form, the correct spelling, and a protected term containing it.
+4. **`threestoried` and `tompost shelf` are retired.** One is a hyphenation style choice, the other phrase-specific; neither had a single hit in the five current corpora. `Almanach` -> `Almanac` and `Obers` -> `Obels` stay as Shadow Slave profile corrections.
+5. **Corrections are data.** `profiles/corrections/<slug>.toml` plus a validated loader (`profiles/loader.py`: strings only, no self-maps, no key inside any value). Each `profiles/<x>/special_fixes.py` keeps its public name and loads its file. Canonical-name floors stay as built-in Python next to the indexes: folding them into the index files would change lexicon load order, which the editorial baseline forbids, and gains nothing yet.
+6. **Audit header.** The JSONL `run_metadata.pipeline` value is now `pipelines.universal` for every run (it named the per-novel module before). Header only; no replacement row or prose changed.
+**Alternatives considered:** keeping five thin wrapper modules (dead code once the registry binds profiles); unifying the summary rows (rejected at Gate 00); moving canonical names into the indexes now (risks a masking-order change for no editorial gain); promoting `threestoried` / `tompost shelf` (no evidence base).
+**Consequences:** Intentional output deltas exist only on the synthetic `special_fix_triggers` baseline input (see the Phase 01 checkpoint). `tomli` is now a runtime dependency on Python 3.10 (the loader reads TOML); `tomllib` is used on 3.11+.
+
 ## 074 — Release target fixed at 0.4.0; legacy installer plan (2c) and product-AI direction superseded; runtime-storage contract — 2026-10-28 — Claude Code (Master Plan Phase 00)
 
 **Status:** Accepted. Fixed by the user's Master Plan Revision 2 (`files/plans/Web-Novel-Editor-Master-Implementation-Plan.md`); implementation stays gated (Gate 00 onward).

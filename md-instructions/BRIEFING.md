@@ -2,6 +2,8 @@
 
 ## Version: v0.13.0
 
+> **Development direction (read first).** **Active work targets v0.4.0 — Offline Script-Only Modernization** (Master Plan `files/plans/Web-Novel-Editor-Master-Implementation-Plan.md`; DECISIONS 074 and 075). On `feature/0.4.0-script-only-editor`, Phase 01 has removed every AI path (local Ollama, the Gemini and Groq providers, model pickers, API-key / consent / quota UI and the AI dependencies), moved `scripts/Universal/*` to `scripts/*`, and consolidated the five near-identical pipelines into the single `scripts/pipelines/universal.py`. Editing is offline, deterministic and script-only. The version fields (this file, `config.toml`, the top CHANGELOG heading, README) deliberately still read v0.13.0 until the 0.4.0 release is prepared in Phase 04. **Everything below describes the v0.13.0 line this branch grew from; what it says about AI providers, cloud runs, `scripts/Universal/` or per-novel pipeline modules is historical.**
+
 **v0.13.0 is COMPLETE on `feature/plan-2b-cloud-providers`, awaiting sign-off and merge.** v0.12.0
 remains the released baseline on `main` (tagged, DECISIONS #061) until that merge happens.
 

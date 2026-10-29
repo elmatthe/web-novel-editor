@@ -39,7 +39,7 @@ The one entry — "Kraii" -> "Kraai" (the tyrant king):
 
 from __future__ import annotations
 
-NQ_SPECIAL_FIXES: dict[str, str] = {
-    # Kraai (the tyrant king) — source-text spelling drift, author-ruled 2026-07-26
-    "Kraii": "Kraai",
-}
+from profiles.loader import load_corrections
+
+#: Approved literal corrections; the data lives in profiles/corrections/the-noble-queen.toml.
+NQ_SPECIAL_FIXES: dict[str, str] = load_corrections("the-noble-queen")

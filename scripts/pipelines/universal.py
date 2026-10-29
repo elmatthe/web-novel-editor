@@ -1,4 +1,12 @@
-"""Shadow Slave editorial pipeline.
+"""The one universal editorial pipeline.
+
+Until Phase 01C this sequence existed five times (`shadow_slave`, `supreme_magus`,
+`the_noble_queen`, `renegade_immortal`, and `lord_of_mysteries`, which served as the
+universal fallback). A line-level diff in Phase 00 showed the stage order, the call order,
+the two dash passes and the special-fix applier were identical, and that the copies
+differed only in which profile data they imported and whether they wrote three audit
+summary rows. This module is that single copy. A novel is data: a `PipelineProfile`
+(its approved literal corrections, and whether it keeps the legacy audit summary rows).
 
 `run_pipeline` orchestrates the deterministic rule stages in the approved order. The order
 is grouped into three blocks by relationship to masking, which is the load-bearing
@@ -20,7 +28,8 @@ structure:
     9   ocr_repair.repair_ocr                  (non-placeholder segments)
     10  spacing_cleanup.fix_spurious_spaces + collapse_spaces
     10a slash_replace + first em_dash pass
-    11  SS_SPECIAL_FIXES while protected terms remain masked
+    11  literal corrections (universal first, then the profile's) while protected terms
+        remain masked
     12  UNMASK (terms first, then chapter lines)
 
   BLOCK C  Post-unmask editorial (needs real text back)
@@ -43,7 +52,8 @@ headings. Rule functions are pure (str -> str); high-value substitutions are rec
 from __future__ import annotations
 
 import re
-from typing import Callable, Optional, TYPE_CHECKING
+from dataclasses import dataclass, field
+from typing import Callable, Mapping, Optional, TYPE_CHECKING
 
 from core.protected_lexicon import (
     for_non_placeholder_segments,
@@ -63,7 +73,6 @@ from rules import (
     spacing_cleanup,
     unicode_cleanup,
 )
-from profiles.shadow_slave.special_fixes import SS_SPECIAL_FIXES
 
 if TYPE_CHECKING:
     from core.protected_lexicon import ProtectedLexicon
@@ -72,6 +81,41 @@ if TYPE_CHECKING:
 # Count-only patterns for the audit summary (the transforms themselves live in the rules).
 _COUNT_DOUBLE_QUOTES = re.compile("[“”„‟❝❞〝〞＂«»]")
 _COUNT_SPACED_DASH = re.compile(r"\S+[\s   -   　]+[–—―⸺][\s   -   　]+\S+")
+
+#: Literal corrections that are safe for EVERY novel. Deliberately tiny and bounded: a
+#: misspelling that cannot be a valid word, replaced only as a whole word (never inside
+#: another word, a name, or a longer misspelling). Anything that is a name, a style
+#: choice, or has no corpus evidence belongs in a profile's own corrections file or
+#: nowhere. `carcassess` was promoted here from Shadow Slave's map in Phase 01C
+#: (Gate 00 decision; DECISIONS 075).
+UNIVERSAL_LITERAL_FIXES: Mapping[str, str] = {"carcassess": "carcasses"}
+
+_BOUNDED: dict[str, re.Pattern[str]] = {
+    bad: re.compile(r"(?<![A-Za-z])" + re.escape(bad) + r"(?![A-Za-z])")
+    for bad in UNIVERSAL_LITERAL_FIXES
+}
+
+
+@dataclass(frozen=True)
+class PipelineProfile:
+    """Everything that differs between novels, as plain data.
+
+    ``special_fixes``  the profile's approved literal corrections (names / terms the
+                       source text gets wrong), applied longest-key-first as plain
+                       substring replacements while protected terms are masked.
+    ``summary_rows``   keep the three legacy audit summary rows (`quote_normalize`,
+                       `slash_replace`, `em_dash`). They count as edits in the condensed
+                       log, so a profile that never had them must not start getting them
+                       (that would change its audit counts, not its text). Gate 00
+                       decision: legacy audit-row counts stay unchanged.
+    """
+
+    name: str = "Universal"
+    special_fixes: Mapping[str, str] = field(default_factory=dict)
+    summary_rows: bool = False
+
+
+UNIVERSAL_PROFILE = PipelineProfile()
 
 
 def _summary(repl_log, count: int, rule: str, category: str, note: str) -> None:
@@ -85,9 +129,24 @@ def _summary(repl_log, count: int, rule: str, category: str, note: str) -> None:
         repl_log.record(f"{count} occurrence(s)", note, rule, category, note)
 
 
-def _apply_special_fixes(text: str, repl_log) -> str:
-    """Forced typo substitutions, applied longest-key-first; each logged discretely."""
-    for bad, good in sorted(SS_SPECIAL_FIXES.items(), key=lambda kv: -len(kv[0])):
+def _apply_universal_fixes(text: str, repl_log) -> str:
+    """The bounded, novel-agnostic literal corrections (whole word only)."""
+    for bad, good in UNIVERSAL_LITERAL_FIXES.items():
+        pattern = _BOUNDED[bad]
+        if pattern.search(text):
+            if repl_log is not None:
+                repl_log.record(bad, good, "special_fixes", "forced_substitution", bad)
+            text = pattern.sub(good, text)
+    return text
+
+
+def _apply_special_fixes(text: str, repl_log, special_fixes: Mapping[str, str]) -> str:
+    """A profile's forced substitutions, applied longest-key-first; each logged discretely.
+
+    Longest-first is not cosmetic: when one key is a prefix of another ("Ligo" / "Ligou")
+    the shorter would otherwise corrupt the longer's replacement.
+    """
+    for bad, good in sorted(special_fixes.items(), key=lambda kv: -len(kv[0])):
         if bad in text:
             if repl_log is not None:
                 repl_log.record(bad, good, "special_fixes", "forced_substitution", bad)
@@ -102,8 +161,9 @@ def run_pipeline(
     repl_log: "Optional[ReplacementLog]" = None,
     gui_log: "Optional[Callable[[str], None]]" = None,
     dry_run: bool = False,
+    profile: PipelineProfile = UNIVERSAL_PROFILE,
 ) -> str:
-    """Run the full Shadow Slave editorial pipeline over `text` and return clean text."""
+    """Run the full editorial pipeline over `text` for `profile` and return clean text."""
     log = gui_log or (lambda *_a, **_k: None)
 
     # Whole-file CDN error page? Flag for re-scrape and leave the text alone —
@@ -121,7 +181,7 @@ def run_pipeline(
             )
 
     # --- BLOCK A — pre-mask cleanup ----------------------------------------
-    n_quotes = len(_COUNT_DOUBLE_QUOTES.findall(text))
+    n_quotes = len(_COUNT_DOUBLE_QUOTES.findall(text)) if profile.summary_rows else 0
     text = unicode_cleanup.normalize_unicode(text)
     text = unicode_cleanup.normalize_quotes(text)
     text = ligature_cleanup.normalize_ligatures(text)
@@ -133,9 +193,10 @@ def run_pipeline(
     text = spacing_cleanup.repair_page_boundaries(text)
     text = spacing_cleanup.dehyphenate(text)
 
-    n_dash = len(_COUNT_SPACED_DASH.findall(text))
+    n_dash = len(_COUNT_SPACED_DASH.findall(text)) if profile.summary_rows else 0
     text = spacing_cleanup.reconstruct_paragraphs(text)
-    _summary(repl_log, n_quotes, "quote_normalize", "quote", "curly doubles -> straight")
+    if profile.summary_rows:
+        _summary(repl_log, n_quotes, "quote_normalize", "quote", "curly doubles -> straight")
     log("  ✓ Block A: cleanup + paragraph reconstruction")
 
     # --- BLOCK B — masked corrections --------------------------------------
@@ -148,9 +209,11 @@ def run_pipeline(
     text = for_non_placeholder_segments(text, slash_replace.replace_slashes)
     n_slash = slash_count_before - text.count("/")
     text = for_non_placeholder_segments(text, em_dash.remove_spaced_em_dashes)
-    text = _apply_special_fixes(text, repl_log)
+    text = _apply_universal_fixes(text, repl_log)
+    text = _apply_special_fixes(text, repl_log, profile.special_fixes)
     text = unmask_placeholders(text, prot_map, ch_map)
-    _summary(repl_log, n_slash, "slash_replace", "slash", "numeric ratio -> out of")
+    if profile.summary_rows:
+        _summary(repl_log, n_slash, "slash_replace", "slash", "numeric ratio -> out of")
     log(f"  ✓ Block B: masked repair ({len(prot_map)} terms, {len(ch_map)} headings)")
 
     # --- BLOCK C — post-unmask editorial -----------------------------------
@@ -158,7 +221,8 @@ def run_pipeline(
     text = punctuation.repair_punctuation(text)
     text = grammar.repair_grammar(text)
     text = em_dash.remove_spaced_em_dashes(text)  # mandatory final sweep
-    _summary(repl_log, n_dash, "em_dash", "dash", "spaced em/en dash -> , or .")
+    if profile.summary_rows:
+        _summary(repl_log, n_dash, "em_dash", "dash", "spaced em/en dash -> , or .")
     text = chapter_titles.remove_duplicate_chapter_titles_global(text)
     text = re.sub(r"\n{3,}", "\n\n", text).strip()
     text = chapter_titles.insert_chapter_page_breaks(text)
@@ -168,3 +232,26 @@ def run_pipeline(
     log("  ✓ Block C: editorial normalization")
 
     return text
+
+
+def bind(profile: PipelineProfile) -> Callable[..., str]:
+    """The ``run_pipeline(text, lexicon, *, repl_log, gui_log, dry_run)`` callable for one
+    profile - the signature `core.batch_runner` and the dispatch registry expect."""
+
+    def run_profile_pipeline(
+        text: str,
+        lexicon: "ProtectedLexicon",
+        *,
+        repl_log: "Optional[ReplacementLog]" = None,
+        gui_log: "Optional[Callable[[str], None]]" = None,
+        dry_run: bool = False,
+    ) -> str:
+        return run_pipeline(
+            text, lexicon, repl_log=repl_log, gui_log=gui_log, dry_run=dry_run,
+            profile=profile,
+        )
+
+    run_profile_pipeline.__name__ = "run_pipeline"
+    run_profile_pipeline.__qualname__ = f"run_pipeline[{profile.name}]"
+    run_profile_pipeline.profile = profile  # type: ignore[attr-defined]
+    return run_profile_pipeline

@@ -23,7 +23,7 @@ from core.protected_lexicon import (
     unmask_placeholders,
 )
 from core.replacement_log import ReplacementLog
-from pipelines import shadow_slave
+from core.novel_registry import resolve_dispatch
 from profiles.shadow_slave.canonical_names import SS_CANONICAL_NAMES
 
 _REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -95,7 +95,7 @@ def test_pipeline_on_real_chapter():
     raw = extract_text_from_pdf(fx)
     lex = load_protected_lexicon(_INDEX, SS_CANONICAL_NAMES)
     log = ReplacementLog()
-    out = shadow_slave.run_pipeline(raw, lex, repl_log=log)
+    out = resolve_dispatch("Shadow Slave").run_pipeline(raw, lex, repl_log=log)
 
     # paragraph structure was reconstructed
     assert "\n\n" in out
@@ -114,7 +114,7 @@ def test_audit_log_replacement_field_is_a_description_not_rule_name():
     log = ReplacementLog()
     # Curly doubles + a numeric ratio + a spaced em-dash -> all bulk-summary transforms.
     text = 'Chapter 1: Test.\n\n“He scored 6/7 today — Then he left.”'
-    shadow_slave.run_pipeline(text, lex, repl_log=log)
+    resolve_dispatch("Shadow Slave").run_pipeline(text, lex, repl_log=log)
 
     rows = {e.rule: e for e in log.entries}
     assert "quote_normalize" in rows, "quote-normalize summary row missing"
@@ -135,7 +135,7 @@ def test_pipeline_preserves_protected_name():
 
     raw = extract_text_from_pdf(fx)
     lex = load_protected_lexicon(_INDEX, SS_CANONICAL_NAMES)
-    out = shadow_slave.run_pipeline(raw, lex)
+    out = resolve_dispatch("Shadow Slave").run_pipeline(raw, lex)
     assert "Sunny" in out  # the protagonist's name survives the full pipeline
 
 
@@ -146,4 +146,4 @@ def test_pipeline_preserves_protected_special_fix_target_byte_for_byte():
     )
     text = "Almanach is protected."
 
-    assert shadow_slave.run_pipeline(text, lex) == text
+    assert resolve_dispatch("Shadow Slave").run_pipeline(text, lex) == text

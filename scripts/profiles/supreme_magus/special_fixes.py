@@ -36,26 +36,7 @@ Deliberately NOT ported from the legacy editor:
 
 from __future__ import annotations
 
-SM_SPECIAL_FIXES: dict[str, str] = {
-    # Silverwing (Faluel's Hydra mentor) — slash/letter-run misreads
-    "Silven/ving": "Silverwing",
-    "Silvenrving": "Silverwing",
-    # Thrud (Queen of the Griffon Kingdom in late arcs) — ru -> n1/m misreads
-    "Thn1d": "Thrud",
-    "Thmd": "Thrud",
-    # Orpal / Locrias / Solus — digit-for-letter misreads
-    "O1pal": "Orpal",
-    "L0crias": "Locrias",
-    "S0lus": "Solus",
-    # Phloria / Friya — apostrophe-splice and split-letter misreads
-    "Phlon'a": "Phloria",
-    "Fn'ya": "Friya",
-    "F riya": "Friya",
-    # Inxialot the Lich King — lowercase-l-for-I misread
-    "lnxialot": "Inxialot",
-    # Ragnarök (the war) — the ö is lost by extraction in several shapes
-    "Ragnar??k": "Ragnarök",
-    "Ragnar?k": "Ragnarök",
-    "Ragnarfi k": "Ragnarök",
-    "Ragnarfik": "Ragnarök",
-}
+from profiles.loader import load_corrections
+
+#: Approved literal corrections; the data lives in profiles/corrections/supreme-magus.toml.
+SM_SPECIAL_FIXES: dict[str, str] = load_corrections("supreme-magus")

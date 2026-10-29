@@ -53,36 +53,23 @@ double-click (confirmed 2026-07-16). There is no macOS-exclusive code; the obsol
 
 ## Status
 
-**v0.13.0 — complete, awaiting final sign-off.** This version lets the optional AI proofreading pass
-run on a **cloud** model (Google Gemini or Groq) instead of your own machine, if you want it to. Four
-things are worth knowing before you do:
+**In development: v0.4.0 — Offline Script-Only Modernization.** The editor is becoming an
+offline, deterministic, script-only desktop app. As of this work **all AI functionality has been
+removed**: the optional local (Ollama) and cloud (Gemini, Groq) proofreading passes, the model
+pickers, the API-key, consent and quota controls, and their dependencies. Editing never needs a
+model, an account or the internet, and the output is exactly what the scripted rules produce.
+The version fields in `config.toml` and the changelog still read v0.13.0 until the 0.4.0 release
+is prepared; the numbering reset is intentional (see `md-instructions/DECISIONS.md`, #074).
 
-- **It is opt-in every single time.** There is no default cloud provider and the app does not remember
-  the one you used last. Local stays the normal path, and the AI pass as a whole is still off unless
-  you switch it on.
-- **Your chapter text leaves your computer** when you use a cloud provider. The app asks you to
-  confirm that once, in plain language, before the first cloud request it ever makes, and offers to
-  cancel and stay local instead.
-- **It is built to avoid costing you money, and it tells you the truth about that.** The app never
-  enables billing, never upgrades an account, and never intentionally picks a paid or preview model —
-  it only calls exact models reviewed and listed in `config.toml`. But no desktop app can *guarantee*
-  a key you supply can never be charged, so use a key from a project with billing disabled and confirm
-  it in the provider's own console. If the app cannot confirm a run will stay free, it stops and says
-  why rather than proceeding.
-- **Free tiers are small.** Roughly thirty chapters a day on Groq's free plan. When the daily quota
-  runs out the app saves its place, tells you so, and you can close it and pick up tomorrow with
-  **Resume incomplete run**. For a whole novel, the local option is still the practical one.
+If you used the earlier cloud versions, an API key may still be saved on your computer
+(`%LOCALAPPDATA%\WebNovelEditor\secrets.json`, or a `.env` file, or the `GEMINI_API_KEY` /
+`GROQ_API_KEY` environment variables). **This version never reads, uses, moves or deletes
+them.** To be safe, delete the file or variable yourself and revoke the key in the provider's own
+console. Unfinished cloud runs cannot be resumed here (their saved progress files are left
+untouched); start a new run instead.
 
-Your protected names and the chapter structure are guaranteed byte-for-byte by exactly the same strict
-gate whichever engine you choose — the cloud path is not a looser path.
-
-**Shipped: v0.12.0.** This version adds an **optional local AI proofreading pass** that runs after the
-scripted editing and before the PDF is written. It is **opt-in and OFF by default** — with it off, the
-output is exactly the same as the scripted result in v0.11.0. When switched on it runs entirely on your
-own machine via a local Ollama model (default `qwen3:14b`), makes only tiny high-confidence grammar/OCR
-corrections, and is held by a strict gate that keeps your protected names and the chapter's structure
-byte-for-byte intact — anything it is not sure about is left unchanged. Because it is off by default,
-the program behaves exactly as before unless you deliberately turn it on.
+The v0.12.0 and v0.13.0 AI features live on the separate `feature/plan-2b-cloud-providers` line
+and are not part of this version.
 
 Version 0.11.0 adds the overhauled batch flow: two input modes (upload PDFs / select a
 folder with natural-order recursive scanning), automatic mirrored output into an

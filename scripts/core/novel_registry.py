@@ -21,23 +21,23 @@ Default-to-universal path
 Dispatch is case/separator-insensitive (it reuses `edit_details._norm_key`). A novel that
 is **not** in the registry falls back cleanly to **universal-only** editing:
 
-  * the novel-agnostic universal pipeline (`pipelines.lord_of_mysteries.run_pipeline`,
-    which runs the shared universal rules in order with **no** forced novel-specific
-    substitutions), driven by
+  * the one universal pipeline (`pipelines.universal.run_pipeline`) bound to the empty
+    `UNIVERSAL_PROFILE`, which runs the shared universal rules in order with **no**
+    novel-specific substitutions, driven by
   * an **empty** canonical floor plus whatever the user has added to
     `scripts/resources/novel-index/<novel>.txt`.
 
 So a profile-less novel (e.g. Lord of the Mysteries) gets universal grammar, unicode
 stripping, the mandatory em-dash sweep, etc., never crashes, and never picks up another
-novel's special-fixes. Promoting such a novel to a real profile later is one line here
-plus a profile package — no core refactor (Phase 5b did exactly this for The Noble
-Queen and Supreme Magus).
+novel's special-fixes. Promoting such a novel to a real profile later is one registry
+entry plus its corrections file - no core refactor (Phase 5b did exactly this for The
+Noble Queen and Supreme Magus).
 
-Note on the universal pipeline seam: the universal-only fallback intentionally reuses the
-Phase-7 `lord_of_mysteries` stub pipeline, which is universal-rules-only precisely because
-its profile (`LOTM_SPECIAL_FIXES`) is empty. `test_novel_registry` pins that emptiness, so
-if a real Lord of the Mysteries profile is ever authored the coupling is caught and the
-universal fallback can be given its own dedicated seam at that point.
+Note on the universal pipeline seam: since Phase 01C there is exactly one orchestration
+(`pipelines/universal.py`). A registered novel is a `PipelineProfile` (its approved literal
+corrections from `profiles/corrections/<slug>.toml`, plus an audit-row flag); everything
+else, including "Universal" itself, runs the same engine with the empty profile. The
+single universal literal fix (`carcassess`) lives in the engine, not in any profile.
 """
 
 from __future__ import annotations
@@ -49,17 +49,16 @@ from typing import Callable, Optional
 
 from core.edit_details import _norm_key
 from core.protected_lexicon import load_protected_lexicon
-from pipelines import (
-    lord_of_mysteries,
-    renegade_immortal,
-    shadow_slave,
-    supreme_magus,
-    the_noble_queen,
-)
+from pipelines import universal
+from pipelines.universal import UNIVERSAL_PROFILE, PipelineProfile
 from profiles.renegade_immortal.canonical_names import RI_CANONICAL_NAMES
+from profiles.renegade_immortal.special_fixes import RI_SPECIAL_FIXES
 from profiles.shadow_slave.canonical_names import SS_CANONICAL_NAMES
+from profiles.shadow_slave.special_fixes import SS_SPECIAL_FIXES
 from profiles.supreme_magus.canonical_names import SM_CANONICAL_NAMES
+from profiles.supreme_magus.special_fixes import SM_SPECIAL_FIXES
 from profiles.the_noble_queen.canonical_names import NQ_CANONICAL_NAMES
+from profiles.the_noble_queen.special_fixes import NQ_SPECIAL_FIXES
 
 # Shipped runtime data: scripts/resources/novel-index/ (one dir up from
 # scripts/core/). Lives under the shipped scripts/ tree, not dev-only files/.
@@ -70,6 +69,10 @@ NOVEL_INDEX_DIR = Path(__file__).resolve().parents[1] / "resources" / "novel-ind
 # unregistered-name fallback in `resolve_dispatch` (universal-only editing). Shadow Slave
 # remains in the roster, just no longer pre-selected (Plan 1 Phase 3, DECISIONS log).
 DEFAULT_NOVEL = "Universal"
+
+# The universal-only pipeline, bound once: every novel without a registered profile (and
+# "Universal" itself) runs the one engine with the empty profile.
+_UNIVERSAL_RUN = universal.bind(UNIVERSAL_PROFILE)
 
 # Display-only suffixes for roster novels that have no real per-novel profile.
 #
@@ -238,21 +241,24 @@ def clean_novel_name(display_name: str) -> str:
 _REGISTRY: dict[str, NovelDispatch] = {
     _norm_key("Shadow Slave"): NovelDispatch(
         display_name="Shadow Slave",
-        run_pipeline=shadow_slave.run_pipeline,
+        run_pipeline=universal.bind(
+            PipelineProfile("Shadow Slave", SS_SPECIAL_FIXES, summary_rows=True)),
         canonical_names=SS_CANONICAL_NAMES,
         index_filename="shadow-slave.txt",
         has_profile=True,
     ),
     _norm_key("The Noble Queen"): NovelDispatch(
         display_name="The Noble Queen",
-        run_pipeline=the_noble_queen.run_pipeline,
+        run_pipeline=universal.bind(
+            PipelineProfile("The Noble Queen", NQ_SPECIAL_FIXES, summary_rows=True)),
         canonical_names=NQ_CANONICAL_NAMES,
         index_filename="the-noble-queen.txt",
         has_profile=True,
     ),
     _norm_key("Supreme Magus"): NovelDispatch(
         display_name="Supreme Magus",
-        run_pipeline=supreme_magus.run_pipeline,
+        run_pipeline=universal.bind(
+            PipelineProfile("Supreme Magus", SM_SPECIAL_FIXES, summary_rows=True)),
         canonical_names=SM_CANONICAL_NAMES,
         index_filename="supreme-magus.txt",
         has_profile=True,
@@ -265,7 +271,8 @@ _REGISTRY: dict[str, NovelDispatch] = {
     # protection and output are otherwise unchanged from the pre-promotion behaviour.
     _norm_key("Renegade Immortal"): NovelDispatch(
         display_name="Renegade Immortal",
-        run_pipeline=renegade_immortal.run_pipeline,
+        run_pipeline=universal.bind(
+            PipelineProfile("Renegade Immortal", RI_SPECIAL_FIXES)),
         canonical_names=RI_CANONICAL_NAMES,
         index_filename="renegade-immortal.txt",
         has_profile=True,
@@ -289,7 +296,7 @@ def resolve_dispatch(novel_name: Optional[str]) -> NovelDispatch:
     display = novel_name.strip() if novel_name and novel_name.strip() else "Universal"
     return NovelDispatch(
         display_name=display,
-        run_pipeline=lord_of_mysteries.run_pipeline,  # universal rules only (empty profile)
+        run_pipeline=_UNIVERSAL_RUN,  # universal rules only (the empty profile)
         canonical_names=frozenset(),
         index_filename=index_filename_for(novel_name),
         has_profile=False,

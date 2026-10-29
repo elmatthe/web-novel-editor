@@ -16,8 +16,12 @@ import re
 import pytest
 
 from core.protected_lexicon import ProtectedLexicon, load_protected_lexicon
-from pipelines import lord_of_mysteries
-from profiles.lord_of_mysteries.canonical_names import LOTM_CANONICAL_NAMES
+from core.novel_registry import resolve_dispatch
+from pipelines.universal import UNIVERSAL_PROFILE
+
+# Lord of the Mysteries is profile-less: it runs the one engine with the empty profile and
+# the empty canonical floor (the former `profiles/lord_of_mysteries` placeholder package).
+LOTM_CANONICAL_NAMES = resolve_dispatch("Lord of the Mysteries").canonical_names
 
 _REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 _FIXTURES = os.path.join(_REPO_ROOT, "files", "test-files", "shadow_slave")
@@ -36,9 +40,7 @@ def _first_fixture():
 def test_empty_placeholder_profile_data_is_genuinely_empty():
     """The stub profile carries no novel-specific data (proves it is a clean seam)."""
     assert LOTM_CANONICAL_NAMES == frozenset()
-    from profiles.lord_of_mysteries.special_fixes import LOTM_SPECIAL_FIXES
-
-    assert LOTM_SPECIAL_FIXES == {}
+    assert UNIVERSAL_PROFILE.special_fixes == {}
 
 
 def test_loader_handles_empty_lotm_placeholder_without_error():
@@ -60,7 +62,7 @@ def test_stub_pipeline_runs_end_to_end_on_real_fixture():
 
     raw = extract_text_from_pdf(fx)
     lex = load_protected_lexicon(_LOTM_INDEX, LOTM_CANONICAL_NAMES)
-    out = lord_of_mysteries.run_pipeline(raw, lex)
+    out = resolve_dispatch("Universal").run_pipeline(raw, lex)
 
     assert isinstance(out, str)
     assert len(out.strip()) > 100              # produced real cleaned text
@@ -89,6 +91,6 @@ def test_stub_pipeline_preserves_a_user_protected_term(tmp_path):
     lex = load_protected_lexicon(str(user_index), LOTM_CANONICAL_NAMES)
     assert "6/7 Sequence" in lex.terms
 
-    out = lord_of_mysteries.run_pipeline(seeded, lex)
+    out = resolve_dispatch("Universal").run_pipeline(seeded, lex)
     assert "6/7 Sequence" in out
     assert "6 out of 7 Sequence" not in out

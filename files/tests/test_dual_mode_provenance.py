@@ -34,7 +34,8 @@ import pytest
 from core import novel_registry
 from core.novel_registry import NovelDispatch, resolve_dispatch
 from core.replacement_log import ReplacementLog
-from pipelines import lord_of_mysteries, shadow_slave
+from pipelines import universal
+from pipelines.universal import UNIVERSAL_PROFILE
 
 # -- dispatch: the two real profile-less corpora + registry-is-the-decider ---------------
 
@@ -53,7 +54,7 @@ def test_unauthored_placeholder_novels_resolve_to_universal_fallback(
     study-examples indexes are comment-only, so Phase 5b left them unregistered)."""
     d = resolve_dispatch(name)
     assert d.has_profile is False
-    assert d.run_pipeline is lord_of_mysteries.run_pipeline
+    assert d.run_pipeline.profile is UNIVERSAL_PROFILE
     assert d.canonical_names == frozenset()          # no other novel's floor leaks in
     assert d.index_filename == index_filename        # own (placeholder) index still honored
 
@@ -69,7 +70,7 @@ def test_registration_is_the_deciding_factor_not_index_contents(monkeypatch) -> 
     # No index file exists for this name anywhere -> still a clean universal fallback.
     no_index = resolve_dispatch("Zz Registry Probe Novel")
     assert no_index.has_profile is False
-    assert no_index.run_pipeline is lord_of_mysteries.run_pipeline
+    assert no_index.run_pipeline.profile is UNIVERSAL_PROFILE
 
     # "Re Monster" ships an empty placeholder index and is unregistered -> fallback.
     assert resolve_dispatch("Re Monster").has_profile is False
@@ -78,7 +79,7 @@ def test_registration_is_the_deciding_factor_not_index_contents(monkeypatch) -> 
     # and the SAME name now resolves to a profile: the registry decided, not the index.
     fake = NovelDispatch(
         display_name="Re Monster",
-        run_pipeline=lord_of_mysteries.run_pipeline,
+        run_pipeline=universal.bind(UNIVERSAL_PROFILE),
         canonical_names=frozenset({"Rou"}),
         index_filename="re-monster.txt",
         has_profile=True,
@@ -154,34 +155,37 @@ def test_bait_string_changed_in_shadow_slave_mode_via_run_batch(tmp_path: Path) 
 
 def test_bait_string_untouched_in_universal_mode_via_run_batch(tmp_path: Path) -> None:
     _, _, text, jsonl = _run(tmp_path, "Reverend Insanity", "out_ri")
-    assert "Almanach" in text          # SS's forced fix did NOT run
-    assert "carcassess" in text
-    assert all(e.get("rule") != "special_fixes" for e in jsonl)
+    assert "Almanach" in text          # SS's profile fix did NOT run
+    # `carcassess` is the one bounded universal fix (Phase 01C), so it IS corrected here.
+    assert "carcassess" not in text and "carcasses" in text
+    fix_rules = [e for e in jsonl if e.get("rule") == "special_fixes"]
+    assert {e["original"] for e in fix_rules} == {"carcassess"}
 
 
 # -- spy-level proof: SS special-fix code is never CALLED in universal mode ---------------
 
-def test_ss_special_fix_code_not_called_in_universal_mode(
+def test_ss_special_fix_map_is_never_applied_in_universal_mode(
     tmp_path: Path, monkeypatch
 ) -> None:
-    """Prove provenance directly: the SS special-fix function is never invoked when a
-    profile-less novel is selected (run_pipeline resolves `_apply_special_fixes` from its
-    module globals at call time, so the spy is seen even through the registry's stored
-    pipeline reference)."""
-    calls: list[str] = []
-    real = shadow_slave._apply_special_fixes
+    """Prove provenance directly: the Shadow Slave correction map is never handed to the
+    applier when a profile-less novel is selected (the engine resolves
+    `_apply_special_fixes` from its module globals at call time, so the spy is seen even
+    through the registry's stored pipeline)."""
+    maps: list[dict] = []
+    real = universal._apply_special_fixes
 
-    def spy(text, repl_log):
-        calls.append("called")
-        return real(text, repl_log)
+    def spy(text, repl_log, special_fixes):
+        maps.append(dict(special_fixes))
+        return real(text, repl_log, special_fixes)
 
-    monkeypatch.setattr(shadow_slave, "_apply_special_fixes", spy)
+    monkeypatch.setattr(universal, "_apply_special_fixes", spy)
 
     _run(tmp_path, "Reverend Insanity", "out_spy_ri")
-    assert calls == []                 # universal-only run never touched SS fix code
+    assert maps == [{}]                # universal-only run applied an EMPTY profile map
 
     _run(tmp_path, "Shadow Slave", "out_spy_ss")
-    assert len(calls) == 1             # sanity: the spy is live and SS mode does call it
+    assert len(maps) == 2              # sanity: the spy is live
+    assert maps[1] == {"Almanach": "Almanac", "Obers": "Obels"}   # and SS mode got its own
 
 
 # -- no __WE_ placeholder leaks in either mode --------------------------------------------
@@ -212,7 +216,7 @@ def test_jsonl_first_line_is_run_metadata_header_in_both_modes(tmp_path: Path) -
     assert header["record"] == "run_metadata"
     assert header["novel"] == "Shadow Slave"
     assert header["mode"] == "novel-profile"
-    assert header["pipeline"] == "pipelines.shadow_slave"
+    assert header["pipeline"] == "pipelines.universal"
     # Replacement entries follow the header and are untouched by it.
     assert any(e.get("rule") == "special_fixes" for e in ss_jsonl[1:])
 
@@ -221,7 +225,7 @@ def test_jsonl_first_line_is_run_metadata_header_in_both_modes(tmp_path: Path) -
     assert header["record"] == "run_metadata"
     assert header["novel"] == "Reverend Insanity"
     assert header["mode"] == "universal-only"
-    assert header["pipeline"] == "pipelines.lord_of_mysteries"
+    assert header["pipeline"] == "pipelines.universal"
 
 
 def test_replacement_log_metadata_header_is_optional(tmp_path: Path) -> None:

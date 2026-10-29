@@ -33,8 +33,9 @@ from core.novel_registry import (
     resolve_dispatch,
 )
 from core.protected_lexicon import load_protected_lexicon
-from pipelines import lord_of_mysteries, shadow_slave
+from pipelines.universal import UNIVERSAL_PROFILE
 from profiles.shadow_slave.canonical_names import SS_CANONICAL_NAMES
+from profiles.shadow_slave.special_fixes import SS_SPECIAL_FIXES
 
 _REPO_ROOT = Path(__file__).resolve().parents[2]
 _FIXTURES = _REPO_ROOT / "files" / "test-files" / "shadow_slave"
@@ -194,7 +195,7 @@ def test_every_roster_entry_cleans_to_a_dispatchable_name() -> None:
         d = resolve_dispatch(clean)
         if entry != clean or clean == "Universal":
             assert d.has_profile is False
-            assert d.run_pipeline is lord_of_mysteries.run_pipeline
+            assert d.run_pipeline.profile is UNIVERSAL_PROFILE
         else:
             assert d.has_profile is True
             assert d.display_name == clean
@@ -206,7 +207,8 @@ def test_every_roster_entry_cleans_to_a_dispatchable_name() -> None:
 def test_resolve_dispatch_shadow_slave_uses_real_profile(name: str) -> None:
     d = resolve_dispatch(name)
     assert d.has_profile is True
-    assert d.run_pipeline is shadow_slave.run_pipeline
+    assert d.run_pipeline.profile.name == "Shadow Slave"
+    assert d.run_pipeline.profile.special_fixes is SS_SPECIAL_FIXES
     assert d.canonical_names is SS_CANONICAL_NAMES
     assert d.index_filename == "shadow-slave.txt"
 
@@ -215,7 +217,7 @@ def test_resolve_dispatch_shadow_slave_uses_real_profile(name: str) -> None:
 def test_resolve_dispatch_profileless_novel_is_universal_only(name: str) -> None:
     d = resolve_dispatch(name)
     assert d.has_profile is False
-    assert d.run_pipeline is lord_of_mysteries.run_pipeline  # universal-only seam
+    assert d.run_pipeline.profile is UNIVERSAL_PROFILE  # universal-only seam
     assert d.canonical_names == frozenset()                  # no other novel's names
     assert d.index_filename == index_filename_for(name)      # own index still honored
 
@@ -224,28 +226,25 @@ def test_resolve_dispatch_profileless_novel_is_universal_only(name: str) -> None
 def test_resolve_dispatch_unknown_or_empty_is_universal_only(name) -> None:
     d = resolve_dispatch(name)
     assert d.has_profile is False
-    assert d.run_pipeline is lord_of_mysteries.run_pipeline
+    assert d.run_pipeline.profile is UNIVERSAL_PROFILE
     assert d.canonical_names == frozenset()
 
 
 def test_resolve_dispatch_universal_uses_existing_fallback() -> None:
     """Selecting "Universal" rides the same unregistered-name fallback as today — no
-    registry entry, the LOTM-stub universal pipeline, an empty floor."""
+    registry entry, the one engine with the empty universal profile, an empty floor."""
     d = resolve_dispatch("Universal")
     assert d.has_profile is False
-    assert d.run_pipeline is lord_of_mysteries.run_pipeline
+    assert d.run_pipeline.profile is UNIVERSAL_PROFILE
     assert d.canonical_names == frozenset()
     assert d.display_name == "Universal"
 
 
-def test_universal_fallback_applies_no_special_fixes() -> None:
+def test_universal_fallback_applies_no_profile_special_fixes() -> None:
     """The universal-only seam must not apply any novel's forced substitutions."""
-    from profiles.lord_of_mysteries.special_fixes import LOTM_SPECIAL_FIXES
-
-    # Guard the coupling documented in novel_registry: the universal fallback reuses the
-    # lord_of_mysteries pipeline precisely because its profile is empty. If this ever
-    # gains real fixes, the universal fallback needs its own seam.
-    assert LOTM_SPECIAL_FIXES == {}
+    # Since Phase 01C the fallback is the empty `UNIVERSAL_PROFILE`; the only literal fix
+    # it carries is the single bounded universal one (`carcassess`).
+    assert UNIVERSAL_PROFILE.special_fixes == {}
 
 
 # -- Shadow Slave output is unchanged through dispatch ----------------------------------
@@ -265,7 +264,7 @@ def test_shadow_slave_dispatch_equals_direct_pipeline_on_synthetic_text() -> Non
     """Dispatch must not change SS output vs. calling its pipeline directly (no corpus)."""
     index = str(NOVEL_INDEX_DIR / "shadow-slave.txt")
     lex = load_protected_lexicon(index, SS_CANONICAL_NAMES)
-    direct = shadow_slave.run_pipeline(_RAW_SS, lex)
+    direct = resolve_dispatch("Shadow Slave").run_pipeline(_RAW_SS, lex)
 
     d = resolve_dispatch("Shadow Slave")
     dlex = load_protected_lexicon(str(NOVEL_INDEX_DIR / d.index_filename), d.canonical_names)
@@ -297,7 +296,7 @@ def test_shadow_slave_dispatch_output_is_byte_for_byte_unchanged() -> None:
     index = str(NOVEL_INDEX_DIR / "shadow-slave.txt")
     lex = load_protected_lexicon(index, SS_CANONICAL_NAMES)
 
-    direct = shadow_slave.run_pipeline(raw, lex)
+    direct = resolve_dispatch("Shadow Slave").run_pipeline(raw, lex)
 
     d = resolve_dispatch("Shadow Slave")
     via_dispatch_lex = load_protected_lexicon(

@@ -1,0 +1,22 @@
+# Supreme Magus - approved literal name/term corrections.
+#
+# Proper-noun extraction artifacts, corpus-validated (see special_fixes.py history).
+# Keys are matched as plain substrings while protected terms are masked; every key
+# must be a token that cannot occur in legitimate prose.
+
+[corrections]
+"Silven/ving" = "Silverwing"
+"Silvenrving" = "Silverwing"
+"Thn1d" = "Thrud"
+"Thmd" = "Thrud"
+"O1pal" = "Orpal"
+"L0crias" = "Locrias"
+"S0lus" = "Solus"
+"Phlon'a" = "Phloria"
+"Fn'ya" = "Friya"
+"F riya" = "Friya"
+"lnxialot" = "Inxialot"
+"Ragnar??k" = "Ragnarök"
+"Ragnar?k" = "Ragnarök"
+"Ragnarfi k" = "Ragnarök"
+"Ragnarfik" = "Ragnarök"

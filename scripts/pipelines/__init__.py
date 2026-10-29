@@ -1,5 +1,5 @@
-"""Pipelines package — one module per novel.
+"""Pipelines package - the one universal editorial pipeline.
 
-A pipeline is a thin ordering of universal rules parameterized by that novel's
-profile data. `shadow_slave` is the reference implementation.
+`universal.run_pipeline` is the only orchestration. A novel supplies a `PipelineProfile`
+(its approved literal corrections and audit-row policy); see `core.novel_registry`.
 """
