@@ -1,5 +1,148 @@
 # Webnovel Editor — Changelog
 
+## v0.13.0 — 2026-07-27 — Optional Cloud AI Providers: Gemini and Groq (Plan 2b)
+
+**Status: complete on `feature/plan-2b-cloud-providers`, awaiting sign-off and merge.** Cloud editing
+is **opt-in per run, every run** — there is no default cloud provider, no persisted "last used"
+preference, and local Ollama remains the default editing path (DECISIONS #064). With the AI pass off,
+output is still byte-for-byte identical to the v0.11.0 deterministic baseline. Design reasoning is in
+DECISIONS.md #062–#070.
+
+### Added — two cloud adapters behind Plan 2a's unchanged contract (Phases 1–3)
+- **`GeminiProvider`** (`google-genai==2.14.0`) and **`GroqProvider`** (`groq==1.6.0`), both pinned,
+  neither SDK imported at package load or unless its adapter is actually constructed. Each implements
+  2a's four-method protocol and normalises its own finish reasons, usage figures, request IDs and
+  errors into the shared `CompletionResult` and error taxonomy. **2a's base contract needed no
+  change** — it was already cloud-shaped.
+- **An unrecognised finish reason fails closed** in both adapters: the candidate text is discarded,
+  never returned as a successful edit.
+- **Reviewed approved-model records** in `config.toml` (exact IDs, status, context/output limits,
+  review date, source URL, free-tier confidence). No `latest`-style alias anywhere, no substitution
+  when a model is retired, and `unknown` free-tier confidence is refused in strict free-only mode.
+
+### Added — the machinery free tiers actually require (Phases 1, 4–6)
+- **Per-user key storage** at `%LOCALAPPDATA%/WebNovelEditor/secrets.json` (never inside the repo),
+  with precedence environment variable → secrets file → session-only entry → provider greyed out.
+  **One redaction boundary**, asserted against logs, JSONL, manifests, tracebacks and the GUI.
+- **A versioned privacy + billing disclosure** that must be acknowledged before the first cloud
+  request. Only the acknowledged version is stored — never chapter text, never the key.
+- **Provider-specific rate limiting** off one shared limiter: header-driven for Groq (which returns
+  per-day request counters and per-minute token counters), conservative configured floors for Gemini
+  (which publishes neither limits nor headers). RPM/TPM/RPD/TPD are distinguished; a daily quota is
+  never inferred from every 429; backoff applies to transient faults only. Every wait is interruptible
+  by Stop and by window close.
+- **Checkpointed runs.** A daily quota writes an atomic run manifest and stops cleanly with
+  "resume tomorrow" instead of sleeping for days; the GUI offers **Resume incomplete run** on restart.
+  The manifest holds no key and no chapter text.
+- **GUI:** provider dropdown, per-provider status and approved-model picker, the disclosure dialog,
+  and an honest **ETA shown as a range before a run starts**, saying "unknown" where limits are unknown
+  rather than inventing precision.
+
+### Added — a pre-flight spend guard (Phase 7a)
+- Every cloud run passes `spend_guard.ensure_free_tier_run_allowed` at `ai.factory.create_provider`,
+  keyed on the provider name **before any adapter object exists**, so a cloud adapter cannot be
+  constructed unguarded. A refusal stops the run in a dialog rather than degrading silently. Nothing
+  in the codebase queries or infers billing state from a provider API.
+
+### Added — the first real cloud comparison run (Phase 7b)
+- `files/pilot/PROVIDER-COMPARISON.md`: the same 40 stratified chapters as the 2a pilot, same prompt
+  and gate versions, through `gemini-3.6-flash` and `llama-3.3-70b-versatile`. Aggregate metrics and
+  redacted snippets only; no chapter text or full diff is tracked.
+
+### Added — protected-term indexes for five novels
+- Built from measured corpus evidence (DECISIONS #062): **973 protected terms across three novels
+  became 4,364 across five.** Renegade Immortal (0 → 861) and Reverend Insanity (0 → 1,429) were built
+  from nothing; The Noble Queen (26 → 371), Shadow Slave (353 → 541) and Supreme Magus (594 → 890)
+  were audited. Three novels have no corpus and say so in their own files. Dual-use words are written
+  commented with their counts rather than enabled unilaterally; a batch review (Phase 8) promoted 43
+  of them and left 197 for the author.
+- **Two author-ruled spelling normalizations** in the special-fixes layer, applied by the scripted
+  pass before masking so neither the AI nor the gate ever sees the typo: `Kraii` → `Kraai`
+  (The Noble Queen) and `Ligou`/`Ligo` → `Liguo` (Renegade Immortal). Renegade Immortal was promoted
+  to a registered profile to scope them, behaviour-preservingly.
+
+### Changed — the protected-term prompt block is scoped to each request (Phase 8)
+- `build_system_prompt` embedded the whole novel index in the system prompt and `AIEditor` sent it
+  with **every chunk**, which became the dominant per-chapter cost once the indexes were populated.
+  The block is advisory — masking and the gate are what enforce protection — so it now lists only the
+  terms that occur in the text being sent. Mean input per chapter falls **10,209 → 4,983** tokens for
+  Renegade Immortal and **17,252 → 5,474** for Reverend Insanity, returning both to their zero-index
+  cost. Protection is unchanged: the gate still validates against the whole index. DECISIONS #063.
+
+### Fixed — a refilling per-day quota no longer ends the run for the day
+- **Gemini's free-tier requests-per-day quota REFILLS, and the run now waits for it.** The 429 that
+  stopped a run names `GenerateRequestsPerDayPerProjectPerModel-FreeTier` (genuinely per-day,
+  `quotaValue: 20`) and in the same body says "Please retry in 53s" — and retrying then really does
+  succeed. The classifier was reading that correctly; the *handling* threw the 53 away and
+  checkpointed until tomorrow. DECISIONS #069 splits waits "by duration, not by error code", and the
+  implementation split them by code. A per-day quota is now waited when the delay came from the
+  provider, is positive, and is at or under a per-provider configured cap — and checkpoints exactly
+  as before otherwise. `config.toml` ships **120 s for Gemini, 0 (off) for Groq**, whose
+  tokens-per-day ceiling latches correctly today and must keep doing so. DECISIONS #072.
+- **Measured, for the record: the free-tier allowance is 20 requests/day for `gemini-3.6-flash`** on
+  this project. Google publishes no free-tier table, so this is the only figure that exists — and it
+  is why a 3,000-chapter cloud run stays impractical on the free tier however well the waiting works.
+
+### Changed — `verify` now catches version drift between config.toml and the CHANGELOG
+- A fourth check fails the gate when `config.toml`'s `[project] version` disagrees with the
+  CHANGELOG's newest entry. Added because it had already drifted silently: CHANGELOG and BRIEFING
+  said v0.13.0 for a whole plan while `config.toml` still shipped `"0.12.0"`. Nothing consumed the
+  mismatch, which is exactly why nobody noticed — and `config.toml` is the file a release, a bug
+  report and a support conversation all quote. `config.toml` is now at `0.13.0`.
+
+### Changed — the launchers are named for the project
+- `Setup_and_Run.bat` / `.command` → **`Setup_and_Run-Web-Novel-Editor.bat` / `.command`**, matching
+  the convention every other repo in this workspace uses. Pure rename: identical content, `.bat`
+  still CRLF and `.command` still LF per `.gitattributes`, and the `.command`'s executable bit
+  (`100755`) preserved so Finder double-click still works. `README.md`, `main.py`'s docstring and
+  `BRIEFING.md` follow; append-only history (CHANGELOG, DECISIONS, past handoff entries) keeps the
+  old names, because that is what those files were describing at the time.
+
+### Changed — the dropdown and the log no longer imply a protected novel is unprotected
+- **"Has a special-fixes profile" and "has protected names" are two different things**, and one label
+  was doing both jobs. Reverend Insanity — no profile, **1,429 protected terms** — showed as
+  "Reverend Insanity — no profile yet" and logged "No novel-specific profile — universal-only
+  editing", immediately above "Loaded 1429 protected term(s)". True on the letter, and the opposite
+  of the truth on the reading. The dropdown marker now reports the protection instead: no marker for
+  a registered profile, **"— names protected"** when the novel's index holds terms, and
+  **"— universal rules only"** when it does not. The run log says the same thing in a sentence, and
+  is derived from the same loader as the term count, so the two can never disagree.
+- **The per-file completion line reports the edit count *and* the AI verdict**, where it used to
+  print one or the other: "done (AI accepted)" hid the count, and "done (7 edits)" was identical
+  whether the AI had been accepted, rejected, or never consulted. It now reads
+  "done (7 edits, AI accepted)" or "done (7 edits, script-only (AI rejected))".
+
+### Fixed — three approved models could not be called at all (pre-merge click-through)
+- **`openai/gpt-oss-20b` and `openai/gpt-oss-120b` failed every request with HTTP 400.** The Groq
+  adapter sent `reasoning_effort = "none"`, which is a qwen3-only value; the gpt-oss family accepts
+  only `low`, `medium` or `high`. Both models were approved, selectable and completely uncallable, and
+  a whole batch degraded silently to script-only. Now sent as `low` — the family's minimum — verified
+  against Groq's own reference and by a live probe. A regression test pins the constant rather than
+  one call site.
+- **`gemini-2.5-flash` was removed from the approved model list.** Google returns HTTP 404 "no longer
+  available to new users" for it on this account. Note what did *not* catch it: the model is still
+  returned by `models.list()`, so the adapter's retirement check passed and `health_check()` reported
+  OK — being listed is not proof of being callable. Google's deprecation page names `gemini-3.6-flash`
+  and `gemini-3.1-flash-lite` as the replacements, both already approved, so nothing is lost.
+- **A lost provider now names its own cause in the run log.** One sentence — "AI provider unavailable"
+  — covered a withdrawn model, a refused key, an exhausted quota and a dropped connection, four
+  problems with four different fixes, while the batch finished quietly in script-only mode. The log
+  line now reads, e.g., "AI stopped — the chosen AI model is not available: Gemini does not offer
+  'gemini-2.5-flash' to this key (404 …). Remaining chapters will use deterministic output."
+
+### Fixed
+- **Gemini daily-quota exhaustion was misclassified as a per-minute limit**, so a run retried chapter
+  by chapter for ~35 minutes instead of checkpointing. The period is now read from the structured
+  `google.rpc.QuotaFailure` violations in the error body rather than from the length-bounded message,
+  which truncated before reaching the `quotaId`. `RetryInfo.retryDelay` now supplies an authoritative
+  wait. A provider-neutral escalation stops any run whose limit errors never name a period.
+- **25 extraction artifacts were removed from the Reverend Insanity index.** 76 of its 2,334 extracted
+  chapters lost their newlines as a literal "n", welding that letter onto the next word; the index
+  build counted the results honestly and protected `Butn`, `Thisn`, `Xiaon` and `Gun` — the last being
+  the novel's central concept plus a stray letter, which froze every ordinary "gun".
+- `gui.ai_settings` passed local-adapter constructor arguments to cloud adapters, which would have
+  crashed the first real cloud run at adapter construction (found and fixed in Phase 7a).
+
 ## v0.12.0 — 2026-07-24 — Optional Local AI Proofreading Pass (Plan 2a)
 
 **Status: released** — merged to `main` and tagged `v0.12.0` (the project's first release tag;

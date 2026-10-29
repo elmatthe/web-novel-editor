@@ -41,6 +41,7 @@ from core.edit_details import load_edit_details
 from core.novel_registry import NOVEL_INDEX_DIR, resolve_dispatch
 from core.protected_lexicon import load_protected_lexicon
 from core.replacement_log import ReplacementLog
+from core.run_manifest import RunCheckpoint
 from pdf.builder import build_pdf, detect_heading_only_pages
 from pdf.extractor import extract_text_from_pdf, is_low_confidence
 from utils.file_utils import debug_text_path, unique_output_path
@@ -63,6 +64,7 @@ def run_batch(
     stop_event: Optional[threading.Event] = None,
     ai_editor: AIEditor | None = None,
     use_ai_in_dry_run: bool = False,
+    checkpoint: RunCheckpoint | None = None,
     gui_log: Callable[..., None] | None = None,
     progress: Callable[[int], None] | None = None,
 ) -> dict:
@@ -95,6 +97,15 @@ def run_batch(
     the historical script-only path exact. Dry runs call it only when
     `use_ai_in_dry_run` is explicitly true.
 
+    `checkpoint` is one optional `RunCheckpoint` (Plan 2b Phase 5). None keeps the
+    historical path exact — nothing is written and no manifest appears. When present,
+    the run's state is written atomically into the output folder after EACH finished
+    file, so the app can be closed at any point and the run resumed later. The
+    recording call sits on the far side of `build_pdf` and its sidecars, so a
+    `completed` entry always means the output exists; failed and skipped files are
+    recorded with their own status and still advance the queue, because a resumed run
+    must not retry a corrupt PDF forever. Dry runs write no manifest at all.
+
     Returns: {total, succeeded, failed, skipped, output_dir, outputs:[paths],
     novel, profile_applied} — the last two are the run's dispatch provenance (the
     resolved display name and whether a real per-novel profile ran vs. universal-only).
@@ -112,6 +123,8 @@ def run_batch(
     stopped = False
     outage_warned = False
     invoke_ai = ai_editor is not None and (not dry_run or use_ai_in_dry_run)
+    # A dry run writes no PDF and no output folder, so it writes no manifest either.
+    track = checkpoint if (checkpoint is not None and not dry_run) else None
 
     log(f"Starting batch: {total} file(s).", "accent")
     log(f"Output folder: {output_dir}", "muted")
@@ -126,6 +139,21 @@ def run_batch(
     # selected novel's <Novel-Name>.md is layered on top when it exists, else universal.
     details = load_edit_details(novel_name)
     log("Loaded universal editor rules (UNIVERSAL.md).", "muted")
+
+    # Load the protected lexicon once for the whole run (built-in names + user index).
+    index_path = (
+        str(NOVEL_INDEX_DIR / dispatch.index_filename) if dispatch.index_filename else ""
+    )
+    lexicon = load_protected_lexicon(index_path, dispatch.canonical_names)
+    term_count = len(lexicon.terms)
+    log(f"Loaded {term_count} protected term(s) for "
+        f"{dispatch.display_name}.", "muted")
+
+    # The profile line comes AFTER the lexicon on purpose: it must be able to say whether
+    # the novel's names are protected, and "has a profile" and "has protected names" are
+    # two independent facts that this line used to collapse into one. Saying "no
+    # novel-specific profile — universal-only editing" for a novel carrying 1,429
+    # protected terms was technically true and read as the exact opposite of the truth.
     if dispatch.has_profile:
         layer = details.novel_path.name if details.novel_path else "built-in profile"
         log(f"Applied novel-specific editing layer for "
@@ -135,17 +163,13 @@ def run_batch(
         # Plan 1 Phase 3) — not a novel that happens to lack a profile.
         log("Universal editing selected — applying the standard universal-only "
             "editing (no novel-specific layer).", "muted")
+    elif term_count:
+        log(f"No novel-specific fix-up rules for '{selected_label}' — universal "
+            f"editing rules apply, and its {term_count} protected name(s) are "
+            f"preserved.", "muted")
     else:
-        log(f"No novel-specific profile for '{selected_label}' — "
-            f"universal-only editing.", "muted")
-
-    # Load the protected lexicon once for the whole run (built-in names + user index).
-    index_path = (
-        str(NOVEL_INDEX_DIR / dispatch.index_filename) if dispatch.index_filename else ""
-    )
-    lexicon = load_protected_lexicon(index_path, dispatch.canonical_names)
-    log(f"Loaded {len(lexicon.terms)} protected term(s) for "
-        f"{dispatch.display_name}.", "muted")
+        log(f"No novel-specific fix-up rules and no protected names for "
+            f"'{selected_label}' — universal editing rules only.", "muted")
     # Condensed log (v0.11.0): the pipeline's verbose per-stage chatter stays out of
     # the GUI (the JSONL carries the detail); its "⚠" integrity warnings (e.g. CDN
     # error pages, DECISIONS #005) must still surface loudly.
@@ -216,6 +240,8 @@ def run_batch(
                 skipped += 1
                 skipped_files.append((name, "not found"))
                 log(f"[{i}/{total}] {name} — skipped (not found)", "warn")
+                if track is not None:
+                    track.record_skipped(src, "not found")
                 continue
 
             text = extract_text_from_pdf(src)
@@ -224,6 +250,8 @@ def run_batch(
                 skipped += 1
                 skipped_files.append((name, "image-only/empty"))
                 log(f"[{i}/{total}] {name} — skipped (image-only/empty)", "warn")
+                if track is not None:
+                    track.record_skipped(src, "image-only/empty")
                 continue
 
             # Run the selected novel's editorial pipeline. The ReplacementLog is now
@@ -274,9 +302,13 @@ def run_batch(
                     and ai_editor.run_state is ProviderRunState.UNAVAILABLE
                 ):
                     outage_warned = True
+                    # Name the actual cause. A batch that quietly finishes script-only is
+                    # the hardest failure to notice, and one generic sentence for a
+                    # retired model, a refused key, an exhausted quota and a dropped
+                    # connection told the user nothing about which of them to fix.
                     log(
-                        "        ⚠ AI provider unavailable — remaining chapters will "
-                        "use deterministic output.",
+                        f"        ⚠ AI stopped — {ai_editor.unavailable_description} "
+                        f"Remaining chapters will use deterministic output.",
                         "warn",
                     )
                 repl_log.record_audit(
@@ -300,8 +332,22 @@ def run_batch(
                 1 for e in repl_log.entries if e.category != "integrity_flag"
             )
             edits_label = f"{edits} edit" + ("" if edits == 1 else "s")
-            if ai_outcome is not None and ai_outcome.used_ai and edits == 0:
-                edits_label = "AI accepted"
+            # The edit count and the AI verdict are two different facts, and the line
+            # used to print one OR the other: an accepted AI pass that changed nothing
+            # read as "done (AI accepted)" with no count, while an accepted AI pass that
+            # DID change something read as "done (7 edits)" with no hint the AI was
+            # involved — and a rejected one read exactly the same. Both are always shown
+            # now, so a reader can tell what actually happened to every file.
+            if ai_outcome is not None:
+                if ai_outcome.used_ai:
+                    edits_label += ", AI accepted"
+                elif ai_outcome.fallback_used:
+                    cause = (
+                        "AI unavailable"
+                        if ai_editor.run_state is ProviderRunState.UNAVAILABLE
+                        else "AI rejected"
+                    )
+                    edits_label += f", script-only ({cause})"
 
             if dry_run:
                 log(f"[{i}/{total}] {name} — done (dry run, {edits_label})", "info")
@@ -355,6 +401,16 @@ def run_batch(
                 with open(dbg, "w", encoding="utf-8") as fh:
                     fh.write(text)
 
+            # Checkpoint LAST, on the far side of the PDF and its sidecars: a
+            # `completed` entry must always mean the output really exists, so a
+            # resumed run never skips a chapter it never wrote.
+            if track is not None:
+                track.record_completed(
+                    src,
+                    out_path,
+                    ai_status=(ai_outcome.status if ai_outcome is not None else "none"),
+                )
+
             succeeded += 1
 
         except Exception as exc:  # continue-on-failure: never abort the batch
@@ -362,8 +418,21 @@ def run_batch(
             reason = f"{type(exc).__name__}: {exc}"
             failed_files.append((name, reason))
             log(f"[{i}/{total}] {name} — FAILED ({reason})", "error")
+            # Recorded as failed, and the queue still advances — otherwise a resumed
+            # run would retry the same corrupt PDF forever.
+            if track is not None:
+                try:
+                    track.record_failed(src, reason)
+                except Exception:  # a checkpoint fault must not hide the real failure
+                    log(f"        ⚠ could not update the run manifest for {name}.",
+                        "warn")
         finally:
             tick(i)
+
+    if track is not None:
+        # A run that consumed its queue is marked complete and is never offered for
+        # resume; a stopped one stays resumable from exactly here.
+        track.finish(stopped=stopped)
 
     summary = {
         "total": total,

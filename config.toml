@@ -1,7 +1,7 @@
 # Committed application defaults. This file must never contain credentials.
 [project]
 name = "Web Novel Editor"
-version = "0.12.0"
+version = "0.13.0"
 python_minimum = "3.10"
 
 [ai]
@@ -30,3 +30,265 @@ seed = 0
 protection_strategy = "mask"
 prompt_version = "1"
 gate_version = "1"
+
+# ---------------------------------------------------------------------------
+# Cloud providers (Plan 2b Phase 1) — SECRET-FREE SETTINGS ONLY
+# ---------------------------------------------------------------------------
+# No API key belongs in this file, ever. Keys are read from the GEMINI_API_KEY /
+# GROQ_API_KEY environment variables, or from secrets.json in the per-user application
+# data directory (%LOCALAPPDATA%/WebNovelEditor on Windows) — never from the repo.
+#
+# Both providers ship `enabled = false` and `model = ""`. An empty model is deliberate:
+# the Plan 2b Phase 7 comparison run chooses the default, so nothing pre-selects a cloud
+# model before that evidence exists. Until one is chosen the provider reports
+# "no model selected" rather than guessing.
+#
+# `strict_free_tier_only = true` is the safety default. With it on, only approved models
+# that are `status = "stable"` AND `free_tier_confidence = "confirmed"` may be called;
+# anything `unknown`, `not-free`, or preview is refused outright.
+#
+# `exposes_rate_limits` records which provider actually returns rate-limit headers, and
+# the two differ (Phase 0 correction #4): Groq returns retry-after plus
+# x-ratelimit-{limit,remaining,reset}-{requests,tokens}; Google documents no equivalent,
+# so Gemini must run off a conservative configured floor. Phase 4 owns those floors.
+#
+# --- Phase 4 limiter floors (added 2026-07-25) ----------------------------------------
+# READ THIS BEFORE CHANGING A NUMBER BELOW. These are **client-side self-restraint**,
+# NOT a claim about what the provider's real limit is. They exist so the FIRST request
+# of a run cannot exceed a limit before any rate-limit header has been seen. Where a
+# provider returns real headers (Groq), a live header always wins over the floor here;
+# where it does not (Gemini), these are the only pacing evidence that exists, so they
+# are set well below anything published rather than at it. Nothing in the limiter code
+# contains a limit — every figure it uses comes from this file.
+#
+#   rpm_floor                requests/minute the client will not exceed unaided
+#                            (0 = no minimum interval)
+#   tpm_floor                tokens/minute the client will not exceed unaided
+#                            (0 = not modelled — the honest value when no figure exists)
+#   rate_limit_floor_seconds wait applied to a 429 that carries no usable number
+#   backoff_base_seconds     first transient-error backoff, doubled per attempt
+#   backoff_max_seconds      hard cap on any single backoff — no unbounded growth
+#   backoff_jitter_ratio     fraction of a backoff that is randomised (transients only)
+#   max_attempts             total attempts per request, including the first
+#   max_wait_seconds         any wait longer than this is NOT slept: the run stops
+#                            cleanly through the quota seam instead (Phase 5 resumes it)
+
+[ai.gemini]
+enabled = false
+model = ""
+timeout_seconds = 120
+max_output_tokens = 4096
+strict_free_tier_only = true
+exposes_rate_limits = false
+billing_url = "https://aistudio.google.com/app/plan_information"
+limits_url = "https://ai.google.dev/gemini-api/docs/rate-limits"
+# Gemini's free quota is unknowable from documentation (Phase 0 correction #2, re-confirmed
+# Phase 2 finding #10) and Google returns no rate-limit headers at all, so there is no
+# number to read and none may be invented. 10 RPM is a deliberately cautious chosen pace,
+# not a published limit. tpm_floor is 0 because no token figure exists to base one on —
+# guessing one would be exactly the invention this plan forbids.
+rpm_floor = 10
+tpm_floor = 0
+rate_limit_floor_seconds = 30
+backoff_base_seconds = 2
+backoff_max_seconds = 60
+backoff_jitter_ratio = 0.3
+max_attempts = 3
+max_wait_seconds = 900
+# A run must not spend forever retrying a 429 that never says WHICH limit it is. After
+# this many seconds of unexplained limit errors with no successful request in between,
+# the limiter stops cleanly and checkpoints instead of guessing "per minute" again. Set
+# to 0 to disable. Phase 7b measured ~35 minutes of futile Gemini calls without it.
+unnamed_limit_escalation_seconds = 600
+# A per-DAY quota that arrives with a SHORT authoritative `RetryInfo.retryDelay`.
+# Google enforces its free-tier requests-per-day allowance as a refilling window: a 429
+# names `GenerateRequestsPerDayPerProjectPerModel-FreeTier` (genuinely per-day) and in
+# the same body says "Please retry in 53s" — and retrying then really does succeed.
+# Captured live 2026-07-27, 11 consecutive 429s, retryDelay 2-55 s (DECISIONS #072).
+# DECISIONS #069 splits waits "by duration, not by error code"; this is the number that
+# makes the implementation honour that. A per-day quota whose own retryDelay is at or
+# under this many seconds is WAITED, not checkpointed. Anything longer, or a per-day
+# quota carrying no retryDelay at all, still checkpoints and stops exactly as before.
+# Set to 0 to disable and always checkpoint on a daily quota.
+daily_quota_retry_delay_max_seconds = 120
+
+[ai.groq]
+enabled = false
+model = ""
+timeout_seconds = 120
+max_output_tokens = 4096
+strict_free_tier_only = true
+exposes_rate_limits = true
+billing_url = "https://console.groq.com/settings/billing"
+limits_url = "https://console.groq.com/settings/limits"
+# Groq publishes per-model free-plan limits and returns live headers, so these floors only
+# govern the opening request of a run and any response whose headers were missing or
+# unreadable. Both are set below the smallest documented free-plan figure across the four
+# approved models (reviewed 2026-07-25) so no model can be paced past its own limit before
+# a header arrives; the header always wins afterwards.
+rpm_floor = 15
+tpm_floor = 5000
+rate_limit_floor_seconds = 30
+backoff_base_seconds = 2
+backoff_max_seconds = 60
+backoff_jitter_ratio = 0.3
+max_attempts = 3
+max_wait_seconds = 900
+# A run must not spend forever retrying a 429 that never says WHICH limit it is. After
+# this many seconds of unexplained limit errors with no successful request in between,
+# the limiter stops cleanly and checkpoints instead of guessing "per minute" again. Set
+# to 0 to disable. Phase 7b measured ~35 minutes of futile Gemini calls without it.
+unnamed_limit_escalation_seconds = 600
+# 0 = OFF for Groq, deliberately. Groq's daily ceiling is tokens-per-day and it latches
+# correctly today: Phase 7b watched it refuse every subsequent chapter in 0.0 s with no
+# network call, which is the intended behaviour. Groq does not send a short retryDelay
+# on a TPD exhaustion, and nothing here should invite it to start being waited on.
+daily_quota_retry_delay_max_seconds = 0
+
+# ---------------------------------------------------------------------------
+# Approved cloud models (Plan 2b Phase 0 — reviewed 2026-07-24)
+# ---------------------------------------------------------------------------
+# Reviewed records replace runtime "pick the newest model" selection. Each entry is an
+# EXACT model ID — never a `latest`-style alias, which can hot-swap onto a preview model.
+#
+# WHAT THIS LIST IS: a conservative guard against *accidentally* calling something
+# expensive or retired. It is user-editable TOML, so it is NOT a security or billing
+# boundary and must never be described as one.
+#
+# `free_tier_confidence` records only whether the provider's own documentation states the
+# model is free of charge. It says NOTHING about quota size — see the per-provider notes
+# below. Code must not read any number out of the comments in this file.
+#
+# fields: id, provider, status, context_limit, output_limit, reviewed_on, source_url,
+#         free_tier_confidence (confirmed | unknown | not-free), pilot_status
+#
+# --- Gemini, reviewed 2026-07-24 ------------------------------------------------------
+# QUOTA IS UNKNOWN AND UNPUBLISHED. Google's own rate-limits page no longer prints a
+# free-tier RPM/TPM/RPD table; it states rate limits "can be viewed in Google AI Studio"
+# and are applied PER PROJECT, not per API key. RPD quotas reset at midnight Pacific.
+# Treat every free-tier Gemini number found on a third-party site as unverified.
+# Free-of-charge status below comes from Google's own pricing page ("Free of charge",
+# Standard tier). Preview models are deliberately excluded even when priced free.
+# Gemini does not document response rate-limit headers, so capabilities for this provider
+# should report exposes_rate_limits = false and rely on a conservative configured floor.
+
+[[ai.approved_models]]
+id = "gemini-3.6-flash"
+provider = "gemini"
+status = "stable"
+context_limit = 1048576
+output_limit = 65536
+reviewed_on = "2026-07-24"
+source_url = "https://ai.google.dev/gemini-api/docs/models/gemini-3.6-flash"
+free_tier_confidence = "confirmed"
+pilot_status = "not-piloted"
+
+[[ai.approved_models]]
+id = "gemini-3.5-flash"
+provider = "gemini"
+status = "stable"
+context_limit = 1048576
+output_limit = 65536
+reviewed_on = "2026-07-24"
+source_url = "https://ai.google.dev/gemini-api/docs/models/gemini-3.5-flash"
+free_tier_confidence = "confirmed"
+pilot_status = "not-piloted"
+
+[[ai.approved_models]]
+id = "gemini-3.5-flash-lite"
+provider = "gemini"
+status = "stable"
+context_limit = 1048576
+output_limit = 65536
+reviewed_on = "2026-07-24"
+source_url = "https://ai.google.dev/gemini-api/docs/models/gemini-3.5-flash-lite"
+free_tier_confidence = "confirmed"
+pilot_status = "not-piloted"
+
+[[ai.approved_models]]
+id = "gemini-3.1-flash-lite"
+provider = "gemini"
+status = "stable"
+context_limit = 1048576
+output_limit = 65536
+reviewed_on = "2026-07-24"
+source_url = "https://ai.google.dev/gemini-api/docs/models/gemini-3.1-flash-lite"
+free_tier_confidence = "confirmed"
+pilot_status = "not-piloted"
+
+# --- RETIRED, removed 2026-07-27 ------------------------------------------------------
+# `gemini-2.5-flash` was an approved record until 2026-07-27. It is NOT callable and the
+# record has been removed rather than left to fail at the first chapter of a real batch.
+#
+# What the provider actually says, from a one-request probe on this account:
+#   HTTP 404 NOT_FOUND — "This model models/gemini-2.5-flash is no longer available to
+#   new users. Please update your code to use a newer model."
+#
+# Note what does NOT catch this: the model is still returned by `models.list()`, so the
+# adapter's retirement check (`ensure_model_available`) passes and `health_check()`
+# reports OK. Google keeps listing it for the accounts that already had it. Availability
+# on the *list* is therefore not proof of callability, and only a real request tells the
+# truth. Google's own deprecation page schedules the 2.5-flash family for shutdown and
+# names `gemini-3.6-flash` / `gemini-3.1-flash-lite` as the replacements — both of which
+# are already approved below, so nothing is lost by removing this record.
+#
+# Do not re-add it without a fresh probe. Adding a record is a review commitment.
+
+# --- Groq, reviewed 2026-07-24 --------------------------------------------------------
+# Groq DOES publish free-plan limits per model, and they apply at the ORGANIZATION level,
+# not per API key. Observed 2026-07-24 (recorded for Phase 4 sizing only — not config):
+#   llama-3.3-70b-versatile   30 RPM / 1K RPD / 12K TPM / 100K TPD
+#   llama-3.1-8b-instant      30 RPM / 14.4K RPD / 6K TPM / 500K TPD
+#   openai/gpt-oss-120b       30 RPM / 1K RPD / 8K TPM / 200K TPD
+#   openai/gpt-oss-20b        30 RPM / 1K RPD / 8K TPM / 200K TPD
+# TOKENS-PER-DAY BINDS LONG BEFORE REQUESTS-PER-DAY for this workload, and on some models
+# TPM is smaller than a single chapter round-trip. Phase 4/6 must treat TPM/TPD as the
+# binding constraint and the ETA must say so. Groq returns retry-after plus
+# x-ratelimit-{limit,remaining,reset}-{requests,tokens}, so its capabilities should report
+# exposes_rate_limits = true.
+# Groq offers NO Qwen model in its production lineup as of this review.
+# Whisper (audio) and groq/compound (agentic system) are excluded as out-of-contract.
+
+[[ai.approved_models]]
+id = "llama-3.3-70b-versatile"
+provider = "groq"
+status = "stable"
+context_limit = 131072
+output_limit = 32768
+reviewed_on = "2026-07-24"
+source_url = "https://console.groq.com/docs/models"
+free_tier_confidence = "confirmed"
+pilot_status = "not-piloted"
+
+[[ai.approved_models]]
+id = "llama-3.1-8b-instant"
+provider = "groq"
+status = "stable"
+context_limit = 131072
+output_limit = 131072
+reviewed_on = "2026-07-24"
+source_url = "https://console.groq.com/docs/models"
+free_tier_confidence = "confirmed"
+pilot_status = "not-piloted"
+
+[[ai.approved_models]]
+id = "openai/gpt-oss-120b"
+provider = "groq"
+status = "stable"
+context_limit = 131072
+output_limit = 65536
+reviewed_on = "2026-07-24"
+source_url = "https://console.groq.com/docs/models"
+free_tier_confidence = "confirmed"
+pilot_status = "not-piloted"
+
+[[ai.approved_models]]
+id = "openai/gpt-oss-20b"
+provider = "groq"
+status = "stable"
+context_limit = 131072
+output_limit = 65536
+reviewed_on = "2026-07-24"
+source_url = "https://console.groq.com/docs/models"
+free_tier_confidence = "confirmed"
+pilot_status = "not-piloted"

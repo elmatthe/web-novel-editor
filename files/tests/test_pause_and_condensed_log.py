@@ -19,7 +19,7 @@ Contracts pinned here:
   - verbose pipeline detail stays out of the GUI log (JSONL only); pipeline "⚠"
     integrity warnings (error pages) still surface as warnings.
   - the explicit "Universal" selection logs an intentional-choice line, not
-    "No novel-specific profile for 'Universal'".
+    "No novel-specific fix-up rules for 'Universal'".
 """
 
 from __future__ import annotations
@@ -342,17 +342,17 @@ def test_universal_selection_logs_intentional_choice(tmp_path, monkeypatch):
 
     assert "Universal editing selected" in text
     assert "universal-only editing" in text          # phrase other tests rely on
-    assert "No novel-specific profile for 'Universal'" not in text
+    assert "No novel-specific fix-up rules for 'Universal'" not in text
     assert summary["profile_applied"] is False
 
 
 def test_profileless_novel_keeps_no_profile_line(tmp_path, monkeypatch):
-    """A genuinely profile-less novel still gets the honest "no profile" wording."""
+    """A genuinely bare novel — no profile AND no indexed names — says exactly that."""
     monkeypatch.setattr(batch_runner, "extract_text_from_pdf", lambda _p: _LONG_TEXT)
     paths = _stub_pdfs(tmp_path, ["a.pdf"])
 
     logs, _ = _run(paths, tmp_path, dry_run=True, novel_name="Lord of the Mysteries")
     text = " ".join(_messages(logs))
 
-    assert "No novel-specific profile for 'Lord of the Mysteries'" in text
-    assert "universal-only editing" in text
+    assert "No novel-specific fix-up rules and no protected names for "            "'Lord of the Mysteries'" in text
+    assert "universal editing rules only" in text

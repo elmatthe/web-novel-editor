@@ -1,12 +1,16 @@
 """Tkinter main window and all GUI logic.
 
-This is the single-window UI: a two-mode Input card (Upload PDFs / Select Folder),
-three option checkboxes, an optional AI editorial pass card, a log widget, a progress
-bar, and Run + Pause/Continue/Stop buttons (pause and stop are honored between files —
-the current file always finishes). The output
-location is not user-chosen (v0.11.0): every batch writes into a fresh auto-numbered
-`Downloads\\<novel>-x` folder — flat in upload mode, mirroring the selected folder's
-structure in folder mode — with original filenames kept.
+This is the single-window UI, laid out in **two columns since v0.13.0**: the controls
+on the left (a two-mode Input card, three option checkboxes, an optional AI editorial
+pass card, a progress bar and Run + Pause/Continue/Stop buttons) and the log on the
+right, spanning their rows. It used to be one column with the log at the bottom, which
+meant the window had to be tall enough for every control *plus* the log — more than a
+1080p desktop offers — so the log and the status strip were clipped off the bottom.
+The log's content and its condensed one-line-per-file format are unchanged; only where
+it sits moved. Pause and stop are honored between files — the current file always
+finishes. The output location is not user-chosen (v0.11.0): every batch writes into a
+fresh auto-numbered `Downloads\\<novel>-x` folder — flat in upload mode, mirroring the
+selected folder's structure in folder mode — with original filenames kept.
 
 The AI card (Plan 2a Phase 7) is strictly opt-in and always comes up OFF, so an ordinary
 launch is deterministic script-only editing that constructs no provider and contacts no
@@ -32,12 +36,15 @@ import threading
 import time
 import tkinter as tk
 from pathlib import Path
+from types import SimpleNamespace
 from tkinter import filedialog, messagebox, ttk
 
+from ai.redaction import redact
 from core.batch_runner import run_batch
 from core.input_scanner import scan_folder
 from core.novel_registry import DEFAULT_NOVEL, available_novels, clean_novel_name
-from gui import ai_settings
+from core.run_manifest import RunCheckpoint, find_resumable_run
+from gui import ai_settings, cloud_ui
 from utils.file_utils import (
     downloads_dir,
     kebab_case,
@@ -78,28 +85,66 @@ PAD_S = 8
 PAD_M = 16
 PAD_L = 24
 
-MIN_WIDTH = 820
-# The fixed rows (header, novel, input, options, AI card, run controls, status strip)
-# measure a little over 1000px together; the log is the only row that flexes. The old
-# 700px minimum pre-dated the AI card and already pushed the Start button and status
-# strip off the bottom, so the minimum now clears them with room to spare, and every
-# pixel above it goes to the log. Pinned by a test, so a taller card fails the gate.
-MIN_HEIGHT = 1020
-# Opening height when the display allows it — the minimum plus a usable log.
-PREFERRED_HEIGHT = 1120
+# Two columns since v0.13.0: controls on the left, the log on the right.
+#
+# The log used to be a bottom row, which meant the window had to be tall enough for
+# every control *plus* the log — over 1200px — while a 1080p desktop offers roughly
+# 990px. `minsize` then overrode the screen-aware opening geometry and the log and the
+# status strip were simply clipped off the bottom. Moving the log sideways takes its
+# height out of the vertical budget entirely; it now grows horizontally instead, which
+# is where the spare room actually was.
+#
+# Both constants are pinned by tests: the controls' per-row heights must fit inside
+# MIN_HEIGHT, MIN_HEIGHT must fit a 1080p desktop, and both columns must fit inside
+# MIN_WIDTH.
+CONTROL_COLUMN_WIDTH = 780      # the left column's floor, so cards never get crushed
+LOG_COLUMN_WIDTH = 400          # the log's floor; everything above it goes to the log
+MIN_WIDTH = CONTROL_COLUMN_WIDTH + LOG_COLUMN_WIDTH + PAD_M + 2 * PAD_M
+MIN_HEIGHT = 960
+# Opening height when the display allows it. The log stretches to fill whatever the
+# window has, so there is no longer any reason to open taller than the controls need.
+PREFERRED_HEIGHT = 980
 
 
 def _novel_combo_width(roster: list[str]) -> int:
     """Character width (font-average units) for the novel dropdown.
 
     Sized from the *actual* roster so the longest label — e.g. "Circle of
-    Inevitability — no profile yet" — is never truncated in either the closed
+    Inevitability — universal rules only" — is never truncated in either the closed
     display or the open list, and so onboarding a longer novel name keeps the
     widget correct without a hand-tuned constant. The +2 leaves room beside the
     dropdown arrow.
     """
     longest = max((len(label) for label in roster), default=0)
     return longest + 2
+
+
+class _QuotaStopRelay:
+    """Passes Phase 4's quota stop to Phase 5's checkpoint, and then to the log.
+
+    The limiter takes one ``on_quota_stop`` callback and the checkpoint provides one, so
+    the GUI needs somewhere to hang its own line without either layer growing a second
+    callback. This is that somewhere: it is duck-typed exactly like a ``RunCheckpoint``
+    (``build_provider_factory`` only ever reads ``.on_quota_stop``), so neither
+    ``rate_limits.py`` nor ``run_manifest.py`` changes shape to accommodate it.
+
+    Order matters. The checkpoint writes the manifest and sets the stop event first, so
+    the run is already durably stopped before anything is drawn; the log line then
+    reports what happened. A logging fault can never cost the user the checkpoint.
+    """
+
+    def __init__(self, checkpoint, log):
+        self._checkpoint = checkpoint
+        self._log = log
+
+    def on_quota_stop(self, stop) -> None:
+        self._checkpoint.on_quota_stop(stop)
+        try:
+            record = stop.as_dict()
+        except Exception:  # pragma: no cover - defensive against a foreign object
+            record = {}
+        message, level = cloud_ui.quota_stop_message(record)
+        self._log(message, level)
 
 
 class WebnovelEditorApp(tk.Tk):
@@ -140,6 +185,7 @@ class WebnovelEditorApp(tk.Tk):
             self.ai_prefs = ai_settings.load_ai_preferences()
         except Exception:
             self.ai_prefs = {"enabled": False, "model": "",
+                             "provider": cloud_ui.local_provider(),
                              "policy": ai_settings.DEFAULT_POLICY}
 
         self._init_fonts()
@@ -230,11 +276,13 @@ class WebnovelEditorApp(tk.Tk):
     def _build_ui(self) -> None:
         root = ttk.Frame(self, style="TFrame", padding=PAD_M)
         root.pack(fill="both", expand=True)
-        root.columnconfigure(0, weight=1)
-        # The log row expands; everything else is fixed height. The log sits at the
-        # bottom (above only the thin status strip), with the run controls above it —
-        # mirroring the sibling web-novel-scraper's layout (Phase 7). No output-folder
-        # card since v0.11.0: output goes to an auto-numbered Downloads folder.
+        # Column 0 holds the controls at their natural size and never flexes, so no
+        # card can be squeezed however the window is resized. Column 1 is the log, and
+        # it takes every pixel of horizontal slack. Row 6 is an empty spacer that takes
+        # the vertical slack on the left, which lets the log stretch through its
+        # rowspan without stretching any control.
+        root.columnconfigure(0, weight=0, minsize=CONTROL_COLUMN_WIDTH)
+        root.columnconfigure(1, weight=1, minsize=LOG_COLUMN_WIDTH)
         root.rowconfigure(6, weight=1)
 
         self._build_header(root, row=0)
@@ -243,7 +291,7 @@ class WebnovelEditorApp(tk.Tk):
         self._build_options_panel(root, row=3)
         self._build_ai_panel(root, row=4)
         self._build_run_row(root, row=5)
-        self._build_log_panel(root, row=6)
+        self._build_log_panel(root, row=1, column=1, rowspan=6)
         self._build_status_bar(root, row=7)
 
         self._refresh_status()
@@ -252,7 +300,7 @@ class WebnovelEditorApp(tk.Tk):
 
     def _build_header(self, parent: ttk.Frame, row: int) -> None:
         header = ttk.Frame(parent, style="Header.TFrame")
-        header.grid(row=row, column=0, sticky="ew", pady=(0, PAD_M))
+        header.grid(row=row, column=0, columnspan=2, sticky="ew", pady=(0, PAD_M))
         ttk.Label(header, text="Web Novel Editor", style="Title.TLabel").pack(anchor="w")
         ttk.Label(
             header,
@@ -292,8 +340,10 @@ class WebnovelEditorApp(tk.Tk):
         ttk.Label(
             frame,
             text="Universal applies the standard cleanup to any novel. Choosing a novel "
-                 "layers its specific edits on top; novels marked “no profile yet” "
-                 "run the same universal cleanup until a profile is added.",
+                 "layers its own specific edits on top. “Names protected” means the "
+                 "novel has no extra edits of its own yet, but its names and places are "
+                 "still kept exactly as written; “universal rules only” means it has "
+                 "neither yet.",
             style="PathValue.TLabel", wraplength=720, justify="left",
         ).grid(row=1, column=0, columnspan=2, sticky="w", pady=(PAD_S, 0))
 
@@ -327,7 +377,7 @@ class WebnovelEditorApp(tk.Tk):
         list_wrap.columnconfigure(0, weight=1)
 
         self.file_listbox = tk.Listbox(
-            list_wrap, selectmode=tk.EXTENDED, height=6, activestyle="none",
+            list_wrap, selectmode=tk.EXTENDED, height=4, activestyle="none",
             bg=PANEL_BG, fg=TEXT_BODY, font=self.font_body, relief="solid",
             borderwidth=1, highlightthickness=1, highlightbackground=BORDER,
             highlightcolor=ACCENT, selectbackground=ACCENT, selectforeground="#ffffff",
@@ -368,18 +418,23 @@ class WebnovelEditorApp(tk.Tk):
         self.opt_debug_text = tk.BooleanVar(value=False)
         self.opt_dry_run = tk.BooleanVar(value=False)
 
+        # Two columns rather than three stacked rows: the same three options, one row
+        # of height cheaper. Every pixel here is one the Start button was being pushed
+        # down by.
+        frame.columnconfigure(0, weight=1)
+        frame.columnconfigure(1, weight=1)
         ttk.Checkbutton(
-            frame, text="Write replacement log (JSONL alongside each output PDF)",
+            frame, text="Write replacement log (JSONL beside each PDF)",
             variable=self.opt_replacement_log,
-        ).pack(anchor="w")
+        ).grid(row=0, column=0, sticky="w")
         ttk.Checkbutton(
-            frame, text="Save intermediate cleaned text (DEBUG_<name>.txt for inspection)",
-            variable=self.opt_debug_text,
-        ).pack(anchor="w", pady=(PAD_S, 0))
-        ttk.Checkbutton(
-            frame, text="Dry run (run full text pipeline, skip PDF output)",
+            frame, text="Dry run (full text pipeline, no PDF output)",
             variable=self.opt_dry_run,
-        ).pack(anchor="w", pady=(PAD_S, 0))
+        ).grid(row=0, column=1, sticky="w", padx=(PAD_M, 0))
+        ttk.Checkbutton(
+            frame, text="Save intermediate cleaned text (DEBUG_<name>.txt)",
+            variable=self.opt_debug_text,
+        ).grid(row=1, column=0, columnspan=2, sticky="w", pady=(PAD_S, 0))
 
     # -- AI editorial pass ------------------------------------------------------
     def _build_ai_panel(self, parent: ttk.Frame, row: int) -> None:
@@ -392,7 +447,7 @@ class WebnovelEditorApp(tk.Tk):
         frame = ttk.Labelframe(parent, text="AI Editorial Pass (optional)",
                                style="Card.TLabelframe", padding=(PAD_M, PAD_S))
         frame.grid(row=row, column=0, sticky="ew", pady=(0, PAD_M))
-        frame.columnconfigure(3, weight=1)
+        frame.columnconfigure(4, weight=1)
 
         self.opt_ai_enabled = tk.BooleanVar(value=False)
         self.opt_ai_dry_run = tk.BooleanVar(value=False)
@@ -400,35 +455,64 @@ class WebnovelEditorApp(tk.Tk):
         self.ai_policy_var = tk.StringVar(
             value=str(self.ai_prefs.get("policy", ai_settings.DEFAULT_POLICY)))
         self.ai_status_var = tk.StringVar(value="")
+        # Provider selection (Plan 2b Phase 6). The rows themselves — including which
+        # ones may be picked and the plain sentence explaining any that may not — are
+        # decided in `gui.cloud_ui`; this widget only renders them.
+        self._provider_options: tuple = ()
+        self._provider_labels: dict[str, str] = {}
+        self._provider_by_label: dict[str, str] = {}
+        # Which provider the model dropdown's current values belong to. See
+        # `_refresh_model_choices` — this is what stops one provider's models being
+        # left on screen after a switch to another.
+        self._model_choices_provider: str | None = None
+        self._ai_provider = str(
+            self.ai_prefs.get("provider") or cloud_ui.local_provider())
+        self.ai_provider_var = tk.StringVar(value="")
 
         self.ai_enable_check = ttk.Checkbutton(
             frame,
-            text="Run an AI proofreading pass after the scripted editing "
-                 "(stays on this computer)",
+            text="Run an AI proofreading pass after the scripted editing",
             variable=self.opt_ai_enabled, command=self._on_ai_toggled,
         )
-        self.ai_enable_check.grid(row=0, column=0, columnspan=3, sticky="w")
+        self.ai_enable_check.grid(row=0, column=0, columnspan=4, sticky="w")
         self.ai_check_button = ttk.Button(frame, text="Check service",
                                           command=self._check_ai_service)
-        self.ai_check_button.grid(row=0, column=3, sticky="e")
+        self.ai_check_button.grid(row=0, column=4, sticky="e")
+
+        ttk.Label(frame, text="Provider:", style="Panel.TLabel").grid(
+            row=1, column=0, sticky="w", padx=(PAD_M, PAD_S), pady=(PAD_S, 0))
+        self.ai_provider_combo = ttk.Combobox(
+            frame, textvariable=self.ai_provider_var, values=[], state=tk.DISABLED,
+            font=self.font_body, width=26,
+        )
+        self.ai_provider_combo.grid(row=1, column=1, sticky="w", pady=(PAD_S, 0))
+        self.ai_provider_combo.bind("<<ComboboxSelected>>", self._on_ai_provider_changed)
+
+        # Cloud keys are entered here (Phase 6 gap-fill). One button acting on the
+        # selected provider, not two permanent ones: the keys stay entirely
+        # independent — separate storage entries, separate save and separate forget —
+        # and a second always-visible button would cost a card row for nothing.
+        self.ai_key_button = ttk.Button(frame, text="Key…",
+                                        command=self._open_key_dialog, width=6)
+        self.ai_key_button.grid(row=1, column=2, sticky="w",
+                                padx=(PAD_S, 0), pady=(PAD_S, 0))
 
         ttk.Label(frame, text="Model:", style="Panel.TLabel").grid(
-            row=1, column=0, sticky="w", padx=(PAD_M, PAD_S), pady=(PAD_S, 0))
-        # The dropdown *values* are still filled only from a live list_models(); no model
-        # tag is hardcoded in this UI. The pre-selected default text comes from the committed
-        # config.toml `[ai] model` (resolved in `self.ai_prefs`) — the Phase 8 pilot choice
-        # (DECISIONS #058) — so the roster reflects the service while the box pre-fills to the
-        # sane default, which the user can override.
+            row=1, column=3, sticky="e", padx=(PAD_M, PAD_S), pady=(PAD_S, 0))
+        # Local: the values are filled only from a live list of installed tags, and no
+        # model tag is hardcoded in this UI. Cloud: the values come from the reviewed
+        # [[ai.approved_models]] records and never from a live "list models" call — a
+        # list endpoint reports availability, not free-tier eligibility for this account.
         self.ai_model_combo = ttk.Combobox(
             frame, textvariable=self.ai_model_var, values=[], state=tk.DISABLED,
             font=self.font_body, width=28,
         )
-        self.ai_model_combo.grid(row=1, column=1, sticky="w", pady=(PAD_S, 0))
+        self.ai_model_combo.grid(row=1, column=4, sticky="w", pady=(PAD_S, 0))
         self.ai_model_combo.bind("<<ComboboxSelected>>", self._on_ai_model_changed)
 
         policy_wrap = ttk.Frame(frame, style="Panel.TFrame")
-        policy_wrap.grid(row=1, column=2, columnspan=2, sticky="w",
-                         padx=(PAD_L, 0), pady=(PAD_S, 0))
+        policy_wrap.grid(row=2, column=0, columnspan=4, sticky="w",
+                         padx=(PAD_M, 0), pady=(PAD_S, 0))
         ttk.Label(policy_wrap, text="If the AI is unavailable:",
                   style="Panel.TLabel").pack(side="left", padx=(0, PAD_S))
         self.ai_policy_radios = []
@@ -443,26 +527,253 @@ class WebnovelEditorApp(tk.Tk):
             radio.pack(side="left", padx=(0, PAD_M))
             self.ai_policy_radios.append(radio)
 
+        # The provider dropdown (Phase 6) needed a row of its own, so the dry-run
+        # checkbox shares the policy row rather than growing the card: the card's fixed
+        # height is pinned against MIN_HEIGHT by a test, and a taller window would push
+        # the Start button toward the bottom of a 1080p screen.
         self.ai_dry_run_check = ttk.Checkbutton(
-            frame, text="Also run the AI pass during a dry run (slower; writes no PDF)",
+            frame, text="Also use the AI in dry runs",
             variable=self.opt_ai_dry_run, state=tk.DISABLED,
         )
-        self.ai_dry_run_check.grid(row=2, column=0, columnspan=4, sticky="w",
-                                   padx=(PAD_M, 0), pady=(PAD_S, 0))
+        self.ai_dry_run_check.grid(row=2, column=4, sticky="e", pady=(PAD_S, 0))
 
         self.ai_status_label = ttk.Label(
             frame, textvariable=self.ai_status_var, style="Panel.TLabel",
             wraplength=760, justify="left",
         )
-        self.ai_status_label.grid(row=3, column=0, columnspan=4, sticky="w",
+        self.ai_status_label.grid(row=3, column=0, columnspan=5, sticky="w",
                                   pady=(PAD_S, 0))
 
+        self._refresh_provider_options()
         self._set_ai_status(ai_settings.STATUS_UNCHECKED)
         self._refresh_ai_children()
+
+    # -- provider selection -----------------------------------------------------
+    def _settings_file(self):
+        return ai_settings.default_settings_file()
+
+    def _refresh_provider_options(self) -> None:
+        """Re-read every provider's status. Pure policy — nothing is contacted."""
+        try:
+            options = cloud_ui.provider_options(
+                ai_table=self.ai_prefs,
+                selected=self._ai_provider,
+                model_id=self.ai_model_var.get().strip(),
+                settings_file=self._settings_file(),
+                **self._key_locations(),
+            )
+        except Exception:
+            # A broken config must never stop the panel rendering; the local path is
+            # always available and is what the app falls back to.
+            options = ()
+        if not options:
+            options = (cloud_ui.provider_option(cloud_ui.local_provider()),)
+
+        self._provider_options = options
+        # An unselectable row is still shown, with the marker and the reason, so the
+        # user learns *why* rather than finding a provider silently missing.
+        self._provider_labels = {
+            opt.provider: (opt.label if opt.selectable
+                           else f"{opt.label} — unavailable")
+            for opt in options
+        }
+        self._provider_by_label = {v: k for k, v in self._provider_labels.items()}
+        self.ai_provider_combo.configure(values=list(self._provider_labels.values()))
+        self.ai_provider_var.set(
+            self._provider_labels.get(self._ai_provider,
+                                      self._provider_labels[cloud_ui.local_provider()])
+        )
+        self._refresh_model_choices()
+
+    def _provider_option(self, name: str):
+        for option in self._provider_options:
+            if option.provider == name:
+                return option
+        return None
+
+    def _refresh_model_choices(self) -> None:
+        """Keep the model list owned by the provider it was built for.
+
+        The invariant: **a model list never outlives the provider it belongs to.** It
+        is enforced by remembering whose models are currently in the box, rather than
+        by clearing on every refresh — several callers refresh options for unrelated
+        reasons (a saved key, an accepted disclosure) and must not wipe a list the
+        local probe has just filled in.
+
+        Cloud values come from the reviewed records and are known immediately. Local
+        tags are only knowable by asking the service, so the honest interim list is
+        **empty** — never the previous provider's, which would leave a cloud model ID
+        selectable while the local provider is active.
+        """
+        if self._model_choices_provider == self._ai_provider:
+            return
+        self._model_choices_provider = self._ai_provider
+
+        if not cloud_ui.is_cloud_provider(self._ai_provider):
+            self.ai_model_combo.configure(values=[])
+            return
+        option = self._provider_option(self._ai_provider)
+        choices = list(option.models) if option is not None else []
+        self.ai_model_combo.configure(values=choices)
+        if self.ai_model_var.get().strip() not in choices:
+            self.ai_model_var.set(choices[0] if len(choices) == 1 else "")
+
+    def _on_ai_provider_changed(self, _event=None) -> None:
+        chosen = self._provider_by_label.get(self.ai_provider_var.get(), "")
+        option = self._provider_option(chosen)
+        if option is not None and not option.selectable:
+            # Refused, with the reason — never a silently ignored click.
+            self.ai_provider_var.set(self._provider_labels[self._ai_provider])
+            self._set_ai_status_text(option.reason, "warn")
+            self._log(option.reason, "warn")
+            return
+        if not chosen or chosen == self._ai_provider:
+            return
+        self._ai_provider = chosen
+        self.ai_model_var.set("")
+        self._refresh_provider_options()
+        self._persist_ai_choices()
+        if cloud_ui.is_cloud_provider(chosen):
+            self._publish_provider_status()
+            return
+        # Local: the installed tags have to be asked for. This is the same probe the
+        # opt-in checkbox already triggers — reused, not duplicated. Without it the
+        # model list only ever repopulated when the checkbox was toggled, which is
+        # what made switching back to the local provider look broken.
+        self._set_ai_status(ai_settings.STATUS_UNCHECKED)
+        self._check_ai_service()
+
+    # -- cloud API keys ---------------------------------------------------------
+    def _secrets_file(self):
+        """The per-user secrets location, from Phase 1. Never a path built here."""
+        from ai.secrets import default_secrets_file
+
+        return default_secrets_file()
+
+    def _key_locations(self) -> dict:
+        """Where keys are looked for, resolved here and passed on explicitly.
+
+        Phase 1's readers default these internally, which is right for production but
+        leaves the panel silently depending on module-level defaults it never named.
+        Resolving them once and handing them over — the same seam `_settings_file`
+        already provides — keeps every key lookup the panel makes pointed at one
+        agreed location.
+        """
+        from ai.secrets import DEFAULT_DOTENV_PATH
+
+        return {"secrets_file": self._secrets_file(), "dotenv_path": DEFAULT_DOTENV_PATH}
+
+    def _apply_key_entry(self, provider: str, key: str) -> None:
+        """Save one key and re-publish the provider's status.
+
+        The value is handed straight to Phase 1's storage and is never held, echoed,
+        or logged here — only the outcome sentence, which by construction contains no
+        key. The status afterwards comes from Phase 6's existing provider logic, so a
+        key saved in-app reads exactly like one found in an environment variable.
+        """
+        outcome = cloud_ui.save_key(provider, key, secrets_file=self._secrets_file())
+        self._log(outcome.message, outcome.level)
+        self._refresh_provider_options()
+        self._publish_provider_status()
+
+    def _forget_key(self, provider: str) -> None:
+        """Remove the saved copy of one key, so both storage paths can be tested."""
+        outcome = cloud_ui.forget_key(provider, secrets_file=self._secrets_file())
+        self._log(outcome.message, outcome.level)
+        self._refresh_provider_options()
+        self._publish_provider_status()
+
+    def _build_key_dialog(self, provider: str):
+        """Construct the masked key dialog. Returns a handle so tests can inspect it.
+
+        Deliberately thin: every decision (what to say, whether a saved key exists to
+        forget, which source currently wins) is `cloud_ui.key_prompt`'s.
+        """
+        prompt = cloud_ui.key_prompt(provider, **self._key_locations())
+        if prompt is None:
+            return None
+
+        window = tk.Toplevel(self)
+        window.title(prompt.title)
+        window.configure(bg=WINDOW_BG)
+        window.transient(self)
+        window.resizable(False, False)
+
+        body = ttk.Frame(window, style="TFrame", padding=PAD_M)
+        body.pack(fill="both", expand=True)
+        body.columnconfigure(0, weight=1)
+
+        ttk.Label(body, text=prompt.body, style="Panel.TLabel", wraplength=460,
+                  justify="left").grid(row=0, column=0, sticky="w")
+        ttk.Label(body, text=prompt.current, style="PathValue.TLabel", wraplength=460,
+                  justify="left").grid(row=1, column=0, sticky="w", pady=(PAD_S, 0))
+
+        # Masked while typing. The variable is local to this dialog and is cleared
+        # below as soon as the value has been handed to storage.
+        entry_var = tk.StringVar(value="")
+        entry = ttk.Entry(body, textvariable=entry_var, show="•", width=52,
+                          font=self.font_body)
+        entry.grid(row=2, column=0, sticky="ew", pady=(PAD_M, 0))
+        entry.focus_set()
+
+        buttons = ttk.Frame(body, style="TFrame")
+        buttons.grid(row=3, column=0, sticky="ew", pady=(PAD_M, 0))
+        buttons.columnconfigure(1, weight=1)
+
+        def _close() -> None:
+            entry_var.set("")
+            window.destroy()
+
+        def _save() -> None:
+            value = entry_var.get()
+            entry_var.set("")          # out of the widget before anything else runs
+            self._apply_key_entry(provider, value)
+            window.destroy()
+
+        def _forget() -> None:
+            self._forget_key(provider)
+            _close()
+
+        forget_button = ttk.Button(buttons, text="Forget saved key", command=_forget)
+        forget_button.grid(row=0, column=0, sticky="w")
+        if not prompt.can_forget:
+            forget_button.configure(state=tk.DISABLED)
+        ttk.Button(buttons, text="Cancel", command=_close).grid(
+            row=0, column=1, sticky="e", padx=(0, PAD_S))
+        ttk.Button(buttons, text="Save", style="Accent.TButton",
+                   command=_save).grid(row=0, column=2, sticky="e")
+
+        window.bind("<Return>", lambda _event: _save())
+        window.bind("<Escape>", lambda _event: _close())
+        window.protocol("WM_DELETE_WINDOW", _close)
+
+        return SimpleNamespace(window=window, entry=entry, prompt=prompt,
+                               save=_save, forget=_forget, cancel=_close)
+
+    def _open_key_dialog(self) -> None:
+        dialog = self._build_key_dialog(self._ai_provider)
+        if dialog is None:
+            return
+        dialog.window.grab_set()
+        dialog.window.wait_window()
+
+    def _publish_provider_status(self) -> None:
+        """Show the selected provider's own sentence, or fall back to the local flow."""
+        option = self._provider_option(self._ai_provider)
+        if option is None or not option.is_cloud:
+            self._set_ai_status(ai_settings.STATUS_UNCHECKED)
+            return
+        if option.ready:
+            message, level = ai_settings.describe_status(
+                option.status, model=self.ai_model_var.get().strip())
+            self._set_ai_status_text(message, level)
+        else:
+            self._set_ai_status_text(option.reason, option.level)
 
     def _current_ai_prefs(self) -> dict:
         """The resolved defaults with the panel's live choices layered on top."""
         prefs = dict(self.ai_prefs)
+        prefs["provider"] = self._ai_provider
         prefs["model"] = self.ai_model_var.get().strip()
         prefs["policy"] = self.ai_policy_var.get()
         return prefs
@@ -470,10 +781,16 @@ class WebnovelEditorApp(tk.Tk):
     def _refresh_ai_children(self, *, locked: bool = False) -> None:
         """Enable the AI controls only while the pass is on and no batch is running."""
         live = self.opt_ai_enabled.get() and not locked
-        self.ai_model_combo.configure(state="readonly" if live else tk.DISABLED)
+        for combo in (self.ai_model_combo, self.ai_provider_combo):
+            combo.configure(state="readonly" if live else tk.DISABLED)
         for widget in (self.ai_check_button, self.ai_dry_run_check,
                        *self.ai_policy_radios):
             widget.configure(state=tk.NORMAL if live else tk.DISABLED)
+        # Only a cloud provider has a key to enter.
+        self.ai_key_button.configure(
+            state=tk.NORMAL
+            if live and cloud_ui.is_cloud_provider(self._ai_provider)
+            else tk.DISABLED)
 
     def _set_ai_controls_running(self, running: bool) -> None:
         self.ai_enable_check.configure(state=tk.DISABLED if running else tk.NORMAL)
@@ -483,6 +800,15 @@ class WebnovelEditorApp(tk.Tk):
         """Show one provider state verbatim — never a flattened 'unavailable'."""
         message, level = ai_settings.describe_status(
             status, model=self.ai_model_var.get().strip())
+        self._set_ai_status_text(message, level)
+
+    def _set_ai_status_text(self, message: str, level: str = "info") -> None:
+        """Publish a status sentence that already reads as plain English.
+
+        Cloud readiness produces its own exact sentence (which key is missing, which
+        model is not approved, that consent is outstanding), so there is nothing for
+        this layer to re-word — it would only blur it.
+        """
         self.ai_status_var.set(message)
         self.ai_status_label.configure(
             foreground=LEVEL_COLORS.get(level, TEXT_BODY))
@@ -490,6 +816,10 @@ class WebnovelEditorApp(tk.Tk):
     def _on_ai_toggled(self) -> None:
         self._refresh_ai_children()
         if self.opt_ai_enabled.get():
+            self._refresh_provider_options()
+            if cloud_ui.is_cloud_provider(self._ai_provider):
+                self._publish_provider_status()
+                return
             self._log("AI editorial pass on — checking the local AI service…", "info")
             self._check_ai_service()
         else:
@@ -498,6 +828,12 @@ class WebnovelEditorApp(tk.Tk):
 
     def _on_ai_model_changed(self, _event=None) -> None:
         self._persist_ai_choices()
+        if cloud_ui.is_cloud_provider(self._ai_provider):
+            # A cloud model choice changes readiness (consent, approval), not service
+            # health — and nothing is contacted until the run actually starts.
+            self._refresh_provider_options()
+            self._publish_provider_status()
+            return
         self._set_ai_status(ai_settings.STATUS_UNCHECKED)
         self._check_ai_service()
 
@@ -516,9 +852,22 @@ class WebnovelEditorApp(tk.Tk):
 
     def _check_ai_service(self) -> None:
         """Ask the provider for its real health and installed models, off the UI
-        thread (it talks to the local service and can block up to the timeout)."""
+        thread (it talks to the service and can block up to the timeout).
+
+        For a cloud provider this is refused until every rail is already satisfied.
+        Listing models sends no chapter text, but contacting a company the user has not
+        yet consented to talk to — before the disclosure has even been shown — is not
+        the app's call to make. Until then the panel reports the readiness reason, which
+        is the thing the user actually has to act on anyway.
+        """
         if not self.opt_ai_enabled.get() or self._running:
             return
+        if cloud_ui.is_cloud_provider(self._ai_provider):
+            self._refresh_provider_options()
+            option = self._provider_option(self._ai_provider)
+            if option is None or not option.ready:
+                self._publish_provider_status()
+                return
         prefs = self._current_ai_prefs()
         self.ai_check_button.configure(state=tk.DISABLED)
 
@@ -529,20 +878,48 @@ class WebnovelEditorApp(tk.Tk):
         threading.Thread(target=worker, daemon=True).start()
 
     def _apply_probe(self, probe) -> None:
-        """Publish one probe result: the installed tags, and the provider's status."""
-        self.ai_model_combo.configure(values=list(probe.models))
-        self._set_ai_status(probe.status)
+        """Publish one probe result: the available models, and the provider's status."""
+        if cloud_ui.is_cloud_provider(self._ai_provider):
+            # A live list is availability, not eligibility: it is used only to detect a
+            # retired model, never to widen what the picker offers.
+            self._refresh_provider_options()
+            option = cloud_ui.provider_option(
+                self._ai_provider,
+                ai_table=self.ai_prefs,
+                model_id=self.ai_model_var.get().strip(),
+                settings_file=self._settings_file(),
+                discovered_ids=tuple(probe.models),
+                **self._key_locations(),
+            )
+            self._set_ai_status_text(
+                option.reason or ai_settings.describe_status(
+                    option.status, model=self.ai_model_var.get().strip())[0],
+                option.level,
+            )
+        else:
+            self.ai_model_combo.configure(values=list(probe.models))
+            self._set_ai_status(probe.status)
         self._refresh_ai_children(locked=self._running)
 
-    def _build_log_panel(self, parent: ttk.Frame, row: int) -> None:
+    def _build_log_panel(self, parent: ttk.Frame, row: int, *, column: int = 0,
+                         rowspan: int = 1) -> None:
+        """The log, as the right-hand column (v0.13.0).
+
+        It keeps the condensed one-line-per-file format exactly as Plan 1 Phase 4 set
+        it — this is a layout change only, and nothing about what gets written here or
+        how verbose it is has moved. What changed is that the log no longer competes
+        with the controls for vertical space: it spans their rows and takes the
+        horizontal slack, so it can show more lines than it ever could at the bottom.
+        """
         frame = ttk.Labelframe(parent, text="Log", style="Card.TLabelframe",
                                padding=PAD_M)
-        frame.grid(row=row, column=0, sticky="nsew", pady=(0, PAD_M))
+        frame.grid(row=row, column=column, rowspan=rowspan, sticky="nsew",
+                   padx=(PAD_M, 0), pady=(0, PAD_M))
         frame.columnconfigure(0, weight=1)
         frame.rowconfigure(0, weight=1)
 
         self.log_text = tk.Text(
-            frame, wrap="word", state=tk.DISABLED, height=10, bg=PANEL_BG,
+            frame, wrap="word", state=tk.DISABLED, height=10, width=44, bg=PANEL_BG,
             fg=COL_INFO, font=self.font_log, relief="solid", borderwidth=1,
             highlightthickness=1, highlightbackground=BORDER, padx=PAD_S, pady=PAD_S,
         )
@@ -593,7 +970,7 @@ class WebnovelEditorApp(tk.Tk):
     def _build_status_bar(self, parent: ttk.Frame, row: int) -> None:
         self.status_var = tk.StringVar(value="")
         ttk.Label(parent, textvariable=self.status_var, style="Status.TLabel",
-                  anchor="w").grid(row=row, column=0, sticky="ew")
+                  anchor="w").grid(row=row, column=0, columnspan=2, sticky="ew")
 
     # -- input mode -------------------------------------------------------------
     def _on_input_mode_changed(self, log: bool = True) -> None:
@@ -678,10 +1055,92 @@ class WebnovelEditorApp(tk.Tk):
         self._log(f"Cleared {count} file(s).", "info")
         self._refresh_status()
 
+    # -- cloud run preflight ----------------------------------------------------
+    def _offer_resume(self):
+        """Offer to continue an unfinished run, if there is one. Never raises.
+
+        Only cloud runs write a manifest (Plan 2b reverses Plan 1's session-only
+        decision *for cloud runs specifically*), so a purely local user never sees this
+        dialog. Declining is not a call into the manifest layer at all — it simply takes
+        the normal fresh-run path, which allocates the next `<novel>-N` folder as usual.
+        """
+        try:
+            offer = find_resumable_run(downloads_dir())
+        except Exception:
+            return None
+        if not offer.available:
+            return None
+        accepted = messagebox.askyesno(
+            "Resume unfinished run?", cloud_ui.resume_prompt(offer))
+        plan = cloud_ui.resume_decision(offer, accepted=bool(accepted))
+        self._log(plan.message, "accent" if plan.resumed else "muted")
+        return plan if plan.resumed else None
+
+    def _consent_for(self, provider: str) -> bool:
+        """Show the privacy/billing disclosure if it is owed, and record the answer.
+
+        Owed means: never acknowledged, or acknowledged at an older disclosure version.
+        Only the version is recorded — never chapter text, never the key. Cancelling is
+        a first-class outcome, not an error: the run simply does not start, and the user
+        is told the two ways to carry on without sending anything anywhere.
+        """
+        need = cloud_ui.disclosure_requirement(
+            provider, settings_file=self._settings_file())
+        if not need.required:
+            return True
+        accepted = messagebox.askokcancel(
+            need.title, f"{need.body}\n\n{need.accept_label}?", icon="warning")
+        if not accepted:
+            self._log(
+                "Cloud editing cancelled — no chapter text was sent. Choose the local "
+                "provider to edit on this computer, or turn the AI pass off for "
+                "script-only editing.", "warn")
+            self._set_ai_status_text(need.cancel_label, "warn")
+            return False
+        if not cloud_ui.accept_disclosure(provider, settings_file=self._settings_file()):
+            self._log(
+                "Could not save the cloud disclosure acknowledgement — it will be "
+                "asked again next time.", "muted")
+        self._refresh_provider_options()
+        return True
+
+    def _confirm_cloud_estimate(self, provider, model, remaining, fallback_rate) -> bool:
+        """Show the labelled estimate prominently, before the run starts.
+
+        Deliberately not a log line: this is where the user finds out that a free tier
+        may not be able to finish what they queued. The estimate says plainly which of
+        its inputs are unknown rather than inventing a number for them.
+        """
+        try:
+            settings = cloud_ui.provider_settings(self.ai_prefs, provider)
+        except Exception:
+            settings = None
+        estimate = cloud_ui.estimate_run(
+            provider=provider,
+            model_id=model,
+            remaining_files=remaining,
+            settings=settings,
+            fallback_rate=fallback_rate,
+        )
+        self.rate_var.set(estimate.headline)
+        return bool(messagebox.askokcancel("Start cloud run?", estimate.as_text()))
+
     # -- run / worker -----------------------------------------------------------
     def _start_batch(self) -> None:
         if self._running:
             return
+        # A resume supplies its own file list and its own output folder, so it is asked
+        # about before the input checks a fresh run has to pass.
+        resume = self._offer_resume()
+        if resume is not None:
+            return self._begin(
+                files=list(resume.run_kwargs["pdf_paths"]),
+                output_dir=resume.run_kwargs["output_dir"],
+                mirror_root=resume.run_kwargs["mirror_root"],
+                novel=resume.run_kwargs["novel_name"] or clean_novel_name(
+                    self.novel_var.get()),
+                resume=resume,
+            )
         if self.input_mode_var.get() == "folder":
             if not self.folder_files:
                 messagebox.showwarning(
@@ -699,31 +1158,100 @@ class WebnovelEditorApp(tk.Tk):
                 return
 
         # Map the display selection to its clean novel name BEFORE it reaches dispatch
-        # or folder naming: the "no profile yet" marker is display-only ("Universal"
-        # passes through and kebab-cases to universal-x).
+        # or folder naming: the roster markers are display-only ("Universal" passes
+        # through and kebab-cases to universal-x).
         novel = clean_novel_name(self.novel_var.get())
 
         # Forced output location: a fresh auto-numbered Downloads\<novel>-x folder,
         # named for the current selection. Only named here — run_batch creates it
         # when the batch actually starts (and not at all on a dry run).
+        name = kebab_case(novel) or "output"
+        output_dir = str(next_numbered_output_dir(downloads_dir(), name))
+        return self._begin(
+            files=files, output_dir=output_dir, mirror_root=mirror_root, novel=novel)
+
+    def _begin(self, *, files, output_dir, mirror_root, novel, resume=None) -> None:
+        """Commit to one batch: consent, checkpoint, editor, estimate, then run."""
         # The AI pass is opt-in per run. When it is off, nothing below constructs a
         # provider and run_batch receives ai_editor=None — the exact script-only path.
         ai_editor = None
         use_ai_in_dry_run = False
+        checkpoint = None
+        provider = self._ai_provider
+        is_cloud = self.opt_ai_enabled.get() and cloud_ui.is_cloud_provider(provider)
+
         if self.opt_ai_enabled.get():
             model = self.ai_model_var.get().strip()
             if not model:
                 messagebox.showwarning(
                     "No AI model selected",
                     "The AI editorial pass is on, but no model is selected.\n\n"
-                    "Click “Check service” and pick one of the installed models, "
+                    "Pick one of the models offered for the selected provider, "
                     "or turn the AI pass off to run the scripted editing only.")
                 return
-            ai_editor = ai_settings.build_ai_editor(self._current_ai_prefs())
-            use_ai_in_dry_run = self.opt_ai_dry_run.get()
+            if is_cloud:
+                if not self._consent_for(provider):
+                    return
+                option = self._provider_option(provider)
+                if option is not None and not option.ready:
+                    messagebox.showwarning("Cloud provider not ready", option.reason)
+                    self._set_ai_status_text(option.reason, option.level)
+                    return
+                if not self._confirm_cloud_estimate(
+                    provider, model, len(files),
+                    resume.fallback_rate if resume is not None else None,
+                ):
+                    self._log("Cloud run cancelled before it started.", "muted")
+                    return
 
-        name = kebab_case(novel) or "output"
-        output_dir = str(next_numbered_output_dir(downloads_dir(), name))
+            prefs = self._current_ai_prefs()
+            if is_cloud and not self.opt_dry_run.get():
+                # A checkpoint is written for cloud runs only, so a daily quota stop is
+                # resumable tomorrow. Plan 1's session-only behaviour for local runs is
+                # deliberately untouched.
+                checkpoint_kwargs = (
+                    dict(resume.checkpoint_kwargs) if resume is not None
+                    else {
+                        "output_dir": output_dir,
+                        "queue": list(files),
+                        "novel": novel,
+                        "mirror_root": mirror_root,
+                        "provider": provider,
+                        "model_id": model,
+                        "prompt_version": str(prefs.get("prompt_version") or ""),
+                        "gate_version": str(prefs.get("gate_version") or ""),
+                        "ai_policy": str(prefs.get("policy") or ""),
+                    }
+                )
+                checkpoint = RunCheckpoint(
+                    checkpoint_kwargs.pop("output_dir"),
+                    checkpoint_kwargs.pop("queue"),
+                    stop_event=self.stop_event,
+                    **checkpoint_kwargs,
+                )
+
+            try:
+                ai_editor = ai_settings.build_ai_editor(
+                    prefs,
+                    checkpoint=(_QuotaStopRelay(checkpoint, self._thread_log)
+                                if checkpoint else None),
+                    stop_event=self.stop_event,
+                    pause_gate=self.pause_gate,
+                    settings_file=self._settings_file(),
+                )
+            except Exception as exc:
+                # The Phase 7a spend guard runs inside this call for a cloud provider,
+                # before the adapter exists and before the batch thread starts. A
+                # refusal stops the run here and is shown in full — not logged and
+                # stepped over. There is deliberately no "run anyway" button: the guard
+                # refuses only when the app cannot confirm the run stays free.
+                reason = str(exc) or (
+                    "The cloud run was refused before anything was sent.")
+                messagebox.showerror("Cloud run refused", reason)
+                self._log(reason, "error")
+                self._set_ai_status_text(reason, "error")
+                return
+            use_ai_in_dry_run = self.opt_ai_dry_run.get()
 
         # Per-batch snapshot state: the worker thread reads only these plain
         # attributes, never Tk variables (Tk objects are not thread-safe).
@@ -736,6 +1264,7 @@ class WebnovelEditorApp(tk.Tk):
         self._batch_dry_run = self.opt_dry_run.get()
         self._batch_ai_editor = ai_editor
         self._batch_use_ai_in_dry_run = use_ai_in_dry_run
+        self._batch_checkpoint = checkpoint
 
         self._running = True
         self.run_button.configure(state=tk.DISABLED)
@@ -760,6 +1289,13 @@ class WebnovelEditorApp(tk.Tk):
             self._log(
                 f"AI editorial pass on — model {ai_editor.options.model_id}; "
                 f"if the AI is unavailable, {fallback}.", "accent")
+            # Condensed log: provider and model are run-scoped facts and cannot change
+            # mid-run, so they extend the run header rather than repeating on every
+            # per-file line. The `[i/total] name — outcome` line is untouched.
+            header = cloud_ui.cloud_run_header(
+                self._ai_provider, ai_editor.options.model_id)
+            if header is not None:
+                self._log(*header)
 
         thread = threading.Thread(target=self._process_worker, daemon=True)
         thread.start()
@@ -779,6 +1315,7 @@ class WebnovelEditorApp(tk.Tk):
                 stop_event=self.stop_event,
                 ai_editor=self._batch_ai_editor,
                 use_ai_in_dry_run=self._batch_use_ai_in_dry_run,
+                checkpoint=getattr(self, "_batch_checkpoint", None),
 
                 gui_log=lambda message, level="info": self.after(
                     0, self._log, message, level),
@@ -881,7 +1418,18 @@ class WebnovelEditorApp(tk.Tk):
         self.progress.configure(value=value)
         self._update_rate(value)
 
+    def _thread_log(self, message: str, level: str = "info") -> None:
+        """Log from a worker thread. Tk objects are not thread-safe, so every
+        message is marshalled back onto the UI thread exactly as run_batch's own
+        gui_log callback already does."""
+        self.after(0, self._log, message, level)
+
     def _log(self, message: str, level: str = "info") -> None:
+        # The single GUI log sink, and therefore the place credentials would surface
+        # if anything upstream ever put one in a message. Everything written to the
+        # panel goes through the one redaction boundary (Plan 2b Phase 1) — never
+        # bypass this by writing to log_text directly.
+        message = redact(message)
         self.log_text.configure(state=tk.NORMAL)
         self.log_text.insert(tk.END, message + "\n", level)
         self.log_text.see(tk.END)

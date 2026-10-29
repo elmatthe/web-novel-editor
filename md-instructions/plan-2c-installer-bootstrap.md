@@ -1,5 +1,11 @@
 # Webnovel Editor — Plan 2c: Installer & Bootstrap — target v0.14.0
 
+> **SUPERSEDED — 2026-10-28 (Master Plan, Phase 00). Do not implement this drop.** The authority is now
+> `files/plans/Web-Novel-Editor-Master-Implementation-Plan.md` (Revision 2). Its `v0.14.0` target is replaced by the
+> fixed release target **`0.4.0`**; its AI/Ollama onboarding, model prompts, uninstaller and the runtime-storage
+> directions that conflict with the Master Plan (§4.1, §6, §7.2) no longer apply. The text below is kept unchanged as
+> historical record only. Ruling: DECISIONS #074.
+
 > **Build this last.** 2c is technically independent of 2a/2b, but it is only *finished* once
 > the dependency set, provider contracts, key locations, Ollama model tag, and GUI capability
 > model are stable — which is the end of 2b. Running it earlier means onboarding a contract
@@ -29,7 +35,7 @@ Before editing any file:
 2. Run `git status`, `git branch --show-current`, `git log --oneline --decorate -15`, fetch
    remote refs, and confirm this plan starts from the approved, merged prior-plan commit. If
    the tree has diverged, STOP and report the divergence.
-3. Read the **actual current** `Setup_and_Run.bat`, `Setup_and_Run.command`,
+3. Read the **actual current** `Setup_and_Run-Web-Novel-Editor.bat`, `Setup_and_Run-Web-Novel-Editor.command`,
    `files/tests/test_launchers.py`, `requirements.txt`, `verify.py`, `main.py --check`, and
    `DECISIONS.md` #024 (one hardened launcher per OS). Map what the launchers already do before
    proposing to change any of it.
@@ -42,7 +48,7 @@ After each phase: tests, `verify`, update `HANDOFF.md`, commit, **push the worki
 ---
 
 ## Context
-`Setup_and_Run.bat` and `Setup_and_Run.command` are **not** basic launchers — DECISIONS #024
+`Setup_and_Run-Web-Novel-Editor.bat` and `Setup_and_Run-Web-Novel-Editor.command` are **not** basic launchers — DECISIONS #024
 rebuilt them as one hardened launcher per OS, and `files/tests/test_launchers.py` guards them.
 They already do: Python detection via the `py` launcher, per-user/machine choice, self-healing
 `.venv`, exact requirements-lock comparison, `pip check` and an import health check,
@@ -92,7 +98,7 @@ not downloading anything.
 ## Scope
 
 **In scope:**
-- Extending the **existing** `Setup_and_Run.bat` and `Setup_and_Run.command` — same filenames,
+- Extending the **existing** `Setup_and_Run-Web-Novel-Editor.bat` and `Setup_and_Run-Web-Novel-Editor.command` — same filenames,
   same entry points, same tests, evolved behaviour.
 - A standard-library-only Python bootstrap module (`scripts/Universal/bootstrap/`) that the
   launcher hands off to once a compatible interpreter exists.
@@ -361,7 +367,7 @@ regression from getting tangled with GPU detection and cloud onboarding.)*
 5. **App startup capability integration.** The capability report appears in the app log and the
    GUI's provider states; optional modules stay lazily imported; `main.py --check` proven to
    work offline with nothing optional installed.
-6. **macOS path.** Bring `Setup_and_Run.command` to equivalent behaviour where the platform
+6. **macOS path.** Bring `Setup_and_Run-Web-Novel-Editor.command` to equivalent behaviour where the platform
    allows, document where it legitimately differs (Homebrew absence, Apple Silicon unified
    memory, Ollama's macOS install), and **test on the real Mac** — do not claim parity from
    Windows.

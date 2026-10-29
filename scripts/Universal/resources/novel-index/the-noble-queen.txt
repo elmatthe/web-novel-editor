@@ -28,6 +28,21 @@ Fort
 # (chapter 808's closing line surfaces "Mordret.")
 Mordret
 
+# --- The tyrant king (Plan 2b Phase 7b fallout) ---
+# The 7b comparison run caught a cloud model silently rewriting this name because it was
+# unprotected. Corpus evidence (files/pdf-example-chapters/the-noble-queen-1, 2026-07-26):
+#   "Kraai" — 30 occurrences across 9 chapters (241-244, 260-264), incl. first appearance
+#   "Kraii" —  5 occurrences across 3 chapters (242, 266, 276)
+#
+# The author ruled on 2026-07-26 that "Kraai" is canonical. "Kraii" is therefore a source
+# typo and is normalized to "Kraai" by NQ_SPECIAL_FIXES before anything else sees the text.
+#
+# "Kraii" is deliberately NOT listed here, and that is load-bearing rather than an
+# oversight: the pipeline masks protected terms BEFORE applying special fixes, so an
+# indexed "Kraii" would already be a placeholder when the substitution runs and the rule
+# could never fire. Only the canonical spelling belongs in a do-not-touch list.
+Kraai
+
 # --- In-world terms from chapter 1 ---
 Dreamscape
 The Dreamscape
@@ -48,3 +63,450 @@ Flaw
 Spell
 Sovereign
 Dread Lord
+
+# ============================================================
+# 2026-07-26 AUDIT — additions found by corpus frequency analysis
+# ============================================================
+# Gap-check over 890 extracted chapters of this novel's own corpus
+# (files/pdf-example-chapters/the-noble-queen-1/). Nothing above this line was changed,
+# removed or reordered; this block is additive only.
+#
+# Every term below was COUNTED in this novel's own text at the exact spelling shown:
+# at least 6 occurrences across at least 3 chapters, capitalized
+# mid-sentence, with this novel's lowercase use of it under 5% of its capitalized use.
+# Candidates came from capitalization statistics, from cross-checking all 353 Shadow Slave index terms against this corpus, and from a local qwen3
+# pass over sampled chapters; qwen only proposed, the corpus decided.
+#
+# Trailing "# n=... in ... chapters" is the measured evidence, stripped at load.
+# ============================================================
+
+# --- SHARED SHADOW SLAVE CANON — each independently confirmed in this novel's own text ---
+Saint  # n=1119 in 378 chapters
+Roan  # n=269 in 160 chapters
+Ravenheart  # n=251 in 150 chapters
+Bastion  # n=219 in 126 chapters
+Aether  # n=218 in 133 chapters
+Helie  # n=190 in 113 chapters
+Nickel  # n=169 in 90 chapters
+Jet  # n=160 in 52 chapters
+Tamar  # n=123 in 34 chapters
+Antarctica  # n=119 in 81 chapters
+Julius  # n=116 in 64 chapters
+Sunny  # n=107 in 49 chapters
+Fireshing  # n=104 in 52 chapters
+Teddy  # n=90 in 52 chapters
+Seishan  # n=84 in 32 chapters
+Mirage  # n=60 in 42 chapters
+Theo  # n=59 in 29 chapters
+Fleur  # n=59 in 26 chapters
+Dimi  # n=55 in 17 chapters
+Kai  # n=54 in 35 chapters
+Cor  # n=47 in 27 chapters
+Awakened Academy  # n=47 in 43 chapters
+Catphine  # n=41 in 30 chapters
+Ki Song  # n=40 in 36 chapters
+Jade Palace  # n=37 in 31 chapters
+Morgan  # n=36 in 15 chapters
+House of Night  # n=35 in 25 chapters
+Tyris  # n=34 in 17 chapters
+Sunless  # n=33 in 19 chapters
+Beast God  # n=32 in 16 chapters
+Nephis  # n=29 in 12 chapters
+Changing Star  # n=29 in 19 chapters
+Wake of Ruin  # n=28 in 17 chapters
+Godgrave  # n=24 in 13 chapters
+North America  # n=23 in 21 chapters
+Ren  # n=22 in 11 chapters
+Omer  # n=21 in 9 chapters
+Aegis Rose  # n=20 in 13 chapters
+Thane  # n=19 in 15 chapters
+Tristan  # n=19 in 4 chapters
+Nightingale  # n=18 in 12 chapters
+Cassia  # n=17 in 6 chapters
+Song of the Fallen  # n=17 in 10 chapters
+Telle  # n=16 in 9 chapters
+Cassie  # n=16 in 8 chapters
+White Feather  # n=16 in 12 chapters
+Naeve  # n=15 in 9 chapters
+Beastmaster  # n=15 in 15 chapters
+White Feather Clan  # n=15 in 12 chapters
+Eastern Quadrant  # n=15 in 11 chapters
+Orum  # n=14 in 9 chapters
+Hall of Imagination  # n=14 in 8 chapters
+Madoc  # n=13 in 6 chapters
+Ariel  # n=13 in 10 chapters
+Obel  # n=12 in 8 chapters
+Australia  # n=12 in 13 chapters
+Whispering Blade  # n=12 in 7 chapters
+Forgotten Shore  # n=11 in 11 chapters
+Aiko  # n=10 in 7 chapters
+Athena  # n=10 in 6 chapters
+Death Singer  # n=10 in 5 chapters
+Tomb of Ariel  # n=9 in 6 chapters
+Falcon Scott  # n=7 in 3 chapters
+
+# --- THE NOBLE QUEEN — names and single-word terms (by corpus frequency) ---
+Syrce  # n=584 in 179 chapters
+Realm  # n=536 in 303 chapters
+Flint  # n=530 in 170 chapters
+Sarai  # n=455 in 179 chapters
+Counsel  # n=410 in 113 chapters
+Academy  # n=340 in 187 chapters
+Emira  # n=240 in 94 chapters
+Kosi  # n=237 in 102 chapters
+Bel  # n=234 in 128 chapters
+Zenith  # n=227 in 102 chapters
+Skinwalker  # n=221 in 75 chapters
+Majesty  # n=189 in 86 chapters
+Tyrant  # n=179 in 69 chapters
+Symncus  # n=162 in 89 chapters
+Maelys  # n=152 in 66 chapters
+Mae  # n=152 in 49 chapters
+Helios  # n=149 in 53 chapters
+NQSC  # n=138 in 104 chapters
+Brenna  # n=130 in 65 chapters
+Crestfall  # n=127 in 89 chapters
+Lena  # n=121 in 73 chapters
+Chip  # n=117 in 41 chapters
+Orrin  # n=101 in 46 chapters
+Chancellor  # n=100 in 44 chapters
+Keth  # n=94 in 24 chapters
+Titan  # n=87 in 24 chapters
+Harlow  # n=85 in 29 chapters
+Blondie  # n=78 in 54 chapters
+Seb  # n=71 in 30 chapters
+Titus  # n=67 in 48 chapters
+Drusus  # n=64 in 29 chapters
+Lyra  # n=62 in 39 chapters
+PTV  # n=61 in 40 chapters
+Ender  # n=58 in 27 chapters
+Shieldbearer  # n=50 in 29 chapters
+Dreamer  # n=49 in 37 chapters
+Nic  # n=47 in 49 chapters
+Lenore  # n=46 in 26 chapters
+Alyx  # n=45 in 20 chapters
+Gui  # n=44 in 26 chapters
+Yosh  # n=44 in 18 chapters
+Nectar  # n=40 in 19 chapters
+Cade  # n=39 in 12 chapters
+America  # n=38 in 35 chapters
+Rainy  # n=38 in 41 chapters
+Reaper  # n=37 in 22 chapters
+Venster  # n=34 in 18 chapters
+Thorai  # n=32 in 11 chapters
+Hamish  # n=32 in 21 chapters
+Lance  # n=30 in 28 chapters
+Teran  # n=29 in 19 chapters
+Ginnar  # n=28 in 13 chapters
+Cellio  # n=27 in 14 chapters
+Luna  # n=27 in 10 chapters
+Lonzo  # n=26 in 24 chapters
+Kenz  # n=25 in 11 chapters
+Gavin  # n=25 in 12 chapters
+Leo  # n=25 in 16 chapters
+Umbei  # n=25 in 13 chapters
+Lindy  # n=25 in 8 chapters
+Gisel  # n=25 in 11 chapters
+Lorne  # n=24 in 6 chapters
+Quadrant  # n=23 in 18 chapters
+Stormsea  # n=22 in 17 chapters
+Aurelia  # n=22 in 19 chapters
+Frey  # n=21 in 14 chapters
+Snowmobile  # n=20 in 9 chapters
+Cron  # n=20 in 11 chapters
+Jeremy  # n=20 in 7 chapters
+Walker  # n=20 in 17 chapters
+Northgate  # n=20 in 14 chapters
+Wailin  # n=20 in 8 chapters
+Aegis  # n=20 in 13 chapters
+Unorganized  # n=19 in 11 chapters
+Eastern  # n=19 in 15 chapters
+Byzas  # n=19 in 13 chapters
+Lovia  # n=19 in 8 chapters
+Sleepless  # n=18 in 6 chapters
+Derik  # n=18 in 9 chapters
+Livia  # n=18 in 10 chapters
+Imperialists  # n=18 in 13 chapters
+Yoa  # n=18 in 5 chapters
+Kama  # n=17 in 9 chapters
+Fraudulent  # n=17 in 31 chapters
+Taper  # n=17 in 16 chapters
+Kayla  # n=17 in 5 chapters
+Opal  # n=17 in 7 chapters
+Librarians  # n=17 in 9 chapters
+Iza  # n=16 in 6 chapters
+Hectare  # n=16 in 6 chapters
+Cyrus  # n=16 in 8 chapters
+Drune  # n=15 in 15 chapters
+Yari  # n=15 in 8 chapters
+Vel  # n=15 in 5 chapters
+Mori  # n=15 in 9 chapters
+GoldieRider  # n=14 in 8 chapters
+Emer  # n=14 in 10 chapters
+Mandra  # n=14 in 6 chapters
+Bane  # n=14 in 4 chapters
+Matilda  # n=14 in 7 chapters
+Bramwell  # n=13 in 5 chapters
+Highness  # n=13 in 8 chapters
+Empire  # n=13 in 10 chapters
+Renle  # n=13 in 9 chapters
+Endo  # n=13 in 10 chapters
+Dino  # n=13 in 6 chapters
+Zenkai  # n=13 in 6 chapters
+Blim  # n=13 in 5 chapters
+Eunbin  # n=13 in 3 chapters
+Sharkey  # n=12 in 5 chapters
+Nii  # n=12 in 6 chapters
+Ugh  # n=12 in 22 chapters
+Hopefuls  # n=12 in 7 chapters
+Dreamgate  # n=12 in 7 chapters
+Mitt  # n=12 in 7 chapters
+Stratos  # n=12 in 6 chapters
+Everin  # n=12 in 7 chapters
+Amber  # n=12 in 7 chapters
+Styss  # n=11 in 9 chapters
+Insurance  # n=11 in 7 chapters
+Utilization  # n=11 in 11 chapters
+Crafter  # n=11 in 10 chapters
+Beric  # n=11 in 9 chapters
+Ambrose  # n=11 in 8 chapters
+Dawnbreak  # n=10 in 8 chapters
+Auntie  # n=10 in 15 chapters
+Peta  # n=10 in 4 chapters
+Sages  # n=9 in 7 chapters
+Sentinel  # n=9 in 6 chapters
+Grandpa  # n=9 in 6 chapters
+Harry  # n=9 in 8 chapters
+Izayoi  # n=8 in 7 chapters
+Elle  # n=8 in 4 chapters
+Apis  # n=8 in 3 chapters
+Falcon  # n=8 in 3 chapters
+Scott  # n=8 in 3 chapters
+Mister  # n=8 in 12 chapters
+Lawler  # n=8 in 3 chapters
+Virt  # n=8 in 3 chapters
+Regel  # n=7 in 4 chapters
+Monday  # n=7 in 6 chapters
+Vharn  # n=7 in 3 chapters
+Ceecee  # n=7 in 10 chapters
+Nezha  # n=7 in 6 chapters
+Xiphos  # n=7 in 5 chapters
+Cole  # n=6 in 4 chapters
+MWP  # n=6 in 3 chapters
+Alura  # n=6 in 3 chapters
+Inha  # n=6 in 3 chapters
+Striker  # n=6 in 3 chapters
+VIP  # n=6 in 4 chapters
+Derby  # n=6 in 3 chapters
+Mourner  # n=6 in 3 chapters
+Rivergate  # n=6 in 4 chapters
+Balefire  # n=6 in 3 chapters
+
+# --- THE NOBLE QUEEN — multi-word names, places and in-world terms ---
+Child of Promise  # n=345 in 178 chapters
+The Saint  # n=308 in 152 chapters
+Bee Two  # n=116 in 66 chapters
+Master Noble  # n=70 in 56 chapters
+Professor Noble  # n=63 in 49 chapters
+The Awakened  # n=60 in 54 chapters
+Clan Song  # n=59 in 47 chapters
+Lady Bel  # n=58 in 42 chapters
+Lady Syrce  # n=52 in 43 chapters
+Lord of the Mountain  # n=50 in 35 chapters
+Clan Valor  # n=46 in 34 chapters
+Lady Mae  # n=43 in 25 chapters
+Lady Brenna  # n=42 in 32 chapters
+Dreamer Academy  # n=35 in 29 chapters
+Kingdom Keeper  # n=31 in 27 chapters
+Awakened Noble  # n=28 in 22 chapters
+Doom War  # n=27 in 23 chapters
+Director Fort  # n=25 in 23 chapters
+Saint Kai  # n=25 in 21 chapters
+Violet One  # n=25 in 12 chapters
+Song Domain  # n=24 in 21 chapters
+Saint Jet  # n=23 in 17 chapters
+Blazing Bees  # n=22 in 13 chapters
+Lady Seishan  # n=21 in 15 chapters
+Lady Nephis  # n=20 in 11 chapters
+Nightmare Spell  # n=20 in 19 chapters
+Realm Walker  # n=20 in 17 chapters
+Master Sunless  # n=19 in 11 chapters
+Saint Cor  # n=19 in 17 chapters
+Master Flint  # n=19 in 14 chapters
+Lady Lyra  # n=19 in 14 chapters
+Soul Reaper  # n=18 in 14 chapters
+Unorganized Laundry  # n=17 in 9 chapters
+Queen Emira  # n=17 in 15 chapters
+Sword Domain  # n=17 in 16 chapters
+Lord Anvil  # n=17 in 15 chapters
+Soul Bloom  # n=17 in 11 chapters
+Lady Changing  # n=16 in 13 chapters
+Ruby Tear  # n=16 in 9 chapters
+Master Yosh  # n=16 in 12 chapters
+Wonder Woods  # n=16 in 14 chapters
+Fraudulent Facade  # n=15 in 15 chapters
+Lady Changing Star  # n=15 in 12 chapters
+Feather Clan  # n=15 in 12 chapters
+Nightmare Gate  # n=15 in 15 chapters
+Master Chip  # n=15 in 12 chapters
+Kama Yari  # n=15 in 8 chapters
+Dragon Prince  # n=15 in 13 chapters
+Paradise in Red  # n=15 in 6 chapters
+Bloom of Doubt  # n=15 in 10 chapters
+Princess of Song  # n=15 in 12 chapters
+Unlikely End  # n=14 in 12 chapters
+Paradox Fang  # n=14 in 9 chapters
+Master Cellio  # n=13 in 9 chapters
+Corrupted Titan  # n=13 in 12 chapters
+Mirror Realm  # n=13 in 10 chapters
+Lady Tamar  # n=13 in 11 chapters
+King of Swords  # n=13 in 11 chapters
+Lady Eunbin  # n=13 in 3 chapters
+Mister Blim  # n=13 in 5 chapters
+General Theo  # n=12 in 10 chapters
+Aspect Legacy  # n=12 in 9 chapters
+Deputy Director Fort  # n=11 in 10 chapters
+Weight of Doubt  # n=11 in 9 chapters
+Daemon of Imagination  # n=11 in 9 chapters
+Lord Byzas  # n=11 in 8 chapters
+Aspect Ability  # n=11 in 4 chapters
+Ambassador Fort  # n=10 in 10 chapters
+Master Roan  # n=10 in 9 chapters
+Devil of Antarctica  # n=10 in 5 chapters
+Awakened Monster  # n=9 in 7 chapters
+Lord Gavin  # n=9 in 8 chapters
+Lord Alyx  # n=9 in 8 chapters
+Southern Campaign  # n=9 in 7 chapters
+Director Luna  # n=9 in 8 chapters
+Pink One  # n=9 in 6 chapters
+Shadow Realm  # n=9 in 9 chapters
+Dark Lord  # n=9 in 3 chapters
+Gilded Glory  # n=9 in 5 chapters
+Staff of Sages  # n=9 in 7 chapters
+Princess of Valor  # n=9 in 7 chapters
+Aching Ember  # n=8 in 6 chapters
+Transcendent Demon  # n=8 in 8 chapters
+Awakened Beast  # n=8 in 8 chapters
+Awakened Harlow  # n=8 in 5 chapters
+Third Nightmare  # n=8 in 8 chapters
+Saint Athena  # n=8 in 5 chapters
+Abyssal Fire  # n=8 in 6 chapters
+Kingdom Crafter  # n=8 in 8 chapters
+Sleeper Keth  # n=8 in 6 chapters
+Queen of the Dreamscape  # n=8 in 8 chapters
+Master Kenz  # n=8 in 5 chapters
+Fallen Monster  # n=7 in 5 chapters
+Captain Styss  # n=7 in 7 chapters
+Instructor Rock  # n=7 in 6 chapters
+Dormant Monster  # n=7 in 7 chapters
+Song Sisters  # n=7 in 6 chapters
+Master Rock  # n=7 in 5 chapters
+Lucent Taper  # n=7 in 7 chapters
+Kingdom Keeper Attribute  # n=7 in 6 chapters
+Keeper Attribute  # n=7 in 6 chapters
+Turquoise One  # n=7 in 4 chapters
+Fire Insurance  # n=7 in 4 chapters
+Manager Wailin  # n=7 in 4 chapters
+Queen of Crestfall  # n=7 in 6 chapters
+Saint Tyris  # n=6 in 5 chapters
+Uncle Dimi  # n=6 in 4 chapters
+King Kraai  # n=6 in 5 chapters
+Chancellor Gui  # n=6 in 6 chapters
+Auntie Sarai  # n=6 in 6 chapters
+Teacher Julius  # n=6 in 5 chapters
+Grandpa Julius  # n=6 in 5 chapters
+Master Sarai  # n=6 in 5 chapters
+Awakened Venster  # n=6 in 6 chapters
+Dreamscape Champion  # n=6 in 6 chapters
+Director Lance  # n=6 in 6 chapters
+Dream Gates  # n=6 in 5 chapters
+Shieldbearer Orrin  # n=6 in 5 chapters
+Star Boy  # n=6 in 6 chapters
+Aegis Rose Clan  # n=6 in 6 chapters
+Rose Clan  # n=6 in 6 chapters
+King of the Mountains  # n=6 in 3 chapters
+Lady Alura  # n=6 in 4 chapters
+Saint Thane  # n=6 in 6 chapters
+Saint Naeve  # n=6 in 5 chapters
+
+# ============================================================
+# REVIEW — dual-use words, NOT enabled
+# ============================================================
+# Each of these is used in this novel BOTH as a name/term and as an ordinary word.
+# Because masking is case-insensitive, uncommenting one freezes the ordinary word too
+# (protecting "Rain" also stops any repair to the weather). Uncomment only the ones
+# where that trade is right for this novel.
+# ============================================================
+# Queen  # capitalized 817x in 274 chapters, but also lowercase 132x
+# Bee  # capitalized 718x in 232 chapters, but also lowercase 41x
+# Rain  # capitalized 579x in 186 chapters, but also lowercase 88x
+# Song  # capitalized 267x in 131 chapters, but also lowercase 28x
+# Ability  # capitalized 174x in 124 chapters, but also lowercase 152x
+# Blaze  # capitalized 164x in 119 chapters, but also lowercase 20x
+# Lord  # capitalized 159x in 97 chapters, but also lowercase 8x
+# The Queen  # capitalized 154x in 86 chapters, but also lowercase 61x
+# Professor  # capitalized 128x in 100 chapters, but also lowercase 1192x
+# Prince  # capitalized 107x in 38 chapters, but also lowercase 9x
+# Nightmare Creature  # capitalized 91x in 80 chapters, but also lowercase 9x
+# Waking World  # capitalized 91x in 78 chapters, but also lowercase 166x
+# Coy  # capitalized 85x in 33 chapters, but also lowercase 5x
+# Fire  # capitalized 85x in 54 chapters, but also lowercase 278x
+# Legacy  # capitalized 81x in 60 chapters, but also lowercase 92x
+# Key  # capitalized 76x in 46 chapters, but also lowercase 91x
+# Transcendent  # capitalized 74x in 60 chapters, but also lowercase 4x
+# Remnant  # capitalized 66x in 32 chapters, but also lowercase 5x
+# Deputy Director  # capitalized 66x in 35 chapters, but also lowercase 19x
+# Ascended  # capitalized 63x in 57 chapters, but also lowercase 4x
+# Ray  # capitalized 62x in 30 chapters, but also lowercase 4x
+# Rock  # capitalized 62x in 35 chapters, but also lowercase 94x
+# Solstice  # capitalized 59x in 44 chapters, but also lowercase 46x
+# Imagination  # capitalized 57x in 40 chapters, but also lowercase 38x
+# Pen  # capitalized 56x in 28 chapters, but also lowercase 12x
+# Laundry  # capitalized 50x in 24 chapters, but also lowercase 8x
+# Dragon  # capitalized 50x in 23 chapters, but also lowercase 138x
+# Anvil  # capitalized 46x in 34 chapters, but also lowercase 4x
+# Keeper  # capitalized 45x in 38 chapters, but also lowercase 4x
+# Soul Sea  # capitalized 45x in 31 chapters, but also lowercase 37x
+# Demon  # capitalized 45x in 28 chapters, but also lowercase 41x
+# Terror  # capitalized 45x in 23 chapters, but also lowercase 19x
+# Jade  # capitalized 43x in 33 chapters, but also lowercase 4x
+# Government  # capitalized 42x in 32 chapters, but also lowercase 496x
+# Night  # capitalized 42x in 31 chapters, but also lowercase 312x
+# Princess  # capitalized 41x in 29 chapters, but also lowercase 74x
+# Lost  # capitalized 32x in 15 chapters, but also lowercase 326x
+# Widow  # capitalized 31x in 5 chapters, but also lowercase 6x
+# Seed  # capitalized 30x in 19 chapters, but also lowercase 25x
+# Fortress  # capitalized 29x in 19 chapters, but also lowercase 39x
+# Portcullis Key  # capitalized 28x in 25 chapters, but also lowercase 3x
+# Abyss  # capitalized 28x in 17 chapters, but also lowercase 16x
+# Daemon  # capitalized 28x in 19 chapters, but also lowercase 10x
+# Grace  # capitalized 28x in 19 chapters, but also lowercase 14x
+# Teacher  # capitalized 27x in 20 chapters, but also lowercase 102x
+# Spelltech  # capitalized 26x in 26 chapters, but also lowercase 25x
+# Red  # capitalized 26x in 15 chapters, but also lowercase 168x
+# Guard  # capitalized 24x in 17 chapters, but also lowercase 147x
+# True Name  # capitalized 22x in 16 chapters, but also lowercase 9x
+# Ambassador  # capitalized 20x in 19 chapters, but also lowercase 72x
+# Sorrow  # capitalized 18x in 14 chapters, but also lowercase 4x
+# Government Headquarters  # capitalized 17x in 12 chapters, but also lowercase 14x
+# Hollow  # capitalized 17x in 4 chapters, but also lowercase 13x
+# Hex  # capitalized 16x in 5 chapters, but also lowercase 3x
+# Soup  # capitalized 12x in 4 chapters, but also lowercase 7x
+# Monsters  # capitalized 12x in 17 chapters, but also lowercase 143x
+# Ash  # capitalized 12x in 6 chapters, but also lowercase 58x
+# Dormant Beast  # capitalized 11x in 9 chapters, but also lowercase 3x
+# Death Zone  # capitalized 9x in 5 chapters, but also lowercase 11x
+# Quick Study  # capitalized 9x in 9 chapters, but also lowercase 5x
+# Bread Crumbs  # capitalized 9x in 9 chapters, but also lowercase 5x
+# Pilgrims  # capitalized 8x in 8 chapters, but also lowercase 16x
+# Library  # capitalized 8x in 6 chapters, but also lowercase 78x
+# Legacies  # capitalized 8x in 13 chapters, but also lowercase 22x
+# Griffin  # capitalized 8x in 5 chapters, but also lowercase 64x
+# Supreme  # capitalized 8x in 7 chapters, but also lowercase 3x
+# Noble Creature  # capitalized 7x in 6 chapters, but also lowercase 6x
+# Thread  # capitalized 7x in 5 chapters, but also lowercase 51x
+# Home Again  # capitalized 6x in 5 chapters, but also lowercase 5x
+# Gate Guardian  # capitalized 6x in 5 chapters, but also lowercase 6x
+# Second Nightmare  # capitalized 6x in 6 chapters, but also lowercase 9x
+# Soul Shard  # capitalized 6x in 6 chapters, but also lowercase 20x
+# Entwined  # capitalized 6x in 5 chapters, but also lowercase 5x

@@ -17,14 +17,29 @@ must never install Python, rebuild the developer's real `.venv`, or launch the r
 from __future__ import annotations
 
 import os
+import glob
 import shutil
 import subprocess
 
 import pytest
 
 _REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-_BAT = os.path.join(_REPO_ROOT, "Setup_and_Run.bat")
-_CMD = os.path.join(_REPO_ROOT, "Setup_and_Run.command")
+
+
+def _launcher(extension: str) -> str:
+    """The root launcher with this extension, found by shape rather than by exact name.
+
+    The convention is `Setup_and_Run-<project>.<ext>`, but the plain `Setup_and_Run.<ext>`
+    form also exists, and a rename of one platform's launcher must not fail every test
+    for the other. Falls back to the plain name so a missing file still reports as a
+    missing launcher rather than an empty glob.
+    """
+    matches = sorted(glob.glob(os.path.join(_REPO_ROOT, f"Setup_and_Run*{extension}")))
+    return matches[0] if matches else os.path.join(_REPO_ROOT, f"Setup_and_Run{extension}")
+
+
+_BAT = _launcher(".bat")
+_CMD = _launcher(".command")
 
 
 def _read(path: str) -> str:

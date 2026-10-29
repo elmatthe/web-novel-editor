@@ -2,11 +2,11 @@
 
 This module is deliberately tkinter-free, so every rule below is unit-testable
 headlessly. It also keeps the optional parts of the AI stack out of import time:
-only ``ai.models`` and ``ai.settings`` (pure stdlib) are imported at module load,
-while ``ai.config`` (needs ``tomli`` on Python 3.10), ``ai.factory`` and
-``ai.editor`` are imported inside the function that needs them. Importing this
-module — and therefore starting the app — must work on a machine with no local
-AI service and no optional AI packages installed.
+only ``ai.models``, ``ai.settings`` and ``ai.cloud`` (all pure stdlib) are imported
+at module load, while ``ai.config`` (needs ``tomli`` on Python 3.10), ``ai.secrets``,
+``ai.factory`` and ``ai.editor`` are imported inside the function that needs them.
+Importing this module — and therefore starting the app — must work on a machine with
+no local AI service and no optional AI packages installed.
 
 **The status the panel shows is the provider's own.** ``probe_provider`` calls the
 adapter's real ``health_check()`` and ``list_models()`` and passes the resulting
@@ -34,8 +34,10 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Callable, Mapping
 
+from ai.cloud import STATUS_CONSENT_REQUIRED, STATUS_PROVIDER_DISABLED
 from ai.models import ProviderStatus, RunPolicy
 from ai.settings import settings_path, write_settings_atomic
+from gui.cloud_ui import local_provider, selected_ai_table
 
 # Only the *values* of the AI enums are captured at module load. The enum classes
 # themselves are re-imported inside the functions that build objects with them, so
@@ -53,9 +55,12 @@ STATUS_PROVIDER_ERROR = ProviderStatus.PROVIDER_ERROR.value
 REPO_ROOT = Path(__file__).resolve().parents[3]
 DEFAULT_CONFIG_PATH = REPO_ROOT / "config.toml"
 
-# Only these two GUI choices are remembered between sessions. `enabled` is
-# deliberately absent — see the module docstring.
-PERSISTED_KEYS = ("model", "policy")
+# Only these GUI choices are remembered between sessions. `enabled` is deliberately
+# absent — see the module docstring. `provider` joined them in Plan 2b Phase 6, when the
+# panel gained a provider dropdown; remembering it is safe because a remembered cloud
+# provider still has to pass every rail (key, approved model, consent) before it can
+# send anything, and the AI pass itself still comes up off.
+PERSISTED_KEYS = ("provider", "model", "policy")
 DEFAULT_POLICY = POLICY_PREFER_AI
 
 # GUI-level states, additive to ProviderStatus (never substitutes for one).
@@ -101,7 +106,29 @@ _STATUS_MESSAGES: dict[str, tuple[str, str]] = {
     STATUS_NO_MODEL: (
         "The service answered. Choose one of the installed models to use the "
         "AI pass.", "warn"),
+    # Cloud-level states (Plan 2b Phase 1), additive in exactly the same way.
+    STATUS_CONSENT_REQUIRED: (
+        "Chapter text would leave this computer. Review and accept the cloud "
+        "privacy and billing notice before using this provider.", "warn"),
+    STATUS_PROVIDER_DISABLED: (
+        "This provider is turned off in the AI settings.", "muted"),
 }
+
+
+# ---------------------------------------------------------------------------
+# Cloud key presence — presence only, never a value
+# ---------------------------------------------------------------------------
+def describe_key_presence(provider: str, **kwargs) -> tuple[str, str]:
+    """Report whether a cloud key was found, and from where — never the key itself.
+
+    ``ai.secrets.describe_key`` returns a record that cannot hold a key value, so
+    there is nothing here for the panel to render by accident. Keyword arguments are
+    passed straight through so tests can supply hermetic locations.
+    """
+    from ai.secrets import describe_key
+
+    presence = describe_key(provider, **kwargs)
+    return presence.message, ("success" if presence.found else "warn")
 
 
 # ---------------------------------------------------------------------------
@@ -125,7 +152,12 @@ def load_ai_preferences(
     ``enabled`` is always forced back to False: the AI pass is opt-in per
     session, so a persisted choice can never switch it on at launch.
     """
-    from ai.config import load_config, load_settings, resolve_ai_config
+    from ai.config import (
+        IN_CODE_DEFAULTS,
+        load_config,
+        load_settings,
+        resolve_ai_config,
+    )
 
     config_path = DEFAULT_CONFIG_PATH if config_path is None else config_path
     if settings_file is None:
@@ -146,6 +178,10 @@ def load_ai_preferences(
     resolved["enabled"] = False
     resolved.setdefault("policy", DEFAULT_POLICY)
     resolved["model"] = str(resolved.get("model") or "").strip()
+    resolved["provider"] = (
+        str(resolved.get("provider") or "").strip().lower()
+        or IN_CODE_DEFAULTS["provider"]
+    )
     return resolved
 
 
@@ -209,17 +245,84 @@ class ProviderProbe:
     models: tuple[str, ...] = ()
 
 
-def _create_provider(prefs: Mapping[str, Any], model_id: str):
+def cloud_guard_context(
+    prefs: Mapping[str, Any],
+    model_id: str,
+    *,
+    environ: Mapping[str, str] | None = None,
+    secrets_file: Path | None = None,
+    dotenv_path: Path | None = None,
+    settings_file: Path | None = None,
+) -> dict[str, Any]:
+    """Where the Phase 7a spend guard reads this run's inputs from.
+
+    Plain data only — no key, no chapter text. ``selected_ai_table`` applies Phase 6's
+    rule that choosing the provider in the dropdown is the act that enables it; every
+    other rail is left exactly as configured for the guard to judge.
+    """
+    provider = str(prefs.get("provider") or "").strip().lower()
+    return {
+        "ai_table": selected_ai_table(prefs, provider, model_id),
+        "model_id": model_id,
+        "environ": environ,
+        "secrets_file": secrets_file,
+        "dotenv_path": dotenv_path,
+        "settings_file": settings_file,
+    }
+
+
+def _create_provider(
+    prefs: Mapping[str, Any],
+    model_id: str,
+    *,
+    guard_context: Mapping[str, Any] | None = None,
+):
     """Construct whatever provider the configuration names.
 
-    The GUI never names a provider itself — that boundary belongs to the factory
-    and the configuration layer, so 2b's cloud adapters need no change here.
+    The GUI never names a provider itself — that boundary belongs to the factory and the
+    configuration layer. Cloud and local take different constructor arguments (a cloud
+    adapter has no endpoint and no keep-alive; a local one has no reviewed records and
+    no key locations), so the two kwarg sets are built separately here and handed to the
+    same factory.
+
+    ``strict_free_only=True`` is passed as a literal, not read from configuration: the
+    spend guard inside ``create_provider`` has already refused the run unless the
+    configured flag is exactly ``True``, so a non-strict cloud adapter is unreachable —
+    and writing the literal means it stays unreachable even if this call is reused.
     """
+    from ai.approved_models import load_approved_models
+    from ai.cloud import is_cloud_provider, provider_settings
     from ai.config import IN_CODE_DEFAULTS
     from ai.factory import create_provider
 
+    name = str(prefs.get("provider") or IN_CODE_DEFAULTS["provider"]).strip().lower()
+
+    if is_cloud_provider(name):
+        context = dict(
+            guard_context
+            if guard_context is not None
+            else cloud_guard_context(prefs, model_id)
+        )
+        table = context.get("ai_table")
+        settings = provider_settings(table if isinstance(table, Mapping) else None, name)
+        return create_provider(
+            name,
+            guard_context=context,
+            model_id=model_id,
+            approved_models=load_approved_models(table),
+            strict_free_only=True,
+            timeout_seconds=float(settings.get("timeout_seconds", 120)),
+            max_output_tokens=int(settings.get("max_output_tokens", 4096)),
+            request_overhead_tokens=int(prefs.get("request_overhead_tokens", 128)),
+            context_safety_margin_tokens=int(
+                prefs.get("context_safety_margin_tokens", 256)),
+            environ=context.get("environ"),
+            secrets_file=context.get("secrets_file"),
+            dotenv_path=context.get("dotenv_path"),
+        )
+
     return create_provider(
-        str(prefs.get("provider") or IN_CODE_DEFAULTS["provider"]),
+        name,
         model_id=model_id,
         endpoint=prefs.get("endpoint", ""),
         timeout_seconds=float(prefs.get("timeout_seconds", 120)),
@@ -285,10 +388,98 @@ def _enum_or_default(enum_cls, raw: Any, default):
         return default
 
 
+def build_provider_factory(
+    prefs: Mapping[str, Any],
+    *,
+    create: Callable[[Mapping[str, Any], str], Any] | None = None,
+    checkpoint: Any | None = None,
+    stop_event: Any | None = None,
+    pause_gate: Any | None = None,
+    environ: Mapping[str, str] | None = None,
+    secrets_file: Path | None = None,
+    dotenv_path: Path | None = None,
+    settings_file: Path | None = None,
+) -> Callable[[], Any]:
+    """The provider factory one batch will use.
+
+    **Local runs stay lazy**: nothing is constructed, health checked or contacted until
+    ``run_batch`` actually needs the provider. That is 2a's behaviour and it is unchanged.
+
+    **Cloud runs are built eagerly, here, on the caller's thread** (Plan 2b Phase 7a).
+    The reason is the spend guard: a refusal has to reach the user *before the run
+    starts*, in a dialog naming what failed, not as a log line on a worker thread halfway
+    through a batch. Building the adapter now makes ``create_provider`` — and therefore
+    ``ai.spend_guard.ensure_free_tier_run_allowed`` — run while ``_start`` is still in
+    front of the user. Construction contacts nothing: both cloud adapters build their SDK
+    client lazily on first use.
+
+    Two seams live here (Phase 6), now with the gate moved beneath them:
+
+    * **The cloud gate is no longer called from this module.** It lives at the one place
+      a cloud adapter can be built, ``ai.factory.create_provider``, so it cannot be
+      bypassed by any other route into the editor. This function simply supplies the run
+      context the guard reads. For a cloud provider the injected ``create`` is
+      deliberately **not** honoured for the same reason — a test seam that skips the
+      factory would be a way to start a cloud run without passing the guard. Inject a
+      fake cloud adapter with ``ai.factory.register_provider`` instead; the guard runs on
+      the provider name before any builder is consulted, so a registered fake is still
+      guarded.
+    * **The rate limiter.** ``limiter_for`` picks the limiter from the adapter's own
+      ``exposes_rate_limits`` capability (never from its name) and ``RateLimitedProvider``
+      wraps it. The wrapper satisfies 2a's four-method protocol, so the editor asks for an
+      ``AIProvider`` and gets one. ``checkpoint.on_quota_stop`` is handed straight to the
+      limiter, which is what makes a daily quota write the manifest and stop the batch
+      cleanly instead of sleeping.
+
+    ``ai.*`` is imported *inside* this function, matching the rule the module docstring
+    already states for the enum classes: everything the editor path constructs or
+    catches must come from one generation of the package. Hoisting these to module level
+    was tried and reverted — it left the cloud gate raising an exception class that a
+    later-imported ``AIEditor`` no longer recognised as its own base error.
+    """
+    from ai.cloud import is_cloud_provider, provider_settings
+    from ai.rate_limits import RateLimitedProvider, limiter_for
+
+    create = create or _create_provider
+    model = str(prefs.get("model") or "").strip()
+    provider_name = str(prefs.get("provider") or local_provider()).strip().lower()
+
+    if not is_cloud_provider(provider_name):
+        return lambda: create(prefs, model)
+
+    context = cloud_guard_context(
+        prefs,
+        model,
+        environ=environ,
+        secrets_file=secrets_file,
+        dotenv_path=dotenv_path,
+        settings_file=settings_file,
+    )
+    ai_table = context["ai_table"]
+    on_quota_stop = getattr(checkpoint, "on_quota_stop", None) if checkpoint else None
+
+    # The guard runs inside this call, before the adapter exists. A refusal propagates
+    # out of `build_provider_factory` — and therefore out of `build_ai_editor` — so the
+    # run never starts.
+    adapter = _create_provider(prefs, model, guard_context=context)
+    limiter = limiter_for(
+        adapter,
+        provider_settings(ai_table, provider_name),
+        provider=provider_name,
+        model_id=str(getattr(adapter, "model_id", "") or model),
+        stop_event=stop_event,
+        pause_gate=pause_gate,
+        on_quota_stop=on_quota_stop,
+    )
+    cleared = RateLimitedProvider(adapter, limiter)
+    return lambda: cleared
+
+
 def build_ai_editor(
     prefs: Mapping[str, Any],
     *,
     create: Callable[[Mapping[str, Any], str], Any] | None = None,
+    **factory_kwargs: Any,
 ):
     """Build the run-scoped editor for one batch.
 
@@ -298,7 +489,6 @@ def build_ai_editor(
     from ai.editor import AIEditor, EditorOptions
     from ai.models import ProtectionStrategy, RunPolicy as Policy
 
-    create = create or _create_provider
     model = str(prefs.get("model") or "").strip()
     options = EditorOptions(
         model_id=model,
@@ -311,7 +501,9 @@ def build_ai_editor(
         request_overhead_tokens=int(prefs.get("request_overhead_tokens", 128)),
         safety_margin_tokens=int(prefs.get("context_safety_margin_tokens", 256)),
     )
-    return AIEditor(lambda: create(prefs, model), options)
+    return AIEditor(
+        build_provider_factory(prefs, create=create, **factory_kwargs), options
+    )
 
 
 # ---------------------------------------------------------------------------

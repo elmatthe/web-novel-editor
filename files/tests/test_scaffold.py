@@ -61,3 +61,55 @@ def test_dataclass_shapes_exist():
     entry = ReplacementEntry(original="a", replacement="b", rule="r")
     assert entry.rule == "r"
     assert ReplacementLog().entries == []
+
+
+# ---------------------------------------------------------------------------
+# Version drift: config.toml vs CHANGELOG (added 2026-07-27)
+# ---------------------------------------------------------------------------
+# This had already happened. CHANGELOG.md and BRIEFING.md said v0.13.0 for an entire
+# plan while config.toml still shipped "0.12.0". Nothing in the app consumed the
+# mismatch, which is exactly why nobody noticed -- and config.toml is the file a
+# release, a bug report and a support conversation all quote. `verify` now fails on it;
+# this pins the same rule at the pytest layer so a bare `pytest` run catches it too.
+
+def _repo_root():
+    import pathlib as _p
+
+    return _p.Path(__file__).resolve().parents[2]
+
+
+def _changelog_top_version() -> str:
+    import re
+
+    text = (_repo_root() / "md-instructions" / "CHANGELOG.md").read_text(encoding="utf-8")
+    for line in text.splitlines():
+        match = re.search(r"v?(\d+\.\d+(?:\.\d+)?)", line)
+        if match and line.lstrip().startswith("#"):
+            return match.group(1)
+    raise AssertionError("no version heading found in CHANGELOG.md")
+
+
+def _config_version() -> str:
+    import tomllib
+
+    data = tomllib.loads((_repo_root() / "config.toml").read_text(encoding="utf-8"))
+    return str(data["project"]["version"])
+
+
+def test_config_toml_version_matches_the_changelog():
+    assert _config_version() == _changelog_top_version()
+
+
+def test_verify_gate_actually_checks_the_config_version():
+    """The check must exist in verify.py, not only here -- `verify` is the gate the
+    workflow runs before a commit, and a rule only this file knows is a rule that gets
+    skipped whenever someone runs verify instead of pytest."""
+    import sys
+
+    sys.path.insert(0, str(_repo_root() / "scripts"))
+    import verify
+
+    assert hasattr(verify, "check_config_version")
+    assert verify.check_config_version(_changelog_top_version()) is True
+    # And it must FAIL on a mismatch, or it is decoration.
+    assert verify.check_config_version("99.99.99") is False
