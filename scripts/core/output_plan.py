@@ -37,6 +37,22 @@ def contained_path(root: Path, relative: str) -> Path:
     return target
 
 
+def check_existing_aliases(root: Path, relative: str, cache=None) -> None:
+    """Reject an existing spelling that aliases a reservation on another filesystem."""
+    current = root
+    for part in Path(relative).parts:
+        if current.is_dir():
+            if cache is not None and current in cache:
+                names = cache[current]
+            else:
+                names = [entry.name for entry in current.iterdir()]
+                if cache is not None:
+                    cache[current] = names
+            if any(name != part and path_key(name) == path_key(part) for name in names):
+                raise FileExistsError(f"Unicode/case-equivalent existing destination: {current / part}")
+        current = current / part
+
+
 def reserve_run_dir(parent: Path, base: str) -> Path:
     parent = Path(parent).absolute()
     validate_path(parent)
@@ -56,7 +72,7 @@ def reserve_run_dir(parent: Path, base: str) -> Path:
 
 
 def plan_outputs(paths, output_dir, *, formats=("pdf",), import_roots=None,
-                 mirror_root=None, debug=False, audit=False) -> list[dict]:
+                 mirror_root=None, debug=False, audit=False, check_existing=True) -> list[dict]:
     formats = tuple(formats)
     if not formats or len(set(formats)) != len(formats) or set(formats) - {"pdf", "txt"}:
         raise ValueError("Select at least one valid output format (PDF/TXT)")
@@ -64,6 +80,7 @@ def plan_outputs(paths, output_dir, *, formats=("pdf",), import_roots=None,
     validate_path(root)
     seen, used, directories = set(), set(), {}
     items = []
+    existing_names = {}
     for index, value in enumerate(paths):
         source = Path(value).absolute()
         check_no_links(source)
@@ -81,6 +98,8 @@ def plan_outputs(paths, output_dir, *, formats=("pdf",), import_roots=None,
         if imported:
             imported = Path(imported).absolute()
             check_no_links(imported)
+            if not source.resolve().is_relative_to(imported.resolve()):
+                raise ValueError(f"Source is outside its import root: {source}")
             if root.resolve().is_relative_to(imported.resolve()) or imported.resolve().is_relative_to(root.resolve()):
                 raise ValueError(f"Source/output folder overlap: {imported} and {root}")
             relative = source.relative_to(imported.parent)
@@ -109,10 +128,11 @@ def plan_outputs(paths, output_dir, *, formats=("pdf",), import_roots=None,
                 break
             n += 1
         used.update(keys)
-        staged = {kind: f".wne-{index}-{kind}.tmp" for kind in outputs}
+        staged = {kind: (Path(".s") / str(index) / Path(rel).name).as_posix() for kind, rel in outputs.items()}
         for rel in (*outputs.values(), *staged.values()):
             target = contained_path(root, rel)
-            if os.path.lexists(target):
+            check_existing_aliases(root, rel, existing_names)
+            if check_existing and os.path.lexists(target):
                 raise FileExistsError(f"Reserved destination already exists: {target}")
         items.append({"id": hashlib.sha256(identity.encode()).hexdigest(),
                       "source": str(source), "kind": source.suffix.lower()[1:],

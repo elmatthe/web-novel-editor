@@ -78,6 +78,39 @@ def test_real_child_crash_releases_kernel_guard_but_requires_stale_confirmation(
         pass
 
 
+def test_simultaneous_stale_recoveries_have_exactly_one_owner(tmp_path):
+    from concurrent.futures import ThreadPoolExecutor
+    import threading
+    with RunLock(tmp_path, "run") as owner:
+        record = dict(owner.metadata, process_creation="reused-creation")
+    (tmp_path / run_lock.LOCK_NAME).write_text(json.dumps(record), encoding="utf-8")
+    begin, hold = threading.Barrier(2), threading.Barrier(2)
+    def recover():
+        begin.wait(timeout=5)
+        try:
+            with RunLock(tmp_path, "run").acquire(recover=True):
+                hold.wait(timeout=5)
+                return "owned"
+        except LockConflict:
+            hold.wait(timeout=5)
+            return "blocked"
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        results = list(pool.map(lambda _: recover(), range(2)))
+    assert sorted(results) == ["blocked", "owned"]
+
+
+def test_real_child_cannot_mutate_a_parent_owned_run(tmp_path, offline_python):
+    from pathlib import Path
+    env = dict(os.environ, PYTHONPATH=str(Path(__file__).resolve().parents[2] / "scripts"))
+    with RunLock(tmp_path, "run") as owner:
+        before = (tmp_path / run_lock.LOCK_NAME).read_bytes()
+        child = offline_python.run(["-c", "from core.run_lock import RunLock; import sys; RunLock(sys.argv[1], 'run').acquire(recover=True)", str(tmp_path)],
+                                   env=env, capture_output=True, text=True)
+        assert child.returncode != 0 and "Another writer" in child.stderr
+        assert (tmp_path / run_lock.LOCK_NAME).read_bytes() == before
+        owner.assert_owned()
+
+
 @pytest.mark.parametrize("winerror,failures,calls", [(32, 2, 3), (5, 4, 5), (32, 6, 5), (112, 1, 1), (None, 1, 1)])
 def test_sharing_retry_is_bounded_and_only_retries_windows_transients(winerror, failures, calls):
     attempts, delays, validations = [], [], []

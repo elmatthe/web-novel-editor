@@ -129,6 +129,24 @@ def _summary(repl_log, count: int, rule: str, category: str, note: str) -> None:
         repl_log.record(f"{count} occurrence(s)", note, rule, category, note)
 
 
+def _txt_paragraphs(text: str) -> str:
+    """Retain explicit paragraphs and headings before PDF reconstruction can infer breaks."""
+    paragraphs = []
+    for block in re.split(r"\n\s*\n", text):
+        lines = []
+        for line in block.splitlines():
+            if spacing_cleanup.CHAPTER_LINE_START_RE.match(line.strip()):
+                if lines:
+                    paragraphs.append(" ".join(lines))
+                    lines = []
+                paragraphs.append(line.strip())
+            else:
+                lines.append(line.strip())
+        if lines:
+            paragraphs.append(" ".join(lines))
+    return "\n\n".join(paragraphs)
+
+
 def _apply_universal_fixes(text: str, repl_log) -> str:
     """The bounded, novel-agnostic literal corrections (whole word only)."""
     for bad, good in UNIVERSAL_LITERAL_FIXES.items():
@@ -162,6 +180,7 @@ def run_pipeline(
     gui_log: "Optional[Callable[[str], None]]" = None,
     dry_run: bool = False,
     profile: PipelineProfile = UNIVERSAL_PROFILE,
+    input_kind: str = "pdf",
 ) -> str:
     """Run the full editorial pipeline over `text` for `profile` and return clean text."""
     log = gui_log or (lambda *_a, **_k: None)
@@ -194,6 +213,10 @@ def run_pipeline(
     text = spacing_cleanup.dehyphenate(text)
 
     n_dash = len(_COUNT_SPACED_DASH.findall(text)) if profile.summary_rows else 0
+    if input_kind == "txt":
+        # Explicit blank lines are authoritative. Join wrapped lines only inside each
+        # existing paragraph, then reuse the established heading/reconstruction stage.
+        text = _txt_paragraphs(text)
     text = spacing_cleanup.reconstruct_paragraphs(text)
     if profile.summary_rows:
         _summary(repl_log, n_quotes, "quote_normalize", "quote", "curly doubles -> straight")
@@ -245,10 +268,11 @@ def bind(profile: PipelineProfile) -> Callable[..., str]:
         repl_log: "Optional[ReplacementLog]" = None,
         gui_log: "Optional[Callable[[str], None]]" = None,
         dry_run: bool = False,
+        input_kind: str = "pdf",
     ) -> str:
         return run_pipeline(
             text, lexicon, repl_log=repl_log, gui_log=gui_log, dry_run=dry_run,
-            profile=profile,
+            profile=profile, input_kind=input_kind,
         )
 
     run_profile_pipeline.__name__ = "run_pipeline"

@@ -14,6 +14,7 @@ import sys
 import tempfile
 from pathlib import Path
 from typing import Any, Mapping
+from utils.atomic_io import sharing_retry
 
 
 def runtime_dir(
@@ -39,17 +40,19 @@ def settings_path(**kwargs) -> Path:
     return runtime_dir(**kwargs) / "settings.json"
 
 
-def write_settings_atomic(path: Path, settings: Mapping[str, Any]) -> None:
+def write_settings_atomic(path: Path, settings: Mapping[str, Any], *, validate=None) -> None:
     """Write ``settings`` as JSON via tempfile + fsync + ``os.replace``.
 
     The file on disk is always a complete, valid document: a crash leaves either the
     old version or the new one, never a partial write, and no temp file is left behind
     on failure.
     """
+    if validate:
+        validate()
     path.parent.mkdir(parents=True, exist_ok=True)
     payload = json.dumps(dict(settings), indent=2, sort_keys=True) + "\n"
     fd, temp_name = tempfile.mkstemp(
-        prefix=f".{path.name}.", suffix=".tmp", dir=str(path.parent)
+        prefix=".m-", suffix=".tmp", dir=str(path.parent)
     )
     temp_path = Path(temp_name)
     try:
@@ -57,7 +60,7 @@ def write_settings_atomic(path: Path, settings: Mapping[str, Any]) -> None:
             handle.write(payload)
             handle.flush()
             os.fsync(handle.fileno())
-        os.replace(temp_path, path)
+        sharing_retry(lambda: os.replace(temp_path, path), validate=validate or (lambda: None))
     except BaseException:
         temp_path.unlink(missing_ok=True)
         raise

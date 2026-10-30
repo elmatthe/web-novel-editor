@@ -1,36 +1,15 @@
-"""Batch runner — orchestrates the full per-file processing loop.
+"""Sequential mixed-input worker using the existing editorial dispatch and batch loop.
 
-Sequence per file: extract text -> editorial rule pipeline -> build <name>.pdf (the
-original filename, kept as-is since v0.11.0) into the output folder. Each file is
-wrapped in its own try/except so one failure (corrupt PDF, locked file, image-only
-scan) never stops the batch. Low-confidence extractions (< MIN_CHARS) are skipped +
-logged rather than written as garbage.
-
-Folder-input mode passes `mirror_root` (the selected input folder): each output then
-lands in a subfolder of `output_dir` mirroring the input tree, with the selected
-folder's own name as the root inside it. Without `mirror_root` (upload mode) all
-outputs land flat in `output_dir`.
-
-Output never overwrites: `unique_output_path` appends a numeric suffix on collision.
-The `dry_run` option runs extraction but skips PDF output (useful for the Phase-4 text
-pipeline). `write_debug_text` saves the extracted text alongside the PDF for inspection.
-
-Pause/continue (v0.11.0): an optional `pause_gate` Event is consulted BETWEEN files
-(set = run, cleared = pause). The file being processed always finishes — the gate can
-never interrupt mid-write, which is exactly the safe seam the deferred *cancellation*
-discussion (DECISIONS #020) said run_batch lacked.
-
-The GUI log is condensed (v0.11.0): one line per file plus an end-of-batch summary
-block. Verbose per-stage/per-replacement detail lives only in the JSONL replacement
-log; pipeline "⚠" integrity warnings still surface in the GUI.
-
-Originals are only ever opened for reading; this module never writes to an input path.
+Every real output uses a locked schema-3 checkpoint, staged selected formats and
+required companions. Dry runs write nothing. Pause/Stop remain file-boundary only.
+Source files are read-only; persistence/ownership failures stop the worker.
 """
 
 from __future__ import annotations
 
 import os
 import threading
+import re
 from pathlib import Path
 from typing import Callable, Optional, Sequence
 
@@ -38,17 +17,84 @@ from core.edit_details import load_edit_details
 from core.novel_registry import NOVEL_INDEX_DIR, resolve_dispatch
 from core.protected_lexicon import load_protected_lexicon
 from core.replacement_log import ReplacementLog
-from core.run_manifest import RunCheckpoint
+from core.run_manifest import (RunCheckpoint, ManifestError, CheckpointError,
+                               read_manifest, manifest_path, effective_rules_digest)
+from core.run_lock import LockConflict
 from pdf.builder import build_pdf, detect_heading_only_pages
 from pdf.extractor import extract_text_from_pdf, is_low_confidence
-from utils.file_utils import debug_text_path, unique_output_path
 
 
 def _noop(*_args, **_kwargs) -> None:
     pass
 
 
-def run_batch(
+class TextInputError(ValueError):
+    """A fixed, actionable decoding message safe for ordinary diagnostics."""
+
+
+def run_batch(pdf_paths, output_dir, *, output_formats=("pdf",), resume=False,
+              retry_failed=False, recover_stale=False, import_roots=None, **kwargs):
+    """Own one immutable script-only run for the entire sequential worker lifetime.
+
+    Resume loads the original full queue, formats, companions and profile; current
+    GUI preferences never replace frozen settings. Explicit stale recovery is opt-in.
+    """
+    paths = [str(Path(p).absolute()) for p in pdf_paths]
+    track = kwargs.pop("checkpoint", None)
+    if resume:
+        saved = read_manifest(manifest_path(output_dir))
+        if paths and paths != saved["queue"]:
+            raise ManifestError("Resume requires the original full ordered queue")
+        paths = saved["queue"]
+        options = saved["run"]["options"]
+        output_formats = tuple(options["formats"])
+        kwargs.update(novel_name=saved["run"]["novel"], dry_run=False,
+                      write_debug_text=options["write_debug_text"],
+                      write_replacement_log=options["write_replacement_log"])
+    if not output_formats or set(output_formats) - {"pdf", "txt"} or len(set(output_formats)) != len(output_formats):
+        raise ValueError("Select at least one output format")
+    if len(set(os.path.normcase(p) for p in paths)) != len(paths):
+        raise ValueError("Duplicate source path")
+    if retry_failed and not resume:
+        raise ValueError("Retry Failed requires the original run")
+    stop = kwargs.get("stop_event")
+    dry = kwargs.get("dry_run", False)
+    if dry or not paths or (not resume and stop is not None and stop.is_set()):
+        return _run_batch(paths, output_dir, output_formats=output_formats, **kwargs)
+    novel = kwargs.get("novel_name")
+    dispatch = resolve_dispatch(novel)
+    index = str(NOVEL_INDEX_DIR / dispatch.index_filename) if dispatch.index_filename else ""
+    lexicon = load_protected_lexicon(index, dispatch.canonical_names)
+    digest = effective_rules_digest(novel, dispatch, lexicon)
+    try:
+        if resume:
+            track = RunCheckpoint.resume(output_dir, rules_digest=digest, recover=recover_stale)
+        else:
+            track = track or RunCheckpoint(output_dir, paths, novel=novel,
+                                           mirror_root=kwargs.get("mirror_root"), import_roots=import_roots)
+            if track.queue != paths:
+                raise ManifestError("Checkpoint queue differs from worker queue")
+            track.start(formats=output_formats, rules_digest=digest,
+                        write_debug_text=kwargs.get("write_debug_text", False),
+                        write_replacement_log=kwargs.get("write_replacement_log", False))
+        for entry in track.payload()["entries"]:
+            if kwargs.get("gui_log"):
+                destinations = ", ".join(entry["outputs"].values())
+                kwargs["gui_log"](f"Output mapping: {Path(entry['source']).name} → {destinations}", "muted")
+        return _run_batch(paths, output_dir, checkpoint=track, output_formats=output_formats,
+                          retry_failed=retry_failed, _dispatch=dispatch, _lexicon=lexicon, **kwargs)
+    finally:
+        if track is not None:
+            track.close()
+
+
+def serialize_txt(text: str) -> str:
+    """TXT product format: LF, readable paragraph/chapter breaks, final newline."""
+    text = text.replace("\r\n", "\n").replace("\r", "\n").replace("\f", "\n\n")
+    return re.sub(r"\n{3,}", "\n\n", text).strip() + "\n"
+
+
+def _run_batch(
     pdf_paths: Sequence[str],
     output_dir: str,
     *,
@@ -60,48 +106,17 @@ def run_batch(
     pause_gate: Optional[threading.Event] = None,
     stop_event: Optional[threading.Event] = None,
     checkpoint: RunCheckpoint | None = None,
+    output_formats=("pdf",),
+    retry_failed=False,
+    _dispatch=None,
+    _lexicon=None,
     gui_log: Callable[..., None] | None = None,
     progress: Callable[[int], None] | None = None,
 ) -> dict:
-    """Process each PDF sequentially and return a run summary dict.
+    """Process eligible original-queue items; only verified publication counts as success.
 
-    `mirror_root` (folder-input mode) is the selected input folder: each file's output
-    is written under `output_dir/<mirror_root's own name>/<relative subpath>`, so the
-    input tree is mirrored inside the output folder. None (upload mode) = flat output.
-
-    `novel_name` selects the editorial pipeline via `core.novel_registry.resolve_dispatch`.
-    A registered novel (e.g. "Shadow Slave") runs its real profile pipeline; any other
-    value — including None (the default) — falls back to **universal-only** editing (the
-    universal rules with no novel-specific substitutions). The GUI always passes the
-    selected novel explicitly; the bare default is universal-only by design.
-
-    `pause_gate` (optional) is the cooperative pause seam: an Event that is SET while
-    the batch should run. It is consulted only BETWEEN files — if cleared, the loop
-    logs "Paused after chapter N of M" and blocks on `pause_gate.wait()` until set
-    again (Continue). The current file always completes first, so pausing can never
-    corrupt an output mid-write. Session-only: the gate lives with the caller.
-
-    Callbacks (both optional):
-        gui_log(message, level="info") — progress/diagnostic lines for the UI/log.
-        progress(value:int)           — number of files completed so far (1..N).
-
-    `stop_event` is checked only at safe between-file boundaries. Set means
-    "finish the current file, then stop"; it never interrupts extraction or PDF work.
-
-    `checkpoint` is one optional `RunCheckpoint` (Plan 2b Phase 5). None keeps the
-    historical path exact — nothing is written and no manifest appears. When present,
-    the run's state is written atomically into the output folder after EACH finished
-    file, so the app can be closed at any point and the run resumed later. The
-    recording call sits on the far side of `build_pdf` and its sidecars, so a
-    `completed` entry always means the output exists; failed and skipped files are
-    recorded with their own status and still advance the queue, because a resumed run
-    must not retry a corrupt PDF forever. Dry runs write no manifest at all.
-
-    Returns: {total, succeeded, failed, skipped, output_dir, outputs:[paths],
-    novel, profile_applied} — the last two are the run's dispatch provenance (the
-    resolved display name and whether a real per-novel profile ran vs. universal-only).
-    A stopped run additionally carries ``stopped: True``; ordinary summaries retain
-    the exact legacy shape.
+    Callbacks retain the historical condensed log and progress seams. Attempt totals
+    describe this invocation; durable terminal totals describe the complete run.
     """
     log = gui_log or _noop
     tick = progress or _noop
@@ -120,7 +135,7 @@ def run_batch(
 
     # Resolve the selected novel to its pipeline + profile (universal-only fallback when
     # the novel has no real editorial profile). This is the single dispatch seam.
-    dispatch = resolve_dispatch(novel_name)
+    dispatch = _dispatch or resolve_dispatch(novel_name)
     selected_label = novel_name if novel_name else "(none — universal-only)"
     log(f"Selected novel: {selected_label}", "accent")
 
@@ -133,7 +148,7 @@ def run_batch(
     index_path = (
         str(NOVEL_INDEX_DIR / dispatch.index_filename) if dispatch.index_filename else ""
     )
-    lexicon = load_protected_lexicon(index_path, dispatch.canonical_names)
+    lexicon = _lexicon or load_protected_lexicon(index_path, dispatch.canonical_names)
     term_count = len(lexicon.terms)
     log(f"Loaded {term_count} protected term(s) for "
         f"{dispatch.display_name}.", "muted")
@@ -177,13 +192,19 @@ def run_batch(
         "protected_terms": len(lexicon.terms),
     }
 
-    if not dry_run and not (stop_event is not None and stop_event.is_set()):
+    if total and not dry_run and not (stop_event is not None and stop_event.is_set()):
         os.makedirs(output_dir, exist_ok=True)
 
     failed_files: list[tuple[str, str]] = []
     skipped_files: list[tuple[str, str]] = []
 
     for i, src in enumerate(pdf_paths, start=1):
+        if track is not None:
+            entry = track.entry(src)
+            if entry["status"] == "completed" or (retry_failed and entry["status"] not in {"failed", "prepared"}):
+                continue
+            if not retry_failed and entry["status"] in {"failed", "skipped"}:
+                continue
         if stop_event is not None and stop_event.is_set():
             stopped = True
             log(f"Stop requested — batch ended before chapter {i} of {total}.", "warn")
@@ -194,7 +215,12 @@ def run_batch(
         # the last. Cleared gate = hold here until Continue sets it again.
         if pause_gate is not None and i > 1 and not pause_gate.is_set():
             log(f"Paused after chapter {i - 1} of {total}.", "warn")
-            pause_gate.wait()
+            if isinstance(pause_gate, threading.Event):
+                while not pause_gate.wait(0.1):
+                    if stop_event is not None and stop_event.is_set():
+                        break
+            else:
+                pause_gate.wait()
             # Stop may be what released a paused worker. Re-check before logging
             # Continue or beginning any extraction/PDF work for this file.
             if stop_event is not None and stop_event.is_set():
@@ -208,6 +234,13 @@ def run_batch(
 
         name = os.path.basename(src)
         try:
+            if track is not None and track.entry(src)["status"] == "prepared":
+                track.publish(src)
+                outputs.extend(str(Path(output_dir) / p) for kind, p in track.entry(src)["outputs"].items()
+                               if kind in {"pdf", "txt"})
+                succeeded += 1
+                log(f"[{i}/{total}] {name} — done (recovered publication)", "success")
+                continue
             if not os.path.isfile(src):
                 skipped += 1
                 skipped_files.append((name, "not found"))
@@ -216,9 +249,22 @@ def run_batch(
                     track.record_skipped(src, "not found")
                 continue
 
-            text = extract_text_from_pdf(src)
+            if track is not None:
+                track.verify_source(src)
+            is_txt = Path(src).suffix.lower() == ".txt"
+            if is_txt:
+                try:
+                    text = Path(src).read_text(encoding="utf-8-sig")
+                except UnicodeDecodeError as exc:
+                    raise TextInputError("TXT must be UTF-8 or UTF-8 BOM; convert the source encoding and start a new run") from exc
+                text = text.replace("\r\n", "\n").replace("\r", "\n")
+                if "\x00" in text:
+                    raise TextInputError("TXT contains NUL characters; convert the source encoding and start a new run")
+            else:
+                text = extract_text_from_pdf(src)
 
-            if is_low_confidence(text):
+            empty = not text.strip() if is_txt else is_low_confidence(text)
+            if empty:
                 skipped += 1
                 skipped_files.append((name, "image-only/empty"))
                 log(f"[{i}/{total}] {name} — skipped (image-only/empty)", "warn")
@@ -230,9 +276,10 @@ def run_batch(
             # always built (it feeds the condensed line's edit count); the JSONL file
             # itself is still written only when the option is enabled.
             repl_log = ReplacementLog(metadata=run_metadata)
-            text = dispatch.run_pipeline(
-                text, lexicon, repl_log=repl_log, gui_log=pipe_log, dry_run=dry_run
-            )
+            pipe_options = {"repl_log": repl_log, "gui_log": pipe_log, "dry_run": dry_run}
+            if is_txt:
+                pipe_options["input_kind"] = "txt"
+            text = dispatch.run_pipeline(text, lexicon, **pipe_options)
             # Edit count for the condensed line: real edits only. integrity_flag
             # records (error pages #005, heading-only pages #017) mark problems,
             # not edits — they stay in the JSONL but must not inflate this count.
@@ -245,74 +292,66 @@ def run_batch(
                 succeeded += 1
                 continue
 
-            # Folder mode: mirror the input tree (rooted at the selected folder's own
-            # name) inside output_dir; a file somehow outside mirror_root falls back
-            # to the flat output root rather than failing the batch.
-            file_out_dir = output_dir
-            if mirror_root:
-                try:
-                    rel = Path(src).parent.relative_to(Path(mirror_root).parent)
-                    file_out_dir = os.path.join(output_dir, *rel.parts)
-                except ValueError:
-                    pass
-                os.makedirs(file_out_dir, exist_ok=True)
-
-            out_path = unique_output_path(file_out_dir, name)
-            build_pdf(text, out_path)
-            outputs.append(out_path)
-            log(f"[{i}/{total}] {name} — done ({edits_label})", "success")
+            if track is None:
+                raise ManifestError("Real output requires durable run ownership")
+            entry = track.entry(src)
+            if "pdf" in output_formats:
+                track.stage(src, "pdf", lambda path: build_pdf(text, str(path)))
+            if "txt" in output_formats:
+                track.stage(src, "txt", lambda path: path.write_text(serialize_txt(text), encoding="utf-8", newline="\n"))
 
             # Phase 6 (detection-only, never deletes): a heading-only page can
             # only arise from multi-chapter input (the pipeline puts \f before
             # each later heading), so single-chapter builds — today's normal
             # case — skip the post-build scan entirely.
-            if len([p for p in text.split("\f") if p.strip()]) >= 2:
-                flagged_pages = detect_heading_only_pages(out_path)
+            if "pdf" in output_formats and len([p for p in text.split("\f") if p.strip()]) >= 2:
+                pdf_stage = Path(output_dir) / entry["staged"]["pdf"]
+                flagged_pages = detect_heading_only_pages(str(pdf_stage))
                 if flagged_pages:
                     pages_str = ", ".join(str(p) for p in flagged_pages)
                     log(f"        ⚠ heading-only page(s) {pages_str} in "
-                        f"{os.path.basename(out_path)} — preserved (review: "
+                        f"{Path(entry['outputs']['pdf']).name} — preserved (review: "
                         f"title-only chapter or upstream data loss)", "warn")
                     repl_log.record(
                         f"heading-only page(s): {pages_str}",
                         "[FLAGGED: heading-only page(s) preserved - review]",
                         "pdf.heading_only_page_flag",
                         "integrity_flag",
-                        os.path.basename(out_path),
+                        Path(entry["outputs"]["pdf"]).name,
                     )
 
             # Sidecars are written silently (condensed log: one line per file); the
             # end-of-batch summary already points the user at the output folder.
             if write_replacement_log:
-                jsonl = os.path.splitext(out_path)[0] + "_replacements.jsonl"
-                repl_log.write_jsonl(jsonl)
+                track.stage(src, "audit", lambda path: repl_log.write_jsonl(str(path)))
 
             if write_debug_text:
-                dbg = debug_text_path(out_path)
-                with open(dbg, "w", encoding="utf-8") as fh:
-                    fh.write(text)
+                track.stage(src, "debug", lambda path: path.write_text(text, encoding="utf-8", newline="\n"))
 
             # Checkpoint LAST, on the far side of the PDF and its sidecars: a
             # `completed` entry must always mean the output really exists, so a
             # resumed run never skips a chapter it never wrote.
-            if track is not None:
-                track.record_completed(src, out_path)
-
+            track.prepare(src)
+            track.publish(src)
+            outputs.extend(str(Path(output_dir) / path) for kind, path in entry["outputs"].items()
+                           if kind in {"pdf", "txt"})
             succeeded += 1
+            log(f"[{i}/{total}] {name} — done ({edits_label})", "success")
 
+        except (CheckpointError, LockConflict):
+            log("Run ownership/checkpoint failed — stopped safely; no further file started.", "error")
+            raise
         except Exception as exc:  # continue-on-failure: never abort the batch
             failed += 1
-            reason = f"{type(exc).__name__}: {exc}"
+            reason = f"{type(exc).__name__}: processing/publication failed; review source encoding, readability or destination access"
+            if isinstance(exc, (TextInputError, ManifestError)):
+                reason = f"{type(exc).__name__}: {exc}"
             failed_files.append((name, reason))
             log(f"[{i}/{total}] {name} — FAILED ({reason})", "error")
             # Recorded as failed, and the queue still advances — otherwise a resumed
             # run would retry the same corrupt PDF forever.
             if track is not None:
-                try:
-                    track.record_failed(src, reason)
-                except Exception:  # a checkpoint fault must not hide the real failure
-                    log(f"        ⚠ could not update the run manifest for {name}.",
-                        "warn")
+                track.record_failed(src, type(exc).__name__)
         finally:
             tick(i)
 
@@ -333,10 +372,18 @@ def run_batch(
     }
     if stopped:
         summary["stopped"] = True
+    if track is not None:
+        statuses = [e["status"] for e in track.payload()["entries"]]
+        summary.update(completed_total=statuses.count("completed"),
+                       failed_total=statuses.count("failed") + statuses.count("prepared"),
+                       skipped_total=statuses.count("skipped"),
+                       finished_with_errors=any(s in {"failed", "prepared"} for s in statuses))
     # End-of-batch summary block: totals, then the failed/skipped files by name so
     # problem files are findable without scrolling (sections omitted when empty).
     log(f"Batch complete: {succeeded} done, {failed} failed, {skipped} skipped "
-        f"of {total}.", "success" if failed == 0 else "warn")
+        f"of {total}.", "warn" if failed or summary.get("finished_with_errors") else "success")
+    if summary.get("finished_with_errors"):
+        log(f"Run retains {summary['failed_total']} failed/incomplete item(s). Use Retry Failed after resolving access/readability problems.", "warn")
     if failed_files:
         log("Failed:", "error")
         for name, reason in failed_files:

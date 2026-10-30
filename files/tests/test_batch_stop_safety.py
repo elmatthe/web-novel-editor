@@ -21,6 +21,7 @@ from pathlib import Path
 import core.batch_runner as batch_runner
 from core.batch_runner import run_batch
 from core.novel_registry import NovelDispatch
+from pdf.builder import build_pdf as real_build_pdf
 
 BASELINE = (
     "Chapter 1: Test.\n\n"
@@ -45,7 +46,7 @@ def _wire(monkeypatch, built, pipeline=None):
         batch_runner, "resolve_dispatch", lambda _name: _dispatch(pipeline)
     )
     monkeypatch.setattr(
-        batch_runner, "build_pdf", lambda text, path: built.append((text, path))
+        batch_runner, "build_pdf", lambda text, path: (built.append((text, path)), real_build_pdf(text, path))
     )
 
 
@@ -90,6 +91,7 @@ def test_stop_during_pdf_write_finishes_current_then_stops(tmp_path, monkeypatch
 
     def build(text, path):
         built.append((text, path))
+        real_build_pdf(text, path)
         stop.set()
 
     monkeypatch.setattr(batch_runner, "build_pdf", build)
@@ -136,6 +138,7 @@ def test_stop_releasing_paused_worker_begins_no_next_file(tmp_path, monkeypatch)
 
     def build(text, path):
         built.append(Path(path).name)
+        real_build_pdf(text, path)
         # Simulate Pause being requested while file 1 is finishing. The worker
         # will observe the cleared gate only after this complete PDF write returns.
         pause_gate.clear()
@@ -224,6 +227,7 @@ def test_one_pdf_build_failure_is_isolated_from_the_rest_of_the_batch(
         if Path(path).name == "1.pdf":
             raise OSError("locked")
         built.append((text, path))
+        real_build_pdf(text, path)
 
     monkeypatch.setattr(batch_runner, "build_pdf", build)
     summary = run_batch(_inputs(tmp_path, 3), str(tmp_path / "out"))

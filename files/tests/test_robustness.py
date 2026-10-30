@@ -88,7 +88,9 @@ def test_image_only_pdf_is_skipped_not_failed(tmp_path):
     assert summary["succeeded"] == 0
     assert summary["outputs"] == []
     # No garbage PDF written for an unprocessable file.
-    assert not os.path.isdir(out_dir) or os.listdir(out_dir) == []
+    assert not list(__import__('pathlib').Path(out_dir).glob("*.pdf"))
+    from core.run_manifest import read_manifest, manifest_path
+    assert read_manifest(manifest_path(out_dir))["entries"][0]["status"] == "skipped"
 
 
 @pytest.mark.parametrize("make_bad", [_zero_byte_pdf, _corrupt_pdf, _non_pdf])
@@ -106,7 +108,9 @@ def test_bad_pdf_fails_gracefully_without_crashing(make_bad, tmp_path):
     # The failure was reported on the error channel (thread-safe path in the GUI).
     assert any(level == "error" for level, _ in logs)
     # No garbage PDF written.
-    assert not os.path.isdir(out_dir) or os.listdir(out_dir) == []
+    assert not list(__import__('pathlib').Path(out_dir).glob("*.pdf"))
+    from core.run_manifest import read_manifest, manifest_path
+    assert read_manifest(manifest_path(out_dir))["entries"][0]["status"] == "failed"
 
 
 # --- mid-batch continuation -------------------------------------------------

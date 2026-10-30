@@ -59,3 +59,13 @@ def test_format_selection_validates_before_allocation(tmp_path):
     with pytest.raises(ValueError, match="format"):
         plan_outputs([tmp_path / "a.txt"], tmp_path / "out", formats=())
     assert not (tmp_path / "out").exists()
+
+
+def test_existing_unicode_equivalent_destination_is_a_conflict(tmp_path):
+    out = tmp_path / "out"
+    out.mkdir()
+    existing = out / "Caf\u00e9.pdf"
+    existing.write_bytes(b"existing private output")
+    with pytest.raises(FileExistsError):
+        plan_outputs([tmp_path / "Cafe\u0301.txt"], out)
+    assert existing.read_bytes() == b"existing private output"

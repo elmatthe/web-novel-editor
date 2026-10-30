@@ -14,8 +14,12 @@ matches local HEAD, refreshed tracking and live remote. Preserve unrelated untra
   identity, fail-closed ownership and explicit stale recovery with preserved metadata;
   bounded Windows 5/32 retries. Focused scanner/mapping/lock tests: 37 passed, including
   a real offline child crash/recovery. First slice: `96b68ec` (pushed).
-- Next: schema-3 durable publication/recovery, resume/retry,
-  minimal GUI adapters. Required full verifier and exact editorial comparison precede
+- Third slice: schema-3 frozen queue/options/rule and source hashes; validated staging,
+  prepared/completed publication, same-run resume and Retry Failed. Ten crash boundaries,
+  transient sharing exhaustion/partial pairs, required companions, and fatal persistence
+  errors are covered. Strict offline full verifier: 757 passed / 1 Bash skip, zero network
+  attempts; subsequent targeted hardening: 74 passed. Real Tk executed outside sandbox.
+- Next: minimal GUI adapters. Final full verifier and exact editorial comparison precede
   the final checkpoint. **STOP at Gate 02A; no Phase 02B authorization.**
 
 ## Previous Focus — Gate 01 test-harness remediation (now approved)
