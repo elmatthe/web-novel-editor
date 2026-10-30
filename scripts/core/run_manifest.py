@@ -10,7 +10,6 @@ from dataclasses import dataclass
 import hashlib
 import json
 import os
-import re
 from pathlib import Path
 import time
 import uuid
@@ -18,7 +17,7 @@ import uuid
 from core.input_scanner import check_no_links
 from core.output_plan import contained_path, plan_outputs, check_existing_aliases
 from core.run_lock import RunLock
-from utils.atomic_io import sharing_retry
+from utils.atomic_io import sharing_retry, rename_no_clobber
 from utils.settings import write_settings_atomic
 
 MANIFEST_NAME = "run-manifest.json"
@@ -29,6 +28,12 @@ STATUS_SKIPPED = "skipped"
 STOP_USER = "user_stop"
 ENTRY_KEYS = ("id", "source", "kind", "import_root", "relative", "outputs", "staged",
               "source_identity", "status", "expected", "attempts", "recorded_at")
+ERROR_CODES = frozenset({"processing_error", "OSError", "PermissionError", "FileNotFoundError",
+                         "FileExistsError", "ValueError", "TypeError", "RuntimeError", "ManifestError",
+                         "TextInputError", "UnicodeDecodeError", "UnicodeError", "PDFSyntaxError",
+                         "PDFPasswordIncorrect", "PSEOF", "PSSyntaxError", "NotImplementedError",
+                         "IsADirectoryError", "NotADirectoryError"})
+SKIP_CODES = frozenset({"empty", "not found", "image-only/empty"})
 
 
 class ManifestError(RuntimeError):
@@ -139,6 +144,14 @@ def read_manifest(path) -> dict:
                     or set(attempt) - {"outcome", "at", "code"}
                     or ("code" in attempt and (not isinstance(attempt["code"], str) or len(attempt["code"]) > 64))):
                     raise ValueError("Malformed attempt history")
+                outcome = attempt["outcome"]
+                if outcome == "completed":
+                    valid = set(attempt) == {"outcome", "at"}
+                else:
+                    codes = ERROR_CODES if outcome == "failed" else SKIP_CODES
+                    valid = set(attempt) == {"outcome", "at", "code"} and attempt["code"] in codes
+                if not valid:
+                    raise ValueError("Unsupported attempt outcome/code")
             if entry["import_root"]:
                 roots[source] = entry["import_root"]
             if entry["status"] in {"prepared", "completed"}:
@@ -176,8 +189,9 @@ class RunCheckpoint:
         self.output_dir = str(Path(output_dir).absolute())
         self.queue = [str(Path(p).absolute()) for p in queue]
         self.novel = novel or ""
-        self.mirror_root = mirror_root
-        self.import_roots = dict(import_roots or {})
+        self.mirror_root = str(Path(mirror_root).absolute()) if mirror_root else None
+        self.import_roots = {str(Path(p).absolute()): str(Path(root).absolute())
+                             for p, root in (import_roots or {}).items()}
         self._clock, self._fault_hook = clock, fault_hook or (lambda point: None)
         self._data, self._lock = None, None
         self._ready_stages = set()
@@ -301,11 +315,12 @@ class RunCheckpoint:
         if entry["status"] in {"prepared", "completed"}:
             raise ManifestError("Prepared/completed output must be recovered, never regenerated silently")
         target = self._path(entry["staged"][kind])
+        self._ready_stages.discard((entry["id"], kind))
         target.parent.mkdir(parents=True, exist_ok=True)
         if target.exists():
             # A pre-prepare crash left no trusted hash. Preserve it before reprocessing.
             archive = self._path(f".orphan-{uuid.uuid4().hex[:12]}.tmp")
-            os.rename(target, archive)
+            rename_no_clobber(target, archive)
         with target.open("xb"):
             pass
         writer(target)
@@ -325,7 +340,8 @@ class RunCheckpoint:
             if kind == "pdf":
                 import pdfplumber
                 with pdfplumber.open(target) as document:
-                    if not document.pages or any(page.width <= 0 for page in document.pages):
+                    extracted = [page.extract_text() or "" for page in document.pages]
+                    if not extracted or not any(text.strip() for text in extracted):
                         raise ManifestError("PDF validation failed")
             else:
                 text = target.read_text(encoding="utf-8")
@@ -380,11 +396,7 @@ class RunCheckpoint:
                     return  # verified matching prepared hash, including on recovery
                 stage = self._path(entry["staged"][kind])
                 final.parent.mkdir(parents=True, exist_ok=True)
-                if os.name == "nt":
-                    os.rename(stage, final)  # Windows rename refuses an existing destination
-                else:
-                    os.link(stage, final)  # atomic no-clobber publication on POSIX
-                    stage.unlink()
+                rename_no_clobber(stage, final)
             sharing_retry(publish_one, validate=validate)
             self._fault_hook("after_publish:" + kind)
         self.verify_outputs(entry)
@@ -396,22 +408,25 @@ class RunCheckpoint:
 
     def record_failed(self, source, reason="processing_error"):
         entry = self.entry(source)
+        self._ready_stages.difference_update((entry["id"], kind) for kind in entry["outputs"])
         if entry["status"] == "completed":
             raise ManifestError("Cannot replace completed history with a failed attempt")
-        code = reason if re.fullmatch(r"[A-Za-z_]{1,64}", reason) else "processing_error"
+        code = reason if reason in ERROR_CODES else "processing_error"
         attempts = entry["attempts"] + [{"outcome": "failed", "code": code, "at": self._clock()}]
         self._update(source, status="prepared" if entry["status"] == "prepared" else "failed", attempts=attempts)
 
     def record_skipped(self, source, reason="empty"):
         entry = self.entry(source)
+        code = reason if reason in SKIP_CODES else "empty"
         self._update(source, status="skipped", attempts=entry["attempts"] + [
-            {"outcome": "skipped", "code": reason, "at": self._clock()}])
+            {"outcome": "skipped", "code": code, "at": self._clock()}])
 
     def finish(self, *, stopped=False):
         data = self.payload()
         data["complete"] = not stopped and all(e["status"] in {"completed", "failed", "skipped"} for e in data["entries"])
         data["stopped_reason"] = STOP_USER if stopped else ("finished_with_errors" if any(
-            e["status"] == "failed" or e["status"] == "prepared" for e in data["entries"]) else "")
+            e["status"] in {"failed", "prepared"} for e in data["entries"]) else
+            "pending_remaining" if any(e["status"] == "pending" for e in data["entries"]) else "")
         self._persist(data)
 
     def close(self):
@@ -444,7 +459,7 @@ def find_resumable_run(search_dir) -> ResumeOffer:
     for path in candidates:
         data = load_manifest(path)
         if data:
-            remaining = tuple(e["source"] for e in data["entries"] if e["status"] != "completed")
+            remaining = tuple(e["source"] for e in data["entries"] if e["status"] in {"pending", "prepared", "failed"})
             if remaining:
                 return ResumeOffer(True, "Incomplete/failed items available; hashes will be verified under ownership.",
                                    path, data["output_dir"], data["run"]["novel"], data["run"].get("mirror_root"),

@@ -173,6 +173,17 @@ def test_unreadable_directory_emits_warning(tmp_path, monkeypatch):
     assert "private" in warnings[0]
 
 
+def test_real_directory_link_cycle_is_skipped_and_link_root_is_refused(tmp_path, directory_link):
+    import pytest
+    _touch(tmp_path, "chapter.txt", "sub/next.pdf")
+    link = directory_link(tmp_path / "sub" / "cycle", tmp_path)
+    assert _names(scan_folder(tmp_path), tmp_path) == ["chapter.txt", "sub/next.pdf"]
+    with pytest.raises(ValueError, match="Symlink/junction"):
+        scan_folder(link)
+    with pytest.raises(ValueError, match="Symlink/junction"):
+        scan_upload([link / "chapter.txt"])
+
+
 def test_upload_returns_path_objects(tmp_path):
     _touch(tmp_path, "1.pdf")
     result = scan_upload([str(tmp_path / "1.pdf")])

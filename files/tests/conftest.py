@@ -25,6 +25,9 @@ from __future__ import annotations
 import os
 import socket
 import sys
+import subprocess
+import tempfile
+import xml.etree.ElementTree as ET
 from pathlib import Path
 
 import pytest
@@ -36,6 +39,55 @@ _SCRIPTS = _REPO_ROOT / "scripts"
 
 if str(_SCRIPTS) not in sys.path:
     sys.path.insert(0, str(_SCRIPTS))
+
+
+@pytest.fixture
+def directory_link():
+    """Real contained junctions on Windows; directory symlinks on POSIX."""
+    def create(link, target):
+        if sys.platform == "win32":
+            result = subprocess.run(["cmd", "/c", "mklink", "/J", str(link), str(target)],
+                                    capture_output=True, text=True)
+            assert result.returncode == 0, result.stderr
+        else:
+            link.symlink_to(target, target_is_directory=True)
+        return link
+    return create
+
+
+def _check_gui_child_report(path, expected_name):
+    """A successful exit alone cannot hide a skipped or unexecuted GUI case."""
+    report = ET.parse(path).getroot()
+    suites = report.findall("testsuite")
+    assert len(suites) == 1, "GUI child did not produce exactly one suite"
+    counts = suites[0].attrib
+    assert int(counts["tests"]) == 1, "GUI child did not execute exactly one test"
+    assert all(int(counts[key]) == 0 for key in ("skipped", "errors", "failures")), "GUI child skipped or failed"
+    cases = suites[0].findall("testcase")
+    assert len(cases) == 1 and cases[0].get("name") == expected_name, "GUI child executed the wrong test"
+
+
+@pytest.hookimpl(tryfirst=True)
+def pytest_pyfunc_call(pyfuncitem):
+    # The desktop app creates one Tk interpreter. Isolate Windows GUI cases so
+    # destroyed interpreters from other tests cannot share Tcl's event queue.
+    if (sys.platform != "win32" or pyfuncitem.path.name != "test_app.py"
+            or os.environ.get("WNE_GUI_TEST_CHILD") == "1"):
+        return None
+    runner = pyfuncitem._request.getfixturevalue("offline_python")
+    scratch = _REPO_ROOT / "files" / "temp"
+    scratch.mkdir(parents=True, exist_ok=True)
+    owned = Path(tempfile.mkdtemp(prefix="g-", dir=scratch))
+    temporary, report = owned / "w", owned / "case.xml"
+    child_env = dict(os.environ, WNE_GUI_TEST_CHILD="1", PYTEST_ADDOPTS="")
+    result = runner.run(
+        ["-m", "pytest", pyfuncitem.nodeid, "-q", "-rs", "-p", "no:cacheprovider",
+         "--require-local-corpora", "--basetemp", str(temporary), "--junitxml", str(report)],
+        cwd=str(_REPO_ROOT), env=child_env, capture_output=True, text=True, timeout=60,
+    )
+    assert result.returncode == 0, "GUI child failed:\n" + result.stdout + result.stderr
+    _check_gui_child_report(report, pyfuncitem.name)
+    return True
 
 
 def pytest_addoption(parser):

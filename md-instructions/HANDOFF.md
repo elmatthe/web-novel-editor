@@ -1,26 +1,28 @@
 # Web Novel Editor — Handoff
 
-## Current Focus — Phase 02A implementation; Gate 01 approved
+## Current Focus — Phase 02A complete; STOP AT GATE 02A
 
-**Snapshot (2026-10-29, Codex CLI, HOME-PC).** Authorized Phase 02A only on
-`feature/0.4.0-script-only-editor`. Approved base `c6e68ed7a1ba77a1e7b69c5816a716296a76922d`
-matches local HEAD, refreshed tracking and live remote. Preserve unrelated untracked/ignored work.
+**Snapshot (2026-10-29, Codex CLI, HOME-PC).** Branch
+`feature/0.4.0-script-only-editor`; approved input `c6e68ed7a1ba77a1e7b69c5816a716296a76922d`
+was reconciled with refreshed tracking/live origin before edits. Final SHA accompanies the
+CLI report. Unrelated untracked/ignored work is preserved; version remains v0.13.0.
 
-- First slice: mixed PDF/TXT scanner, recursion/exclusion/warnings, safe link checks;
-  exclusive numbered allocation and frozen Unicode/casefold output mapping/preflight.
-- Focused verification: scanner/output-plan/output-layout tests; results recorded in the
-  Phase 02A checkpoint at completion. Test scratch stays in ignored `files/temp/`.
-- Second slice: lifetime OS-backed run guard, exclusive owner metadata, PID creation
-  identity, fail-closed ownership and explicit stale recovery with preserved metadata;
-  bounded Windows 5/32 retries. Focused scanner/mapping/lock tests: 37 passed, including
-  a real offline child crash/recovery. First slice: `96b68ec` (pushed).
-- Third slice: schema-3 frozen queue/options/rule and source hashes; validated staging,
-  prepared/completed publication, same-run resume and Retry Failed. Ten crash boundaries,
-  transient sharing exhaustion/partial pairs, required companions, and fatal persistence
-  errors are covered. Strict offline full verifier: 757 passed / 1 Bash skip, zero network
-  attempts; subsequent targeted hardening: 74 passed. Real Tk executed outside sandbox.
-- Next: minimal GUI adapters. Final full verifier and exact editorial comparison precede
-  the final checkpoint. **STOP at Gate 02A; no Phase 02B authorization.**
+- **Implemented:** mixed imports/ordering, selected formats, exclusive allocation and
+  portable preflight; schema-3 hashes/frozen mapping, prepared publication, OS-backed
+  ownership, safe resume/retry/pause/stop, minimal existing-GUI controls.
+- **Verification:** full strict offline verifier **790 passed / 1 Bash skip**, all four
+  checks pass, zero network attempts. Focused data-path **148 passed**; GUI/guard **56 passed**.
+  All 36 GUI cases execute in fresh guarded Windows children; child skips/errors fail.
+  Shared-process Tcl faults were reproduced and recorded, not declared repaired.
+- **Parity/workload:** 828 frozen results = 810 identical + 18 approved Phase 01 deltas;
+  zero new editorial/input differences. 2,010-item mixed workload completed across Stop,
+  Resume and Retry Failed, with unchanged hashes/mapping and no duplicate outputs.
+- **Report:** `files/checkpoints/WNE-P02A-data-path.md` contains commits, evidence,
+  test migrations, limits and the concise independent-review handoff.
+- **Next exact action:** fresh independent CLI review of approved base through pushed
+  feature HEAD, especially publication, locks, preflight, recovery and GUI child verification.
+  No independent reviewer has run here. **Wait for user Gate 02A acceptance and explicit
+  Phase 02B authorization. Do not merge, tag, release or begin Phase 02B.**
 
 ## Previous Focus — Gate 01 test-harness remediation (now approved)
 

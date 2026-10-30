@@ -69,3 +69,17 @@ def test_existing_unicode_equivalent_destination_is_a_conflict(tmp_path):
     with pytest.raises(FileExistsError):
         plan_outputs([tmp_path / "Cafe\u0301.txt"], out)
     assert existing.read_bytes() == b"existing private output"
+
+
+def test_real_output_junction_cannot_escape_run_containment(tmp_path, directory_link):
+    target = tmp_path / "other"
+    target.mkdir()
+    link = directory_link(tmp_path / "linked-out", target)
+    with pytest.raises(ValueError, match="Symlink/junction"):
+        plan_outputs([tmp_path / "a.txt"], link)
+    assert not list(target.iterdir())
+
+
+def test_import_mapping_rejects_source_outside_selected_root(tmp_path):
+    with pytest.raises(ValueError, match="outside"):
+        plan_outputs([tmp_path / "other" / "a.txt"], tmp_path / "out", mirror_root=tmp_path / "Book")

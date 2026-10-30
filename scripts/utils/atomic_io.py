@@ -1,5 +1,15 @@
 """Bounded Windows sharing-error retries; other errors remain immediate failures."""
 import time
+import os
+
+
+def rename_no_clobber(source, destination):
+    """Publish or archive without overwriting a concurrently created destination."""
+    if os.name == "nt":
+        os.rename(source, destination)
+    else:
+        os.link(source, destination)
+        source.unlink()
 
 
 def sharing_retry(operation, *, validate=lambda: None, sleep=None):

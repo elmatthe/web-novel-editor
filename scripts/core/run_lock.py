@@ -16,6 +16,7 @@ import sys
 import uuid
 
 from core.output_plan import contained_path, validate_path
+from utils.atomic_io import rename_no_clobber
 
 LOCK_NAME = ".run-lock.json"
 GUARD_NAME = ".run-writer.guard"
@@ -116,7 +117,8 @@ class RunLock:
             if path.exists():
                 try:
                     old = json.loads(path.read_text(encoding="utf-8"))
-                    valid = (isinstance(old, dict) and old.get("schema") == 1
+                    valid = (isinstance(old, dict) and type(old.get("schema")) is int and old["schema"] == 1
+                             and set(old) == {"schema", "run_id", "host", "pid", "process_creation", "owner_token", "acquired_utc"}
                              and old.get("run_id") == self.run_id
                              and old.get("host") == host_identity()
                              and type(old.get("pid")) is int and old["pid"] > 0
@@ -124,12 +126,15 @@ class RunLock:
                              and isinstance(old.get("owner_token"), str)
                              and len(old["owner_token"]) == 32
                              and all(c in "0123456789abcdef" for c in old["owner_token"]))
-                except (OSError, ValueError):
+                    if valid:
+                        acquired = datetime.fromisoformat(old["acquired_utc"])
+                        valid = acquired.tzinfo is not None and acquired.utcoffset().total_seconds() == 0
+                except (OSError, ValueError, TypeError):
                     valid = False
                 if not valid:
                     raise LockConflict("Uncertain or foreign ownership record preserved; recovery refused")
                 state, creation = process_identity(old["pid"])
-                stale = state == "dead" or (state == "live" and creation != old["process_creation"])
+                stale = state == "dead" or (state == "live" and bool(creation) and creation != old["process_creation"])
                 if not stale:
                     raise LockConflict("Owner is live or cannot be verified; record preserved")
                 if not recover:
@@ -140,7 +145,7 @@ class RunLock:
                 # Recheck while the lifetime guard is held, before moving the old record.
                 if json.loads(path.read_text(encoding="utf-8")) != old:
                     raise LockConflict("Ownership changed during recovery")
-                os.rename(path, archive)
+                rename_no_clobber(path, archive)
             state, creation = process_identity(os.getpid())
             if state != "live" or not creation:
                 raise LockConflict("Cannot establish this process's creation identity")

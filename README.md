@@ -1,20 +1,29 @@
 # Web Novel Editor
 
-Web Novel Editor is a local desktop app that turns webscraped webnovel chapter PDFs into
-clean, TTS-ready PDFs. It is designed for listening with text-to-speech tools such as
+Web Novel Editor is a local desktop app that turns webnovel PDF and UTF-8 TXT chapters into
+clean PDF, TXT, or paired outputs. It is designed for listening with text-to-speech tools such as
 Kokoro or Microsoft voices (the primary target is the Microsoft Edge Neural voice).
 
-The app extracts text from your chapter PDFs, applies a careful mechanical editing
+The app reads your chapters, applies a careful mechanical editing
 pipeline, and saves the cleaned copies — under their original filenames — into a fresh,
-automatically numbered folder in your Downloads (for example `Downloads\universal-1`).
-It never changes your original PDFs, and a re-run never overwrites an earlier batch.
+automatically numbered run folder (for example `Downloads/PDF-Editor-Outputs/universal-1`).
+An optional custom output root holds numbered runs directly. Source files are never modified.
 
 The app has a Tkinter window where you pick an editing profile from a dropdown
 ("Universal" is the default and works for any novel), then either upload individual
-PDFs or select a whole folder — folders are processed in natural reading order
-(1, 2, 10 — not 1, 10, 2) and the output mirrors the folder's structure. You can pause
-and continue a batch between files. A progress bar and a one-line-per-file log show
+PDF/TXT files or append folders with optional recursion. New imports use natural reading
+order (1, 2, 10); Move Up/Down preserves manual order. Output mirrors imported folder
+structure. You can pause, continue or stop a batch between files. A progress bar and log show
 what happened to each file, with a summary at the end.
+
+Resume Run selects the original run folder; Find Recent Run searches the current output
+root. Resume verifies source/output hashes and frozen rules/options before continuing.
+Retry Failed keeps completed outputs and the original mapping. Changed sources, modified
+outputs, uncertain locks, and legacy manifests are refused without overwriting them.
+Proven stale ownership requires explicit confirmation. These are local single-writer
+guarantees; cloud-sync replicas and distributed writers are outside the supported contract.
+TXT decoding is strict UTF-8 (with optional BOM); convert other encodings before a new run.
+TXT serialization uses LF, blank paragraph/chapter separators and a final newline.
 
 **Shadow Slave, Supreme Magus, and The Noble Queen** are fully supported and apply their own
 editing profiles (protected names + novel-specific fixes). The dropdown also lists other
@@ -60,6 +69,9 @@ pickers, the API-key, consent and quota controls, and their dependencies. Editin
 model, an account or the internet, and the output is exactly what the scripted rules produce.
 The version fields in `config.toml` and the changelog still read v0.13.0 until the 0.4.0 release
 is prepared; the numbering reset is intentional (see `md-instructions/DECISIONS.md`, #074).
+
+Phase 02A adds mixed input/output and durable recovery. Gate 02A independent review and
+user acceptance remain required before the desktop/bootstrap redesign in Phase 02B.
 
 If you used the earlier cloud versions, an API key may still be saved on your computer
 (`%LOCALAPPDATA%\WebNovelEditor\secrets.json`, or a `.env` file, or the `GEMINI_API_KEY` /

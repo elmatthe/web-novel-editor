@@ -70,6 +70,12 @@ def test_manifest_contains_no_chapter_text_provider_or_credentials(checkpoint):
     assert read_manifest(checkpoint.path)["entries"][1]["attempts"][-1]["code"] == "processing_error"
 
 
+def test_single_word_private_failure_details_are_not_written_to_manifest(checkpoint):
+    checkpoint.record_failed(checkpoint.queue[0], "PrivateChapterWord")
+    assert "PrivateChapterWord" not in checkpoint.path.read_text(encoding="utf-8")
+    assert checkpoint.entry(checkpoint.queue[0])["attempts"][-1]["code"] == "processing_error"
+
+
 def test_failed_skipped_and_completed_items_have_terminal_state_without_inflated_totals(checkpoint):
     cp = checkpoint
     complete(cp, cp.queue[0])
@@ -195,6 +201,13 @@ def test_finished_successful_run_is_not_offered(checkpoint):
         complete(checkpoint, source)
     checkpoint.finish()
     assert read_manifest(checkpoint.path)["complete"]
+    assert not find_resumable_run(checkpoint.output_dir).available
+
+
+def test_finished_skipped_only_run_is_not_offered_as_retryable(checkpoint):
+    for source in checkpoint.queue:
+        checkpoint.record_skipped(source, "empty")
+    checkpoint.finish()
     assert not find_resumable_run(checkpoint.output_dir).available
 
 

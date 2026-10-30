@@ -158,3 +158,34 @@ def test_enabled_companion_failure_never_prepares_or_completes(tmp_path, failure
         assert not (Path(cp.output_dir) / "a.txt").exists()
     finally:
         cp.close()
+
+
+@pytest.mark.parametrize("failures", [2, 6])
+def test_atomic_manifest_publication_uses_same_bounded_windows_retries(tmp_path, monkeypatch, failures):
+    import os
+    import utils.atomic_io
+    cp, src = create(tmp_path)
+    before = cp.path.read_bytes()
+    replace = os.replace
+    attempts, delays = [], []
+    def sharing(source, target):
+        attempts.append(1)
+        if len(attempts) <= failures:
+            exc = PermissionError("injected sharing hold")
+            exc.winerror = 5
+            raise exc
+        return replace(source, target)
+    monkeypatch.setattr(os, "replace", sharing)
+    monkeypatch.setattr(utils.atomic_io.time, "sleep", delays.append)
+    try:
+        if failures == 6:
+            with pytest.raises(CheckpointError):
+                cp.record_failed(src, "PermissionError")
+            assert cp.path.read_bytes() == before
+        else:
+            cp.record_failed(src, "PermissionError")
+            assert read_manifest(cp.path)["entries"][0]["status"] == "failed"
+        assert len(attempts) == (5 if failures == 6 else 3)
+        assert sum(delays) <= 2
+    finally:
+        cp.close()

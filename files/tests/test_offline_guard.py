@@ -198,3 +198,22 @@ def test_the_guard_reaches_descendant_interpreters(tmp_path, offline_python):
 def test_a_child_cannot_silently_disable_sitecustomize(offline_python):
     with pytest.raises(AssertionError, match="guard did not initialize"):
         offline_python.run(["-S", "-c", "pass"], capture_output=True, timeout=30)
+
+
+@pytest.mark.parametrize("tests,skipped,errors,failures", [
+    (0, 0, 0, 0), (1, 1, 0, 0), (1, 0, 1, 0), (1, 0, 0, 1), (2, 0, 0, 0),
+])
+def test_gui_child_success_cannot_hide_skips_failures_or_unexecuted_tests(tmp_path, tests, skipped, errors, failures):
+    from .conftest import _check_gui_child_report
+    report = tmp_path / "report.xml"
+    report.write_text(f'<testsuites><testsuite tests="{tests}" skipped="{skipped}" errors="{errors}" failures="{failures}"><testcase name="case"/></testsuite></testsuites>')
+    with pytest.raises(AssertionError):
+        _check_gui_child_report(report, "case")
+
+
+def test_gui_child_must_execute_the_named_case(tmp_path):
+    from .conftest import _check_gui_child_report
+    report = tmp_path / "report.xml"
+    report.write_text('<testsuites><testsuite tests="1" skipped="0" errors="0" failures="0"><testcase name="wrong"/></testsuite></testsuites>')
+    with pytest.raises(AssertionError, match="wrong test"):
+        _check_gui_child_report(report, "expected")

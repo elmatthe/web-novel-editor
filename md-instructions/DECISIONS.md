@@ -9,6 +9,33 @@ its original decision date. New decisions continue to be appended here (newest o
 
 ---
 
+## 076 — Frozen schema-3 runs and prepared publication — 2026-10-29 — Codex (Phase 02A)
+
+**Status:** Implemented for Gate 02A review; user acceptance remains pending.
+**Decision:** Extend the existing scanner, sequential batch loop and `RunCheckpoint`.
+Every non-dry run holds a local OS-backed writer guard. Schema 3 freezes the full queue,
+import mapping, formats/companions, effective rule/profile/rendering digest and source
+fingerprints. Output fingerprints are durable in a prepared record before any final
+publication; completion follows verification of every selected output and companion.
+Windows uses no-clobber rename; POSIX uses atomic no-clobber hard-link publication and
+then removes the staging link. Interrupted unpublished staging files are preserved as
+orphans before reprocessing. Uncertain finals are preserved and reported as conflicts.
+Schema 1 cloud manifests and schema 2 unhashed manifests remain read-only and are refused;
+neither can prove the new source/output guarantees. Resume and Retry Failed always retain
+the original queue/destination/history; a fresh invocation into an existing run is refused.
+Rule/profile code or data changes require a separate new run. This is intentionally
+conservative, rather than an implicit migration across editorial implementations.
+
+**TXT boundary:** Strict UTF-8/BOM ingestion retains explicit paragraphs and isolates
+headings before the existing reconstruction stage. The PDF branch remains unchanged.
+TXT products serialize corrected text with LF, readable blank paragraph/chapter breaks,
+no PDF form feeds and a final newline. PDF and TXT use the same corrected text.
+
+**Limits:** Local cooperating writers, not distributed/cloud-sync locking or guaranteed
+power-loss transactions. Kernel ownership and process creation identity are required;
+age alone never releases ownership. Proven stale metadata needs explicit confirmation
+and is archived under the guard. No environment/installer/theme/Activity redesign here.
+
 ## 075 — One universal pipeline; three Gate 00 correction dispositions; profile corrections as data — 2026-10-28 — Claude Code (Master Plan Phase 01C)
 
 **Status:** Accepted. Implements the user's Gate 00 approvals; no other editorial change was made.

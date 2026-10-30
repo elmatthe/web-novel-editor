@@ -36,7 +36,7 @@ def test_stale_or_reused_pid_needs_confirmation_and_preserves_record(tmp_path, m
             RunLock(tmp_path, "run").acquire(recover=True)
 
 
-@pytest.mark.parametrize("mutation", ["malformed", "foreign", "unknown", "live"])
+@pytest.mark.parametrize("mutation", ["malformed", "foreign", "unknown", "unverifiable_live", "missing_time", "ancient_live", "live"])
 def test_uncertain_or_foreign_metadata_is_preserved(tmp_path, monkeypatch, mutation):
     with RunLock(tmp_path, "run") as owner:
         record = dict(owner.metadata)
@@ -44,6 +44,13 @@ def test_uncertain_or_foreign_metadata_is_preserved(tmp_path, monkeypatch, mutat
         record["host"] = "another-host"
     elif mutation == "unknown":
         monkeypatch.setattr(run_lock, "process_identity", lambda pid: ("unknown", None))
+    elif mutation == "unverifiable_live":
+        monkeypatch.setattr(run_lock, "process_identity", lambda pid: ("live", None))
+    elif mutation == "missing_time":
+        record.pop("acquired_utc")
+        record["process_creation"] = "proven-reused"
+    elif mutation == "ancient_live":
+        record["acquired_utc"] = "1900-01-01T00:00:00+00:00"
     path = tmp_path / run_lock.LOCK_NAME
     path.write_text("{" if mutation == "malformed" else json.dumps(record), encoding="utf-8")
     before = path.read_bytes()
@@ -128,3 +135,24 @@ def test_sharing_retry_is_bounded_and_only_retries_windows_transients(winerror, 
         assert sharing_retry(operation, validate=lambda: validations.append(1), sleep=delays.append) == "ok"
     assert len(attempts) == len(validations) == calls
     assert len(delays) <= 4 and sum(delays) <= 2
+
+
+@pytest.mark.parametrize("platform", ["nt", "posix"])
+def test_no_clobber_publication_and_archiving_preserve_existing_files(tmp_path, monkeypatch, platform):
+    from types import SimpleNamespace
+    import utils.atomic_io as atomic_io
+    source, destination = tmp_path / "staged", tmp_path / "external"
+    source.write_bytes(b"owned staged output")
+    destination.write_bytes(b"unrelated file")
+    # NTFS supports hard links, so the POSIX no-clobber branch is exercised for real.
+    if platform == "posix":
+        monkeypatch.setattr(atomic_io, "os", SimpleNamespace(name="posix", link=os.link, rename=os.rename))
+    elif os.name != "nt":
+        pytest.skip("Windows no-clobber rename requires Windows")
+    with pytest.raises(FileExistsError):
+        atomic_io.rename_no_clobber(source, destination)
+    assert source.read_bytes() == b"owned staged output"
+    assert destination.read_bytes() == b"unrelated file"
+    destination.unlink()
+    atomic_io.rename_no_clobber(source, destination)
+    assert not source.exists() and destination.read_bytes() == b"owned staged output"

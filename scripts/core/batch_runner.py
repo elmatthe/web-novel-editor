@@ -74,6 +74,8 @@ def run_batch(pdf_paths, output_dir, *, output_formats=("pdf",), resume=False,
                                            mirror_root=kwargs.get("mirror_root"), import_roots=import_roots)
             if track.queue != paths:
                 raise ManifestError("Checkpoint queue differs from worker queue")
+            if track.novel != (novel or ""):
+                raise ManifestError("Checkpoint profile differs from worker profile")
             track.start(formats=output_formats, rules_digest=digest,
                         write_debug_text=kwargs.get("write_debug_text", False),
                         write_replacement_log=kwargs.get("write_replacement_log", False))
@@ -377,6 +379,8 @@ def _run_batch(
         summary.update(completed_total=statuses.count("completed"),
                        failed_total=statuses.count("failed") + statuses.count("prepared"),
                        skipped_total=statuses.count("skipped"),
+                       pending_total=statuses.count("pending"),
+                       run_complete=track.payload()["complete"],
                        finished_with_errors=any(s in {"failed", "prepared"} for s in statuses))
     # End-of-batch summary block: totals, then the failed/skipped files by name so
     # problem files are findable without scrolling (sections omitted when empty).
@@ -384,6 +388,8 @@ def _run_batch(
         f"of {total}.", "warn" if failed or summary.get("finished_with_errors") else "success")
     if summary.get("finished_with_errors"):
         log(f"Run retains {summary['failed_total']} failed/incomplete item(s). Use Retry Failed after resolving access/readability problems.", "warn")
+    if summary.get("pending_total"):
+        log(f"Run incomplete: {summary['pending_total']} pending item(s). Use Resume Run to continue the original queue.", "warn")
     if failed_files:
         log("Failed:", "error")
         for name, reason in failed_files:

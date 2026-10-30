@@ -12,13 +12,18 @@ TEXT = "Chapter 1: Arrival\n\nClan Valor waited beside Valor Clan. Valor's banne
 
 @pytest.mark.parametrize("input_kind", ["pdf", "txt"])
 @pytest.mark.parametrize("formats", [("pdf",), ("txt",), ("pdf", "txt")])
-def test_all_six_combinations_and_source_immutability(tmp_path, input_kind, formats):
+def test_all_six_combinations_and_source_immutability(tmp_path, input_kind, formats, monkeypatch):
     src = tmp_path / ("Chapter 1." + input_kind)
     if input_kind == "pdf":
         build_pdf(TEXT, str(src))
     else:
         src.write_text(TEXT, encoding="utf-8-sig")
     before = (src.read_bytes(), src.stat().st_mtime_ns)
+    rendered = []
+    def render(text, path):
+        rendered.append(text)
+        build_pdf(text, path)
+    monkeypatch.setattr("core.batch_runner.build_pdf", render)
     out = tmp_path / "out"
     result = run_batch([str(src)], str(out), output_formats=formats, novel_name="Shadow Slave")
     assert result["succeeded"] == 1 and result["failed"] == 0
@@ -32,6 +37,9 @@ def test_all_six_combinations_and_source_immutability(tmp_path, input_kind, form
         assert "Clan Valor waited beside Valor Clan. Valor's banner remained." in text
         assert "\n\n" in text and "\f" not in text
     assert (out / "Chapter 1.pdf").exists() == ("pdf" in formats)
+    if len(formats) == 2:
+        from core.batch_runner import serialize_txt
+        assert (out / "Chapter 1.txt").read_text(encoding="utf-8") == serialize_txt(rendered[0])
 
 
 @pytest.mark.parametrize("raw,status", [(b"Short.", "completed"), (b"", "skipped"),
@@ -145,3 +153,44 @@ def test_persistence_failure_stops_worker_without_processing_further_files(tmp_p
         assert not saved["complete"]
         if boundary in {"prepared", "completed"}:
             assert saved["entries"][0]["status"] != "completed"
+
+
+def test_source_changed_during_render_is_never_completed(tmp_path, monkeypatch):
+    src = tmp_path / "a.txt"
+    src.write_text("Original chapter.", encoding="utf-8")
+    def render(text, path):
+        build_pdf(text, path)
+        src.write_text("Modified chapter.", encoding="utf-8")
+    monkeypatch.setattr("core.batch_runner.build_pdf", render)
+    result = run_batch([str(src)], str(tmp_path / "out"))
+    assert result["succeeded"] == 0 and result["failed"] == 1
+    item = read_manifest(tmp_path / "out" / "run-manifest.json")["entries"][0]
+    assert item["status"] == "failed" and not (tmp_path / "out" / "a.pdf").exists()
+
+
+def test_retry_failed_does_not_report_entire_run_complete_with_pending_items(tmp_path, monkeypatch):
+    import threading
+    from core.run_manifest import RunCheckpoint
+    paths = [tmp_path / f"{i}.txt" for i in range(3)]
+    for path in paths:
+        path.write_text("Short prose.", encoding="utf-8")
+    real_stage = RunCheckpoint.stage
+    failed = False
+    def stage(self, source, kind, writer):
+        nonlocal failed
+        if not failed and Path(source).name == "0.txt":
+            failed = True
+            raise PermissionError("injected destination failure")
+        return real_stage(self, source, kind, writer)
+    monkeypatch.setattr(RunCheckpoint, "stage", stage)
+    stop = threading.Event()
+    out = str(tmp_path / "out")
+    queue = [str(p) for p in paths]
+    run_batch(queue, out, output_formats=("txt",), stop_event=stop,
+              progress=lambda i: stop.set() if i == 2 else None)
+    result = run_batch(queue, out, resume=True, retry_failed=True)
+    assert result["succeeded"] == 1 and result["completed_total"] == 2
+    assert result["pending_total"] == 1 and result["run_complete"] is False
+    assert read_manifest(Path(out) / "run-manifest.json")["stopped_reason"] == "pending_remaining"
+    finished = run_batch(queue, out, resume=True)
+    assert finished["succeeded"] == 1 and finished["run_complete"] is True

@@ -43,12 +43,14 @@ def check_existing_aliases(root: Path, relative: str, cache=None) -> None:
     for part in Path(relative).parts:
         if current.is_dir():
             if cache is not None and current in cache:
-                names = cache[current]
+                indexed = cache[current]
             else:
-                names = [entry.name for entry in current.iterdir()]
+                indexed = {}
+                for entry in current.iterdir():
+                    indexed.setdefault(path_key(entry.name), []).append(entry.name)
                 if cache is not None:
-                    cache[current] = names
-            if any(name != part and path_key(name) == path_key(part) for name in names):
+                    cache[current] = indexed
+            if any(name != part for name in indexed.get(path_key(part), ())):
                 raise FileExistsError(f"Unicode/case-equivalent existing destination: {current / part}")
         current = current / part
 

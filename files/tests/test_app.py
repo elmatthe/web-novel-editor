@@ -8,8 +8,147 @@ when a display is available, skipped cleanly otherwise so the suite stays green 
 from __future__ import annotations
 
 import os
+import sys
 
 import pytest
+from pathlib import Path
+
+
+@pytest.fixture
+def mixed_app():
+    if sys.platform == "win32" and os.environ.get("WNE_GUI_TEST_CHILD") != "1":
+        yield None  # pytest_pyfunc_call executes this case with real Tk in its child.
+        return
+    tk = pytest.importorskip("tkinter")
+    from gui.app import WebnovelEditorApp
+    try:
+        app = WebnovelEditorApp()
+    except tk.TclError:
+        pytest.skip("Tk could not initialize; strict Windows fixture reports the error")
+    app.withdraw()
+    app.update_idletasks()
+    yield app
+    if app.winfo_exists():
+        app.destroy()
+
+
+def test_mixed_queue_appends_new_natural_groups_without_resorting(mixed_app, tmp_path, monkeypatch):
+    from gui import app as appmod
+    app = mixed_app
+    folder = tmp_path / "Book"
+    folder.mkdir()
+    for name in ("10.txt", "2.pdf", "1.txt"):
+        (folder / name).write_text("text")
+    first = tmp_path / "manual.txt"
+    first.write_text("text")
+    app.file_paths = [str(first)]
+    app._refresh_file_list()
+    app.file_listbox.selection_set(0)
+    app.file_listbox.activate(0)
+    app._apply_input_folder(str(folder))
+    assert [Path(p).name for p in app.file_paths] == ["manual.txt", "1.txt", "2.pdf", "10.txt"]
+    monkeypatch.setattr(appmod.filedialog, "askopenfilenames", lambda **k: (str(folder / "2.pdf"), str(first)))
+    app._add_pdfs()
+    assert len(app.file_paths) == 4
+    assert app.import_roots[str(folder / "1.txt")] == str(folder)
+    assert app.file_listbox.curselection() == (0,)
+    assert app.file_listbox.index("active") == 0
+
+
+def test_manual_multiselect_moves_preserve_order_selection_and_focus(mixed_app):
+    app = mixed_app
+    app.file_paths = [f"{i}.txt" for i in range(4)]
+    app._refresh_file_list()
+    app.file_listbox.selection_set(1, 2)
+    app.file_listbox.activate(2)
+    app._move_selected(-1)
+    assert app.file_paths == ["1.txt", "2.txt", "0.txt", "3.txt"]
+    assert app.file_listbox.curselection() == (0, 1)
+    assert app.file_listbox.index("active") == 1
+    app._move_selected(1)
+    assert app.file_paths == [f"{i}.txt" for i in range(4)]
+    assert app.file_listbox.curselection() == (1, 2)
+
+
+def test_no_formats_is_rejected_before_reserving_a_run(mixed_app, tmp_path, monkeypatch):
+    from gui import app as appmod
+    app = mixed_app
+    app.file_paths = [str(tmp_path / "a.txt")]
+    app.opt_pdf.set(False)
+    app.opt_txt.set(False)
+    warnings = []
+    monkeypatch.setattr(appmod.messagebox, "showwarning", lambda *a: warnings.append(a))
+    monkeypatch.setattr(appmod, "reserve_run_dir", lambda *a: pytest.fail("allocated without a format"))
+    app._start_batch()
+    assert warnings and not app._running
+
+
+def test_close_during_pause_requests_stop_without_destroying_tk(mixed_app, monkeypatch):
+    from gui import app as appmod
+    app = mixed_app
+    monkeypatch.setattr(appmod.messagebox, "askyesno", lambda *a, **k: True)
+    app._running = True
+    app.pause_gate.clear()
+    app._on_close()
+    assert app.winfo_exists() and app.stop_event.is_set() and app.pause_gate.is_set()
+    assert app._exit_when_done
+
+
+def test_explicit_resume_uses_frozen_settings_and_original_custom_destination(mixed_app, tmp_path, monkeypatch):
+    from gui import app as appmod
+    from core.batch_runner import run_batch
+    src = tmp_path / "a.txt"
+    src.write_text("Short prose.", encoding="utf-8")
+    old = tmp_path / "old-run"
+    run_batch([str(src)], str(old), output_formats=("txt",), novel_name="Shadow Slave", write_debug_text=True)
+    calls = _wire_batch_spy(appmod, monkeypatch, tmp_path)
+    mixed_app.output_root_var.set(str(tmp_path / "new-root"))
+    mixed_app.opt_dry_run.set(True)
+    mixed_app._resume_run(directory=str(old), retry_failed=True)
+    mixed_app.update()
+    assert len(calls) == 1
+    assert calls[0]["output_dir"] == str(old)
+    assert calls[0]["output_formats"] == ("txt",)
+    assert calls[0]["dry_run"] is False and calls[0]["write_debug_text"] is True
+    assert calls[0]["novel_name"] == "Shadow Slave"
+    assert calls[0]["resume"] and calls[0]["retry_failed"]
+    assert not (tmp_path / "new-root").exists()
+
+
+def test_custom_output_root_is_used_directly(mixed_app, tmp_path, monkeypatch):
+    from gui import app as appmod
+    src = tmp_path / "a.txt"
+    src.write_text("Short.", encoding="utf-8")
+    calls = _wire_batch_spy(appmod, monkeypatch, tmp_path)
+    mixed_app.file_paths = [str(src)]
+    mixed_app.output_root_var.set(str(tmp_path / "custom"))
+    mixed_app.opt_txt.set(True)
+    mixed_app._start_batch()
+    mixed_app.update()
+    assert calls[0]["output_dir"] == str(tmp_path / "custom" / "universal-1")
+    assert calls[0]["output_formats"] == ("pdf", "txt")
+
+
+def test_legacy_resume_refusal_never_allocates_or_modifies(mixed_app, tmp_path, monkeypatch):
+    from gui import app as appmod
+    path = tmp_path / "run-manifest.json"
+    path.write_text('{"schema_version":1,"provider":"legacy"}', encoding="utf-8")
+    before = path.read_bytes()
+    errors = []
+    monkeypatch.setattr(appmod.messagebox, "showerror", lambda *a: errors.append(a))
+    monkeypatch.setattr(appmod, "reserve_run_dir", lambda *a: pytest.fail("allocated during refusal"))
+    mixed_app._resume_run(directory=str(tmp_path))
+    assert errors and path.read_bytes() == before and not mixed_app._running
+
+
+def test_partial_retry_summary_shows_run_incomplete(mixed_app, monkeypatch):
+    from gui import app as appmod
+    dialogs = []
+    monkeypatch.setattr(appmod.messagebox, "showinfo", lambda *args: dialogs.append(args))
+    mixed_app._on_done({"total": 3, "succeeded": 1, "failed": 0, "skipped": 0,
+                        "completed_total": 2, "failed_total": 0, "pending_total": 1,
+                        "run_complete": False, "output_dir": "original-run", "outputs": []})
+    assert dialogs[0][0] == "Run incomplete"
 
 
 def _all_descendants(widget):
@@ -186,7 +325,7 @@ def test_app_input_mode_defaults_to_upload_with_both_toggles():
             for w in _all_descendants(app)
             if isinstance(w, ttk.Radiobutton)
         }
-        assert "Upload PDFs" in radio_texts
+        assert "PDF / TXT files" in radio_texts
         assert "Select Folder" in radio_texts
 
         # Upload mode active: upload buttons enabled, folder picker disabled.
@@ -213,8 +352,8 @@ def test_app_input_mode_switch_flips_panel_enablement():
         app._on_input_mode_changed()
         app.update_idletasks()
         assert "disabled" in app.add_button.state()
-        assert "disabled" in app.remove_button.state()
-        assert "disabled" in app.clear_button.state()
+        assert "disabled" not in app.remove_button.state()
+        assert "disabled" not in app.clear_button.state()
         assert "disabled" not in app.choose_folder_button.state()
 
         app.input_mode_var.set("upload")
@@ -252,7 +391,7 @@ def test_app_folder_scan_displays_resolved_natural_order(tmp_path):
         app.update_idletasks()
 
         shown = list(app.file_listbox.get(0, "end"))
-        assert shown == ["1.pdf", "2.pdf", "10.pdf", "extras/5.pdf"]
+        assert shown == [f"{tmp_path.name}/{rel}" for rel in ["1.pdf", "2.pdf", "10.pdf", "extras/5.pdf"]]
         assert [p.name for p in app.folder_files] == ["1.pdf", "2.pdf", "10.pdf", "5.pdf"]
     finally:
         app.destroy()
@@ -323,8 +462,9 @@ def test_app_folder_mode_start_runs_mirrored_batch_into_auto_downloads(
         # Output is forced to Downloads\<kebab-novel>-1 (first run) and mirrors the
         # selected folder itself inside it.
         expected_name = appmod.kebab_case(app.novel_var.get()) + "-1"
-        assert call["output_dir"] == str(tmp_path / "DL" / expected_name)
-        assert call["mirror_root"] == str(src)
+        assert call["output_dir"] == str(tmp_path / "DL" / "PDF-Editor-Outputs" / expected_name)
+        assert call["mirror_root"] is None
+        assert call["import_roots"] == {p: str(src) for p in call["pdf_paths"]}
         assert app._running is False  # synchronous fake thread completed the run
     finally:
         app.destroy()
@@ -357,7 +497,7 @@ def test_app_upload_mode_uses_flat_auto_downloads_output(tmp_path, monkeypatch):
         call = calls[0]
         assert call["pdf_paths"] == [str(pdf)]
         expected_name = appmod.kebab_case(app.novel_var.get()) + "-1"
-        assert call["output_dir"] == str(tmp_path / "DL" / expected_name)
+        assert call["output_dir"] == str(tmp_path / "DL" / "PDF-Editor-Outputs" / expected_name)
         assert call["mirror_root"] is None
     finally:
         app.destroy()
@@ -421,7 +561,7 @@ def test_app_default_universal_start_passes_clean_name_and_universal_folder(
         assert len(calls) == 1
         call = calls[0]
         assert call["novel_name"] == "Universal"
-        assert call["output_dir"] == str(tmp_path / "DL" / "universal-1")
+        assert call["output_dir"] == str(tmp_path / "DL" / "PDF-Editor-Outputs" / "universal-1")
     finally:
         app.destroy()
 
@@ -457,7 +597,7 @@ def test_app_marked_selection_strips_marker_before_batch_and_naming(
         assert len(calls) == 1
         call = calls[0]
         assert call["novel_name"] == "Re Monster"
-        assert call["output_dir"] == str(tmp_path / "DL" / "re-monster-1")
+        assert call["output_dir"] == str(tmp_path / "DL" / "PDF-Editor-Outputs" / "re-monster-1")
     finally:
         app.destroy()
 
@@ -490,7 +630,7 @@ def test_app_real_profile_selection_passes_through_unchanged(tmp_path, monkeypat
         assert len(calls) == 1
         call = calls[0]
         assert call["novel_name"] == "Shadow Slave"
-        assert call["output_dir"] == str(tmp_path / "DL" / "shadow-slave-1")
+        assert call["output_dir"] == str(tmp_path / "DL" / "PDF-Editor-Outputs" / "shadow-slave-1")
     finally:
         app.destroy()
 
@@ -722,6 +862,7 @@ def test_start_passes_only_the_script_only_arguments(tmp_path, monkeypatch):
             "pdf_paths", "output_dir", "write_replacement_log", "write_debug_text",
             "dry_run", "novel_name", "mirror_root", "pause_gate", "stop_event",
             "gui_log", "progress",
+            "output_formats", "import_roots", "resume", "retry_failed", "recover_stale",
         }
     finally:
         app.destroy()
