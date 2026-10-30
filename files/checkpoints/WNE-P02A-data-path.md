@@ -10,8 +10,11 @@ and live origin matched before editing. `main` was not merged or modified.
 - `96b68ec24f67a82f88c1bac0dc2fcc4fec943bb4`: mixed scanner and portable preflight.
 - `d14331c5b44c58f304fed3d6b00b3757b05653bd`: OS-backed ownership and bounded retries.
 - `6bb0e724ae50b572d2c5a1c647af3de483719462`: schema-3 publication and mixed outputs.
-- Final integration/hardening commit is identified by the accompanying CLI report and
-  live feature-branch HEAD; a commit cannot contain its own SHA.
+- `d7ff2ac10acbc458ed948bc4fa48ac620aae8071`: final integration, hardening and verified
+  Gate 02A implementation checkpoint. Exact committed-HEAD verifier rerun also passed
+  **790 / 1 / 0**, zero network attempts (`verify-sha.*`).
+- Final documentation-only commit is identified by the accompanying CLI report and live
+  feature-branch HEAD; a commit cannot contain its own SHA.
 
 Extends the existing scanner, ordered list, batch loop and `RunCheckpoint`. PDF/TXT files
 and folders append naturally ordered groups; existing manual order remains intact.
@@ -69,6 +72,11 @@ run selection, Retry Failed and safe-boundary close. No Phase 02B redesign was s
 - Real Windows junction cycle and destination-containment tests execute. Source/output
   hash changes, same-size/same-mtime source replacement, corrupt/future/legacy manifests,
   repeated resumes, Stop during Pause, companions and Retry Failed are covered.
+- Supplemental real file/directory symbolic-link fixture creation was denied with
+  **WinError 1314**, both sandboxed and native. Those two probes are not counted as passed
+  symlink execution tests; the real junction tests above did execute. No machine privilege
+  changes were made. Repeat symbolic-link fixtures in an appropriately provisioned review
+  environment; rejection of other reparse paths remains conservative.
 - Real Tk initialization faults remain visible. Failed full attempts returned
   **775 passed / 3 skipped / 2 errors** twice, with actual `init.tcl`/`tk.tcl` errors;
   later attempts returned **780 / 2 / 1** and **782 / 3 / 2**. No skip override or machine

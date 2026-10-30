@@ -14,6 +14,8 @@ CLI report. Unrelated untracked/ignored work is preserved; version remains v0.13
   checks pass, zero network attempts. Focused data-path **148 passed**; GUI/guard **56 passed**.
   All 36 GUI cases execute in fresh guarded Windows children; child skips/errors fail.
   Shared-process Tcl faults were reproduced and recorded, not declared repaired.
+  Exact code commit `d7ff2ac` passed the same full verifier. Native symbolic-link fixture
+  creation was denied (WinError 1314); actual junction traversal/containment tests passed.
 - **Parity/workload:** 828 frozen results = 810 identical + 18 approved Phase 01 deltas;
   zero new editorial/input differences. 2,010-item mixed workload completed across Stop,
   Resume and Retry Failed, with unchanged hashes/mapping and no duplicate outputs.
