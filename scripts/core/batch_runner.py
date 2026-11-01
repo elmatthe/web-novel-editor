@@ -10,6 +10,8 @@ from __future__ import annotations
 import os
 import threading
 import re
+import time
+from collections import Counter
 from pathlib import Path
 from typing import Callable, Optional, Sequence
 
@@ -90,6 +92,16 @@ def run_batch(pdf_paths, output_dir, *, output_formats=("pdf",), resume=False,
             track.close()
 
 
+def _log_detail(log, name, repl_log, extract_s, edit_s, publish_s) -> None:
+    """Detailed-view diagnostics: stage timings and edit-category counts, never chapter text."""
+    counts = Counter(e.category for e in repl_log.entries if e.category != "integrity_flag")
+    categories = ", ".join(f"{category} {n}" for category, n in sorted(counts.items())) or "none"
+    timing = f"extract {extract_s:.2f}s, edit {edit_s:.2f}s"
+    if publish_s is not None:
+        timing += f", render/publish {publish_s:.2f}s"
+    log(f"        {name}: {timing}; edits by category: {categories}", "muted")
+
+
 def serialize_txt(text: str) -> str:
     """TXT product format: LF, readable paragraph/chapter breaks, final newline."""
     text = text.replace("\r\n", "\n").replace("\r", "\n").replace("\f", "\n\n")
@@ -114,6 +126,7 @@ def _run_batch(
     _lexicon=None,
     gui_log: Callable[..., None] | None = None,
     progress: Callable[[int], None] | None = None,
+    item_result: Callable[[str, str], None] | None = None,
 ) -> dict:
     """Process eligible original-queue items; only verified publication counts as success.
 
@@ -122,6 +135,9 @@ def _run_batch(
     """
     log = gui_log or _noop
     tick = progress or _noop
+    # Structured terminal outcome per item for this invocation (completed/failed/skipped),
+    # so display counts never depend on parsing log text.
+    outcome = item_result or _noop
 
     total = len(pdf_paths)
     succeeded = 0
@@ -242,6 +258,7 @@ def _run_batch(
                                if kind in {"pdf", "txt"})
                 succeeded += 1
                 log(f"[{i}/{total}] {name} — done (recovered publication)", "success")
+                outcome(src, "completed")
                 continue
             if not os.path.isfile(src):
                 skipped += 1
@@ -249,10 +266,12 @@ def _run_batch(
                 log(f"[{i}/{total}] {name} — skipped (not found)", "warn")
                 if track is not None:
                     track.record_skipped(src, "not found")
+                outcome(src, "skipped")
                 continue
 
             if track is not None:
                 track.verify_source(src)
+            started = time.monotonic()
             is_txt = Path(src).suffix.lower() == ".txt"
             if is_txt:
                 try:
@@ -272,11 +291,13 @@ def _run_batch(
                 log(f"[{i}/{total}] {name} — skipped (image-only/empty)", "warn")
                 if track is not None:
                     track.record_skipped(src, "image-only/empty")
+                outcome(src, "skipped")
                 continue
 
             # Run the selected novel's editorial pipeline. The ReplacementLog is now
             # always built (it feeds the condensed line's edit count); the JSONL file
             # itself is still written only when the option is enabled.
+            extracted = time.monotonic()
             repl_log = ReplacementLog(metadata=run_metadata)
             pipe_options = {"repl_log": repl_log, "gui_log": pipe_log, "dry_run": dry_run}
             if is_txt:
@@ -289,9 +310,12 @@ def _run_batch(
                 1 for e in repl_log.entries if e.category != "integrity_flag"
             )
             edits_label = f"{edits} edit" + ("" if edits == 1 else "s")
+            edited = time.monotonic()
             if dry_run:
                 log(f"[{i}/{total}] {name} — done (dry run, {edits_label})", "info")
+                _log_detail(log, name, repl_log, extracted - started, edited - extracted, None)
                 succeeded += 1
+                outcome(src, "completed")
                 continue
 
             if track is None:
@@ -339,6 +363,8 @@ def _run_batch(
                            if kind in {"pdf", "txt"})
             succeeded += 1
             log(f"[{i}/{total}] {name} — done ({edits_label})", "success")
+            _log_detail(log, name, repl_log, extracted - started, edited - extracted, time.monotonic() - edited)
+            outcome(src, "completed")
 
         except (CheckpointError, LockConflict):
             log("Run ownership/checkpoint failed — stopped safely; no further file started.", "error")
@@ -354,6 +380,7 @@ def _run_batch(
             # run would retry the same corrupt PDF forever.
             if track is not None:
                 track.record_failed(src, type(exc).__name__)
+            outcome(src, "failed")
         finally:
             tick(i)
 

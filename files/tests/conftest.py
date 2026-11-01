@@ -55,6 +55,24 @@ def directory_link():
     return create
 
 
+#: Modules whose cases create Tk windows; on Windows each case runs in a fresh child.
+GUI_TEST_MODULES = frozenset({"test_app.py", "test_gui_desktop.py"})
+
+
+@pytest.fixture(autouse=True)
+def _isolated_user_state(tmp_path_factory, monkeypatch):
+    """Never read/write the developer's real settings.json or session logs from tests.
+
+    Environment overrides (inherited by child interpreters) point preferences and session
+    logs at a per-test scratch directory.
+    """
+    if os.environ.get("WNE_GUI_TEST_CHILD") == "1" and os.environ.get("WNE_SETTINGS_FILE"):
+        return  # the parent already isolated this child
+    state = tmp_path_factory.mktemp("user-state")
+    monkeypatch.setenv("WNE_SETTINGS_FILE", str(state / "settings.json"))
+    monkeypatch.setenv("WNE_LOG_DIR", str(state / "logs"))
+
+
 def _check_gui_child_report(path, expected_name):
     """A successful exit alone cannot hide a skipped or unexecuted GUI case."""
     report = ET.parse(path).getroot()
@@ -71,7 +89,7 @@ def _check_gui_child_report(path, expected_name):
 def pytest_pyfunc_call(pyfuncitem):
     # The desktop app creates one Tk interpreter. Isolate Windows GUI cases so
     # destroyed interpreters from other tests cannot share Tcl's event queue.
-    if (sys.platform != "win32" or pyfuncitem.path.name != "test_app.py"
+    if (sys.platform != "win32" or pyfuncitem.path.name not in GUI_TEST_MODULES
             or os.environ.get("WNE_GUI_TEST_CHILD") == "1"):
         return None
     runner = pyfuncitem._request.getfixturevalue("offline_python")

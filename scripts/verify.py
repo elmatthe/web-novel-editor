@@ -1,11 +1,13 @@
 """verify — the single mechanical 'done' gate for a phase (AI-WORKSPACE convention).
 
-Runs three checks and exits non-zero if any fails:
+Runs five checks and exits non-zero if any fails:
   1. pytest          — the full test suite must pass.
   2. pinned deps     — every requirement in scripts/requirements.txt is pinned with ==.
   3. CHANGELOG bump  — md-instructions/CHANGELOG.md has a top version entry, and it
                        matches the version recorded in md-instructions/BRIEFING.md.
   4. config version  — config.toml's [project] version matches that same entry.
+  5. launcher version — `scripts/launcher.py --version` reports that same config version
+                       (it reads config.toml; there is no second version constant).
 
 Run from anywhere:  python scripts/verify.py
 """
@@ -36,7 +38,7 @@ def _fail(msg: str) -> None:
 
 
 def check_pytest() -> bool:
-    print("[1/4] Running pytest...")
+    print("[1/5] Running pytest...")
     result = subprocess.run(
         [sys.executable, "-m", "pytest", str(TESTS_DIR), "-q"],
         cwd=str(REPO_ROOT),
@@ -49,7 +51,7 @@ def check_pytest() -> bool:
 
 
 def check_pinned_deps() -> bool:
-    print("[2/4] Checking dependency pins...")
+    print("[2/5] Checking dependency pins...")
     if not REQUIREMENTS.exists():
         _fail(f"requirements file not found: {REQUIREMENTS}")
         return False
@@ -114,7 +116,7 @@ def check_config_version(expected: str | None) -> bool:
     the mismatch, which is exactly why nobody noticed — and config.toml is the file a
     release, a bug report and a support conversation all quote.
     """
-    print("[4/4] Checking config.toml version...")
+    print("[4/5] Checking config.toml version...")
     if expected is None:
         _fail("cannot check config.toml version: no CHANGELOG version to compare to")
         return False
@@ -133,7 +135,7 @@ def check_config_version(expected: str | None) -> bool:
 
 
 def check_changelog() -> bool:
-    print("[3/4] Checking CHANGELOG bump...")
+    print("[3/5] Checking CHANGELOG bump...")
     if not CHANGELOG.exists():
         _fail(f"CHANGELOG not found: {CHANGELOG}")
         return False
@@ -149,12 +151,33 @@ def check_changelog() -> bool:
     return True
 
 
+def check_launcher_version(expected: str | None) -> bool:
+    """The product entry point must report exactly the config.toml version (headless)."""
+    print("[5/5] Checking launcher --version...")
+    if not expected:
+        _fail("cannot check the launcher: no config.toml version")
+        return False
+    try:
+        result = subprocess.run([sys.executable, str(REPO_ROOT / "scripts" / "launcher.py"), "--version"],
+                                cwd=str(REPO_ROOT), capture_output=True, text=True, timeout=60)
+    except (OSError, subprocess.TimeoutExpired) as exc:
+        _fail(f"launcher --version could not run: {exc}")
+        return False
+    reported = result.stdout.strip()
+    if result.returncode != 0 or reported != f"Web Novel Editor {expected}":
+        _fail(f"launcher --version reported {reported!r}; expected 'Web Novel Editor {expected}'")
+        return False
+    _ok(f"launcher --version reports v{expected}")
+    return True
+
+
 def main() -> int:
     print("=" * 48)
     print("  verify - webnovel-editor phase gate")
     print("=" * 48)
     results = [check_pytest(), check_pinned_deps(), check_changelog()]
     results.append(check_config_version(_top_version(CHANGELOG)))
+    results.append(check_launcher_version(_config_version()))
     print("-" * 48)
     if all(results):
         print("  VERIFY: PASS")

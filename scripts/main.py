@@ -1,12 +1,13 @@
 """Webnovel Editor — application entry point.
 
-Launched by the startup scripts (`Setup_and_Run-Web-Novel-Editor.bat` / `Setup_and_Run-Web-Novel-Editor.command`)
-via `python scripts/main.py`. Opens the Tkinter GUI (Phase 2).
+The application entry compatibility boundary. Supported launch chain:
+`Setup_and_Run-Web-Novel-Editor.bat` / `.command` -> `scripts/bootstrap.py` ->
+`scripts/launcher.py` -> `main.main()`. Running `python scripts/main.py` directly also works.
 
 `--check` runs the full import/startup chain (tkinter + the GUI package) and exits
-without opening a window. The launchers call this with the console interpreter as a
-preflight *before* detaching to `pythonw.exe`, so a fatal startup error is still
-visible to a non-technical user instead of vanishing behind the windowless launch.
+without opening a window. `launcher.py --check` delegates here, and the bootstrap's health
+proof runs it with the console interpreter before detaching to `pythonw.exe`, so a fatal
+startup error is visible instead of vanishing behind the windowless launch.
 """
 
 from __future__ import annotations

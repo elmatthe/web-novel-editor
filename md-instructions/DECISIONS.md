@@ -9,6 +9,36 @@ its original decision date. New decisions continue to be appended here (newest o
 
 ---
 
+## 079 — Phase 02B desktop, logging, preferences and bootstrap boundaries — 2026-11-01 — Claude Code
+
+**Status:** Implemented (internal Gate 02).
+**Decisions:**
+1. **Layout:** four numbered groups left, Activity (Summary/Detailed) right in a horizontal
+   `ttk.Panedwindow`, status bar with Dark mode / Preferences & Data / Open Log Folder. The
+   existing `clam` theme carries ACT's Light/Dark palettes directly; ACT's cloned-element style
+   catalogue is not adopted (it exists only to coexist with a `vista` base theme).
+2. **Threads:** the worker receives a frozen `RunRequest` and only emits events; it never calls
+   Tk (the old `self.after(...)` from the worker thread is gone). Completion handlers run after
+   earlier lines are rendered, so output order is preserved.
+3. **Session logs** live in the ignored `files/runtime-data/logs/` (as in ACT and PDF-Splitter);
+   retention keeps the latest 20 closed `session-YYYYMMDD-HHMMSS[-N].log` files and touches
+   nothing else. Diagnostics are bounded (300 chars) and carry no chapter bodies.
+4. **Preferences** persist appearance, novel, formats, include-subfolders and output root in the
+   existing per-user `settings.json`. Audit/debug/dry-run stay session-only because they can write
+   chapter text. Unknown/legacy keys are preserved; legacy key files are never opened; Reset
+   removes only `settings.json`. `WNE_SETTINGS_FILE` / `WNE_LOG_DIR` are development/test
+   overrides so automated runs never touch the user's real settings or logs.
+5. **Bootstrap:** Python >= 3.10 with no hard upper bound; tested versions (3.13, 3.12, 3.11, 3.10)
+   are preferred when several exist. Health is always proven directly (imports, Tk, pip, exact
+   pins, `pip check`, `launcher.py --check`); the health record documents the last proof and can
+   never cause a false healthy launch. An already-satisfied environment never runs `pip install`,
+   so a healthy offline machine never needs the network. Missing packages are repaired in place;
+   a rebuild needs an external interpreter and passes the deletion guard (project path, no
+   link/junction, venv-shaped contents only, not running from inside it).
+6. **Root launchers** stay thin: Windows offers a consent-gated, user-scope `winget` install of
+   `Python.Python.3.13` (verified PSF package); macOS links to the python.org installer and no
+   longer installs Homebrew. WindowsApps aliases and Apple's `/usr/bin/python3` stub are never used.
+
 ## 078 — Autonomous completion workflow: internal gates, one final independent review — 2026-11-01 — Claude Code
 
 **Status:** Accepted (user directive, 2026-11-01).

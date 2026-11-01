@@ -1,203 +1,282 @@
-"""Launcher safety guards — static inspection only.
+"""Root launchers: fixed names/line endings, thin bootstrap delegation, and executed control flow.
 
-Phase 6 (M4 regression): a failed dependency install must STOP the launcher with a clear
-message, not fall through to launching the app (which would crash a non-technical user
-with a raw ModuleNotFoundError on a fresh machine). Those tests assert the exit-on-failure
-guard exists and is positioned AFTER the requirements install but BEFORE the app launch,
-in both launchers — so the ordering can't silently regress.
-
-Phase 9 (single hardened launcher per OS, built from the study templates): the remaining
-tests assert the hardened structure — ordered numbered `[Step N of 4]` banners, the
-self-healing venv rebuild, the deliberate BLOCK (not warn) on Python below the 3.10 floor,
-the consent-gated base-runtime install, the health-checked idempotent install, and the
-windowless-launch preflight. All of these use pure static inspection plus `bash -n`: they
-must never install Python, rebuild the developer's real `.venv`, or launch the real GUI.
+The Windows ``.bat`` really runs (cmd.exe) inside a contained sandbox whose path contains
+spaces, parentheses and non-ASCII characters. ``scripts/bootstrap.py`` there is a stub that
+records which interpreter ran it, with which arguments, and exits with a chosen code. PATH,
+LOCALAPPDATA and ProgramFiles are replaced so interpreter discovery is controlled: these are
+simulations of missing/alias-only Python, not evidence from a genuinely Python-free machine.
+The macOS ``.command`` control flow is executed with Git Bash and stub interpreters; that is
+not macOS execution. No test installs Python, touches the real ``.venv`` or opens the GUI.
 """
 
 from __future__ import annotations
 
+import json
 import os
-import glob
 import shutil
 import subprocess
+import sys
+from pathlib import Path
 
 import pytest
 
-_REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+REPO = Path(__file__).resolve().parents[2]
+BAT = REPO / "Setup_and_Run-Web-Novel-Editor.bat"
+CMD = REPO / "Setup_and_Run-Web-Novel-Editor.command"
+
+STUB_BOOTSTRAP = r'''
+import json, os, sys
+from pathlib import Path
+here = Path(__file__).resolve().parent
+codes = json.loads((here / "codes.json").read_text())
+mode = sys.argv[1] if len(sys.argv) > 1 else "setup"
+with open(here / "calls.jsonl", "a", encoding="utf-8") as log:
+    log.write(json.dumps({"exe": sys.executable, "args": sys.argv[1:]}) + "\n")
+print("stub bootstrap ran:", mode)
+sys.exit(codes.get(mode, 0))
+'''
 
 
-def _launcher(extension: str) -> str:
-    """The root launcher with this extension, found by shape rather than by exact name.
+# ------------------------------------------------------------------------------- static
 
-    The convention is `Setup_and_Run-<project>.<ext>`, but the plain `Setup_and_Run.<ext>`
-    form also exists, and a rename of one platform's launcher must not fail every test
-    for the other. Falls back to the plain name so a missing file still reports as a
-    missing launcher rather than an empty glob.
-    """
-    matches = sorted(glob.glob(os.path.join(_REPO_ROOT, f"Setup_and_Run*{extension}")))
-    return matches[0] if matches else os.path.join(_REPO_ROOT, f"Setup_and_Run{extension}")
-
-
-_BAT = _launcher(".bat")
-_CMD = _launcher(".command")
+def test_launcher_names_line_endings_and_mode_are_preserved():
+    assert BAT.is_file() and CMD.is_file()
+    attrs = subprocess.run(["git", "ls-files", "--eol", "-s", BAT.name, CMD.name], cwd=REPO,
+                           capture_output=True, text=True).stdout
+    assert "attr/text eol=crlf" in attrs and "attr/text eol=lf" in attrs
+    stage = subprocess.run(["git", "ls-files", "-s", CMD.name], cwd=REPO, capture_output=True, text=True).stdout
+    assert stage.startswith("100755"), "the .command launcher must stay executable"
+    assert b"\r\n" not in CMD.read_bytes()
 
 
-def _read(path: str) -> str:
-    return open(path, encoding="utf-8", errors="ignore").read()
+def test_launchers_are_thin_wrappers_that_never_upgrade_pip_or_install_homebrew():
+    for path in (BAT, CMD):
+        text = path.read_text(encoding="utf-8")
+        assert "scripts" in text and "bootstrap.py" in text and "--launch-only" in text
+        assert "pip install" not in text and "--upgrade pip" not in text
+        assert "requirements.txt" not in text  # dependency work belongs to bootstrap.py
+    command = CMD.read_text(encoding="utf-8")
+    import re
+    assert "Homebrew/install" not in command and not re.search(r"^\s*brew\s+install", command, re.M)
+    assert '"$1" = "/usr/bin/python3"' in command  # Apple's CLT stub is never used
+    bat = BAT.read_text(encoding="utf-8")
+    assert "\\WindowsApps\\" in bat and "--scope user" in bat and "INSTALL_ANSWER" in bat
+    assert "setx" not in bat.lower() and "reg add" not in bat.lower()
 
 
-def _index_of(lines, predicate, start: int = 0) -> int:
-    for i in range(max(start, 0), len(lines)):
-        if predicate(lines[i]):
-            return i
-    return -1
+def test_bat_jumps_and_calls_only_defined_labels():
+    import re
+    text = BAT.read_text(encoding="utf-8")
+    labels = {m.group(1).lower() for m in re.finditer(r"(?m)^:([A-Za-z_]\w*)[ \t]*\r?$", text)}
+    targets = {m.group(1).lower() for m in re.finditer(r"(?i)\bgoto\s+:?([A-Za-z_]\w*)", text)}
+    targets |= {m.group(1).lower() for m in re.finditer(r"(?i)\bcall\s+:([A-Za-z_]\w*)", text)}
+    targets.discard("eof")
+    assert targets and targets <= labels, sorted(targets - labels)
 
 
-def test_bat_stops_when_pip_install_fails():
-    lines = open(_BAT, encoding="utf-8", errors="ignore").read().splitlines()
-    install = _index_of(lines, lambda l: "pip install -r" in l)
-    assert install != -1, "no 'pip install -r' line found"
-    # The errorlevel guard must come AFTER the install (not the earlier venv guard).
-    guard = _index_of(lines, lambda l: "!errorlevel!" in l and "neq 0" in l, install + 1)
-    assert guard != -1, "no errorlevel guard after the pip install"
-    exit_after_guard = _index_of(lines, lambda l: "exit /b 1" in l, guard + 1)
-    assert exit_after_guard != -1, "guard does not exit on failure"
-    launch = _index_of(lines, lambda l: "%MAIN_SCRIPT%" in l and "python" in l.lower())
-    # The guard exits before the app is ever launched.
-    assert exit_after_guard < launch, "failure exit must come before launching main.py"
-
-
-def test_command_stops_when_pip_install_fails():
-    lines = open(_CMD, encoding="utf-8", errors="ignore").read().splitlines()
-    install = _index_of(lines, lambda l: "pip install -r" in l)
-    assert install != -1, "no 'pip install -r' line found"
-    guard = _index_of(lines, lambda l: "$?" in l and "-ne 0" in l, install + 1)
-    assert guard != -1, "no '$? -ne 0' guard after the pip install"
-    exit_after_guard = _index_of(lines, lambda l: l.strip() == "exit 1", guard + 1)
-    assert exit_after_guard != -1, "guard does not exit on failure"
-    launch = _index_of(lines, lambda l: "$MAIN_SCRIPT" in l and "python" in l.lower())
-    assert exit_after_guard < launch, "failure exit must come before launching main.py"
-
-
-def test_launchers_stop_when_python_is_below_3_10():
-    bat = open(_BAT, encoding="utf-8", errors="ignore").read()
-    command = open(_CMD, encoding="utf-8", errors="ignore").read()
-
-    assert "lss 10" in bat
-    assert "Python 3.10 or later is required" in bat
-    assert "sys.version_info >= (3, 10)" in command
-    assert "Python 3.10 or later is required" in command
+def test_both_launchers_enforce_the_python_3_10_floor_by_execution():
+    for path in (BAT, CMD):
+        assert "sys.version_info >= (3, 10)" in path.read_text(encoding="utf-8")
 
 
 def test_command_is_valid_bash():
-    bash = shutil.which("bash")
-    if not bash:
-        pytest.skip("bash not available to syntax-check the .command launcher")
-    try:
-        probe = subprocess.run([bash, "--version"], capture_output=True, text=True)
-    except OSError:
-        pytest.skip("No usable bash found")
-    if probe.returncode != 0 or "bash" not in probe.stdout.lower():
-        pytest.skip("No usable bash found")
-    result = subprocess.run([bash, "-n", _CMD], capture_output=True, text=True)
+    bash = _usable_bash()
+    result = subprocess.run([bash, "-n", str(CMD)], capture_output=True, text=True)
     assert result.returncode == 0, f"bash -n failed:\n{result.stderr}"
 
 
-# ---------------------------------------------------------------------------
-# Phase 9 — hardened single-launcher structure (static inspection).
-# ---------------------------------------------------------------------------
+# ------------------------------------------------------------------- executed .bat (Windows)
+
+def _bat_sandbox(tmp_path, *, venv: bool, codes: dict) -> Path:
+    root = tmp_path / "Web Novel (copy) \u00dcnicode"
+    (root / "scripts").mkdir(parents=True)
+    shutil.copyfile(BAT, root / BAT.name)
+    data = (root / BAT.name).read_bytes().replace(b"\r\n", b"\n").replace(b"\n", b"\r\n")
+    (root / BAT.name).write_bytes(data)
+    (root / "scripts" / "bootstrap.py").write_text(STUB_BOOTSTRAP, encoding="utf-8")
+    (root / "scripts" / "codes.json").write_text(json.dumps(codes), encoding="utf-8")
+    if venv:
+        subprocess.run([_base_python(), "-m", "venv", "--without-pip", str(root / ".venv")], check=True,
+                       capture_output=True, timeout=180)
+    return root
 
 
-def test_bat_has_ordered_numbered_step_banners():
-    text = _read(_BAT)
-    idx = [text.find(f"[Step {n} of 4]") for n in (1, 2, 3, 4)]
-    assert all(i != -1 for i in idx), f"missing step banners: {idx}"
-    assert idx == sorted(idx), "step banners are out of order"
+def _base_python() -> str:
+    import bootstrap
+    return bootstrap.find_base_python((3, 10))[0]
 
 
-def test_command_has_ordered_numbered_step_banners():
-    text = _read(_CMD)
-    idx = [text.find(f"[Step {n} of 4]") for n in (1, 2, 3, 4)]
-    assert all(i != -1 for i in idx), f"missing step banners: {idx}"
-    assert idx == sorted(idx), "step banners are out of order"
+def _fake_store_alias(tmp_path) -> tuple[Path, Path]:
+    """A Store-alias look-alike first on PATH; it writes a marker if anyone executes it."""
+    apps = tmp_path / "fake-local" / "Microsoft" / "WindowsApps"
+    apps.mkdir(parents=True)
+    marker = tmp_path / "alias-was-executed.txt"
+    (apps / "python.bat").write_text(f'@echo off\r\necho executed> "{marker}"\r\nexit /b 0\r\n', encoding="utf-8")
+    return apps, marker
 
 
-def test_bat_self_healing_venv():
-    text = _read(_BAT)
-    # Detects an incomplete venv via its activation script and rebuilds it.
-    assert "activate.bat" in text
-    assert 'rmdir /s /q "%VENV_DIR%"' in text
-    # The Windows "a previous run still holds .venv open" case is called out.
-    assert "Task Manager" in text
+def _run_bat(root, *, path_dirs, stdin="\n\n\n", local=None, tmp_path=None):
+    system32 = Path(os.environ.get("SystemRoot", r"C:\Windows")) / "System32"
+    empty = (tmp_path or root.parent) / "empty-dir"
+    empty.mkdir(exist_ok=True)
+    env = {k: v for k, v in os.environ.items() if k.upper() not in {"PATH", "PYTHONPATH", "PYTHONHOME"}}
+    env.update(PATH=os.pathsep.join([*map(str, path_dirs), str(system32)]),
+               LOCALAPPDATA=str(local or empty), ProgramFiles=str(empty))
+    done = subprocess.run(["cmd", "/d", "/c", str(root / BAT.name)], input=stdin, capture_output=True,
+                          text=True, encoding="utf-8", errors="replace", env=env, cwd=str(tmp_path or root.parent),
+                          timeout=180)
+    calls_file = root / "scripts" / "calls.jsonl"
+    calls = [json.loads(line) for line in calls_file.read_text(encoding="utf-8").splitlines()] \
+        if calls_file.exists() else []
+    return done, calls
 
 
-def test_command_self_healing_venv():
-    text = _read(_CMD)
-    assert "/bin/activate" in text
-    assert 'rm -rf "$VENV_DIR"' in text
+windows_only = pytest.mark.skipif(sys.platform != "win32", reason="executes cmd.exe; Windows launcher only")
 
 
-def test_bat_blocks_old_python_and_does_not_merely_warn():
-    text = _read(_BAT)
-    assert "Python 3.10 or later is required" in text
-    assert "lss 10" in text
-    # The study template only WARNED and continued; the editor deliberately blocks.
-    assert "WARNING" not in text
+@windows_only
+def test_bat_healthy_fast_path_runs_only_the_offline_check(tmp_path):
+    root = _bat_sandbox(tmp_path, venv=True, codes={"--launch-only": 0})
+    apps, marker = _fake_store_alias(tmp_path)
+    done, calls = _run_bat(root, path_dirs=[apps], tmp_path=tmp_path)
+    assert done.returncode == 0, done.stdout + done.stderr
+    assert [c["args"] for c in calls] == [["--launch-only"]]
+    assert Path(calls[0]["exe"]).parent.parent.name == ".venv"
+    assert "running in its own window" in done.stdout and "Press Enter to close" in done.stdout
+    assert not marker.exists()
 
 
-def test_command_blocks_old_python_and_does_not_merely_warn():
-    text = _read(_CMD)
-    assert "Python 3.10 or later is required" in text
-    assert "sys.version_info >= (3, 10)" in text
-    assert "WARNING" not in text
+@windows_only
+def test_bat_launch_failure_is_reported_without_setup(tmp_path):
+    root = _bat_sandbox(tmp_path, venv=True, codes={"--launch-only": 4})
+    done, calls = _run_bat(root, path_dirs=[], tmp_path=tmp_path)
+    assert done.returncode == 4 and [c["args"] for c in calls] == [["--launch-only"]]
+    assert "could not start" in done.stdout and "runtime-data" in done.stdout
 
 
-def test_bat_consent_gates_base_runtime_install():
-    text = _read(_BAT)
-    consent = text.find("set /p do_py")
-    winget = text.find("winget install --id")
-    assert consent != -1, "no Y/N consent prompt before installing Python"
-    assert winget != -1, "no winget install of Python"
-    assert consent < winget, "consent prompt must precede the winget install"
-    # User scope (no admin) is the safe default the plan requires.
-    assert "--scope user" in text
+@windows_only
+def test_bat_repair_uses_an_external_python_and_skips_the_store_alias(tmp_path):
+    root = _bat_sandbox(tmp_path, venv=True, codes={"--launch-only": 3, "setup": 0})
+    apps, marker = _fake_store_alias(tmp_path)
+    base = Path(_base_python())
+    done, calls = _run_bat(root, path_dirs=[apps, base.parent], tmp_path=tmp_path)
+    assert done.returncode == 0, done.stdout + done.stderr
+    assert [c["args"] for c in calls] == [["--launch-only"], []]
+    assert Path(calls[1]["exe"]).resolve() == base.resolve()
+    assert not marker.exists(), "the Store alias look-alike was executed"
+    assert "Using Python:" in done.stdout
 
 
-def test_command_consent_gates_base_runtime_install():
-    text = _read(_CMD)
-    consent = text.find("Install Python now?")
-    assert consent != -1, "no Y/N consent prompt before installing Python"
-    assert "brew install" in text, "no Homebrew (user-scope) Python install path"
+@windows_only
+def test_bat_without_any_python_repairs_in_place_with_the_existing_venv(tmp_path):
+    root = _bat_sandbox(tmp_path, venv=True, codes={"--launch-only": 3, "setup": 10})
+    apps, marker = _fake_store_alias(tmp_path)
+    done, calls = _run_bat(root, path_dirs=[apps], tmp_path=tmp_path)
+    assert done.returncode == 10
+    assert [c["args"] for c in calls] == [["--launch-only"], []]
+    assert Path(calls[1]["exe"]).parent.parent.name == ".venv"
+    assert "repairing in place" in done.stdout and "Setup did not complete (code 10)" in done.stdout
+    assert not marker.exists()
 
 
-def test_launchers_use_health_checked_idempotent_install():
-    for path in (_BAT, _CMD):
-        text = _read(path)
-        assert "requirements.lock" in text, f"{path}: no requirements lock/sentinel"
-        assert "pip check" in text, f"{path}: no pip-check health gate"
-        assert "import pdfplumber, reportlab" in text, f"{path}: no import smoke check"
+@windows_only
+def test_bat_missing_python_simulation_asks_first_and_installs_nothing_when_declined(tmp_path):
+    root = _bat_sandbox(tmp_path, venv=False, codes={})
+    apps, marker = _fake_store_alias(tmp_path)
+    done, calls = _run_bat(root, path_dirs=[apps], stdin="N\n\n\n", tmp_path=tmp_path)
+    assert done.returncode == 10 and calls == []
+    assert "Install Python 3.13 for your user account now with winget? (Y/N)" in done.stdout
+    assert "Python 3.10 or newer is required and was not found" in done.stdout
+    assert "python.org" in done.stdout and not marker.exists()
+    assert not (root / ".venv").exists()
 
 
-def test_bat_preflights_before_windowless_launch():
-    text = _read(_BAT)
-    check = text.find('--check')
-    pyw = text.find('start "" pythonw')
-    assert check != -1, "no console preflight (--check) before the windowless launch"
-    assert pyw != -1, "GUI is not launched windowless with pythonw"
-    assert check < pyw, "preflight must run before detaching to pythonw"
+@windows_only
+def test_bat_missing_bootstrap_is_a_clear_error(tmp_path):
+    root = _bat_sandbox(tmp_path, venv=False, codes={})
+    (root / "scripts" / "bootstrap.py").unlink()
+    done, _calls = _run_bat(root, path_dirs=[], tmp_path=tmp_path)
+    assert done.returncode == 10 and "setup helper is missing" in done.stdout
 
 
-def test_command_preflights_startup():
-    text = _read(_CMD)
-    assert '--check' in text, "no startup preflight (--check) in the macOS launcher"
+# ----------------------------------------------------- executed .command (Git Bash, stubs)
+
+def _usable_bash() -> str:
+    candidates = [shutil.which("bash")]
+    if sys.platform == "win32":
+        candidates.append(r"C:\Program Files\Git\bin\bash.exe")
+    for bash in candidates:
+        if not bash or "system32" in bash.lower():
+            continue  # the WSL launcher is not a usable POSIX shell for these checks
+        try:
+            probe = subprocess.run([bash, "--version"], capture_output=True, text=True, timeout=20)
+        except (OSError, subprocess.TimeoutExpired):
+            continue
+        if probe.returncode == 0 and "bash" in probe.stdout.lower():
+            return bash
+    pytest.skip("no usable bash on this host to execute the .command launcher")
 
 
-def test_bat_calls_only_defined_subroutines():
-    """Every `call :label` resolves to a defined `:label` — a cheap parse sanity check."""
-    text = _read(_BAT)
-    import re
+STUB_PY = """#!/bin/bash
+echo "$0 $*" >> "$CALLS"
+for arg in "$@"; do [ "$arg" = "-c" ] && exit 0; done
+for arg in "$@"; do [ "$arg" = "--launch-only" ] && exit "$LAUNCH_RC"; done
+exit "$SETUP_RC"
+"""
 
-    defined = set(re.findall(r"(?m)^:(\w+)", text))
-    called = set(re.findall(r"call :(\w+)", text))
-    missing = called - defined
-    assert not missing, f"call to undefined subroutine(s): {sorted(missing)}"
+
+def _run_command(tmp_path, *, venv: bool, base: bool, launch_rc=0, setup_rc=0, stdin="\n\n\n"):
+    bash = _usable_bash()
+    root = tmp_path / "Web Novel (copy)"
+    (root / "scripts").mkdir(parents=True)
+    shutil.copyfile(CMD, root / CMD.name)
+    (root / "scripts" / "bootstrap.py").write_text("# not executed by the stub interpreters\n", encoding="utf-8")
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    calls = tmp_path / "calls.log"
+    stubs = []
+    if venv:
+        stubs.append(root / ".venv" / "bin" / "python")
+    if base:
+        stubs.append(bin_dir / "python3")
+    for stub in stubs:
+        stub.parent.mkdir(parents=True, exist_ok=True)
+        stub.write_text(STUB_PY, encoding="utf-8", newline="\n")
+        stub.chmod(0o755)
+    to_posix = lambda p: subprocess.run([bash, "-c", f'cygpath -u "{p}" 2>/dev/null || echo "{p}"'],
+                                        capture_output=True, text=True).stdout.strip()
+    # Only the stub directory and the shell's own coreutils: no real python3 is reachable.
+    coreutils = Path(bash).parent if (Path(bash).parent / ("sort.exe" if sys.platform == "win32" else "sort")).exists()         else Path(bash).parent.parent / "usr" / "bin"
+    env = dict(os.environ, CALLS=to_posix(calls), LAUNCH_RC=str(launch_rc), SETUP_RC=str(setup_rc),
+               PATH=os.pathsep.join([str(bin_dir), str(coreutils)]))
+    done = subprocess.run([bash, to_posix(root / CMD.name)], input=stdin, capture_output=True, text=True,
+                          env=env, timeout=120)
+    recorded = calls.read_text(encoding="utf-8").splitlines() if calls.exists() else []
+    return done, recorded
+
+
+def test_command_healthy_fast_path(tmp_path):
+    done, calls = _run_command(tmp_path, venv=True, base=True, launch_rc=0)
+    assert done.returncode == 0, done.stdout + done.stderr
+    assert len(calls) == 1 and calls[0].endswith("--launch-only")
+    assert "running in its own window" in done.stdout
+
+
+def test_command_launch_failure_is_reported_without_setup(tmp_path):
+    done, calls = _run_command(tmp_path, venv=True, base=True, launch_rc=4)
+    assert done.returncode == 4 and len(calls) == 1 and "could not start" in done.stdout
+
+
+def test_command_repair_uses_an_external_python(tmp_path):
+    done, calls = _run_command(tmp_path, venv=True, base=True, launch_rc=3, setup_rc=0)
+    assert done.returncode == 0, done.stdout + done.stderr
+    assert "/bin/python3 " in calls[-1] and calls[-1].endswith("scripts/bootstrap.py")
+    assert "Using Python:" in done.stdout
+
+
+def test_command_missing_python_simulation_guides_and_installs_nothing(tmp_path):
+    done, calls = _run_command(tmp_path, venv=False, base=False, stdin="N\n\n\n")
+    assert done.returncode == 10 and calls == []
+    # (bash prints read -p prompts only on a terminal; the echoed guidance is asserted instead)
+    assert "Python 3.10 or newer is needed" in done.stdout and "python.org" in done.stdout
+    assert "required and was not found" in done.stdout

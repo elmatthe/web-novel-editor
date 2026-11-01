@@ -1,29 +1,17 @@
-"""Tkinter main window and all GUI logic.
+"""Web Novel Editor main window (Phase 02B compact desktop).
 
-This is the single-window UI, laid out in **two columns since v0.13.0**: the controls
-on the left (a two-mode Input card, three option checkboxes, a progress bar and
-Run + Pause/Continue/Stop buttons) and the log on the right, spanning their rows. It used to be one column with the log at the bottom, which
-meant the window had to be tall enough for every control *plus* the log — more than a
-1080p desktop offers — so the log and the status strip were clipped off the bottom.
-The log's content and its condensed one-line-per-file format are unchanged; only where
-it sits moved. Pause and stop are honored between files — the current file always
-finishes. Phase 02A adds one mixed PDF/TXT queue, selected output formats and explicit
-run-folder recovery. Fresh numbered runs default to `Downloads/PDF-Editor-Outputs/`;
-a custom output root replaces that root. Imported folder structure is preserved.
+Layout (Master Plan §7.1): four numbered control groups on the left — 1. Sources,
+2. Novel & Editing, 3. Output, 4. Run — and a large, horizontally resizable Activity pane on
+the right with Summary/Detailed tabs. A bottom status bar holds the persistent Light/Dark
+toggle, Preferences & Data and Open Log Folder. No navigation sidebar.
 
-Editing is deterministic and script-only: nothing in this window contacts a model or
-any network service (Phase 01A removed the optional AI card and every provider control).
+Threading: the worker thread receives an immutable :class:`RunRequest` and only calls
+``Activity.emit``; it never touches a widget or calls Tk (not even ``after``). The Tk thread
+drains events with :class:`gui.activity.ActivityPump`. Window close during a run requests a
+safe-boundary stop and destroys Tk only after the worker has reported completion.
 
-The Run button drives the real `core.batch_runner.run_batch`: extract each PDF, run
-the editorial pipeline, and rebuild it under its original name. The worker runs on a
-daemon thread and posts every UI update back through `self.after(0, ...)`, so the
-window never freezes.
-
-Design note: the visual system (palette, spacing, type hierarchy, state feedback) applies
-the *principles* of the ui-design-system skill translated into native ttk — no web/CSS
-framework. The accent color is the same `#134252` used for PDF chapter headings, tying the
-app to its output. The `clam` ttk theme is used because it honors custom widget colors
-(the default Windows `vista` theme ignores most of them).
+Editing is deterministic and script-only: nothing in this window contacts a model or any
+network service.
 """
 
 from __future__ import annotations
@@ -32,531 +20,568 @@ import os
 import threading
 import time
 import tkinter as tk
+from dataclasses import dataclass, field
 from pathlib import Path
-from types import SimpleNamespace
 from tkinter import filedialog, messagebox, ttk
 
 from core.batch_runner import run_batch
-from core.input_scanner import scan_folder, scan_upload, natural_order
-from core.output_plan import reserve_run_dir, plan_outputs
-from core.run_manifest import read_manifest, manifest_path, find_resumable_run
+from core.input_scanner import natural_order, scan_folder, scan_upload
+from core.novel_registry import DEFAULT_NOVEL, NOVEL_INDEX_DIR, available_novels, clean_novel_name, resolve_dispatch
+from core.output_plan import plan_outputs, reserve_run_dir
+from core.protected_lexicon import load_protected_lexicon
 from core.run_lock import StaleLock
-from core.novel_registry import DEFAULT_NOVEL, available_novels, clean_novel_name
-from utils.file_utils import (
-    downloads_dir,
-    kebab_case,
-    next_numbered_output_dir,
-    open_in_file_manager,
-)
+from core.run_manifest import find_resumable_run, manifest_path, read_manifest
+from gui import appearance as look
+from gui.activity import (DEFAULT_LOG_RETENTION, ERROR, INFO, WARNING, Activity, ActivityEvent, ActivityPump,
+                          SessionLog, bridge_event, default_log_dir)
+from utils import settings as prefs_store
+from utils.file_utils import downloads_dir, kebab_case, next_numbered_output_dir, open_in_file_manager
 from utils.pace import compute_rate, format_rate
 
-# ---------------------------------------------------------------------------
-# Design tokens (translated from the ui-design-system skill into ttk constants)
-# ---------------------------------------------------------------------------
-# Colors — an intentional, limited palette anchored on the spec's heading color.
-ACCENT = "#134252"          # primary accent (matches PDF chapter-heading color)
-ACCENT_HOVER = "#1d5d72"    # accent hover
-ACCENT_ACTIVE = "#0d2f3a"   # accent pressed
-WINDOW_BG = "#eef1f4"       # app background (light neutral surface)
-PANEL_BG = "#ffffff"        # raised panel/card surface
-BORDER = "#d3dae0"          # subtle border
-TEXT = "#1f2933"            # primary text / headings
-TEXT_BODY = "#3e4c59"       # body text
-TEXT_MUTED = "#7b8794"      # secondary / muted text
-# Semantic colors for log levels (WCAG-AA readable on the white log surface).
-COL_SUCCESS = "#1f7a3d"
-COL_WARN = "#b45309"
-COL_ERROR = "#b91c1c"
-COL_INFO = "#3e4c59"
-# Semantic colors per log level.
-LEVEL_COLORS = {
-    "success": COL_SUCCESS,
-    "warn": COL_WARN,
-    "error": COL_ERROR,
-    "info": COL_INFO,
-    "muted": TEXT_MUTED,
-}
-
-# Spacing — 8pt grid.
-PAD_S = 8
-PAD_M = 16
-PAD_L = 24
-
-# Two columns since v0.13.0: controls on the left, the log on the right.
-#
-# The log used to be a bottom row, which meant the window had to be tall enough for
-# every control *plus* the log — over 1200px — while a 1080p desktop offers roughly
-# 990px. `minsize` then overrode the screen-aware opening geometry and the log and the
-# status strip were simply clipped off the bottom. Moving the log sideways takes its
-# height out of the vertical budget entirely; it now grows horizontally instead, which
-# is where the spare room actually was.
-#
-# Both constants are pinned by tests: the controls' per-row heights must fit inside
-# MIN_HEIGHT, MIN_HEIGHT must fit a 1080p desktop, and both columns must fit inside
-# MIN_WIDTH.
-CONTROL_COLUMN_WIDTH = 780      # the left column's floor, so cards never get crushed
-LOG_COLUMN_WIDTH = 400          # the log's floor; everything above it goes to the log
-MIN_WIDTH = CONTROL_COLUMN_WIDTH + LOG_COLUMN_WIDTH + PAD_M + 2 * PAD_M
-MIN_HEIGHT = 960
-# Opening height when the display allows it. The log stretches to fill whatever the
-# window has, so there is no longer any reason to open taller than the controls need.
-PREFERRED_HEIGHT = 980
+APP_TITLE = "Web Novel Editor"
+DEFAULT_OUTPUT_FOLDER = "PDF-Editor-Outputs"
+MIN_WIDTH, MIN_HEIGHT = 900, 620
+OPEN_WIDTH, OPEN_HEIGHT = 1220, 760
+CONTROL_PANE_WIDTH = 520
+EDITING_DESCRIPTION = ("Conservative universal editing: extraction artifacts, spacing, punctuation and "
+                       "known OCR errors are cleaned; protected names and ambiguous prose stay exactly "
+                       "as written. Everything runs on this computer; nothing is sent online.")
 
 
-def _novel_combo_width(roster: list[str]) -> int:
-    """Character width (font-average units) for the novel dropdown.
+@dataclass(frozen=True)
+class RunRequest:
+    """Everything the worker needs, frozen when Start/Resume is accepted (no Tk objects)."""
 
-    Sized from the *actual* roster so the longest label — e.g. "Circle of
-    Inevitability — universal rules only" — is never truncated in either the closed
-    display or the open list, and so onboarding a longer novel name keeps the
-    widget correct without a hand-tuned constant. The +2 leaves room beside the
-    dropdown arrow.
-    """
-    longest = max((len(label) for label in roster), default=0)
-    return longest + 2
+    files: tuple[str, ...]
+    output_dir: str
+    novel: str
+    formats: tuple[str, ...]
+    write_replacement_log: bool
+    write_debug_text: bool
+    dry_run: bool
+    import_roots: tuple[tuple[str, str], ...] = ()
+    resume: bool = False
+    retry_failed: bool = False
+    recover: bool = False
+    previously_completed: int = 0
+    started: float = field(default_factory=time.monotonic)
+
+
+def _job(kind: str, value=None, *, coalesce: str | None = None) -> ActivityEvent:
+    return ActivityEvent("batch", kind="job", payload=(kind, value), coalesce_key=coalesce)
+
+
+def format_elapsed(seconds: float) -> str:
+    seconds = max(0, int(seconds))
+    hours, rest = divmod(seconds, 3600)
+    return f"{hours}:{rest // 60:02d}:{rest % 60:02d}" if hours else f"{rest // 60}:{rest % 60:02d}"
 
 
 class WebnovelEditorApp(tk.Tk):
     """The single main application window."""
 
-    def __init__(self) -> None:
+    def __init__(self, *, log_dir: str | Path | None = None,
+                 log_retention: int = DEFAULT_LOG_RETENTION) -> None:
         super().__init__()
-        # Paired product-family naming with the sibling web-novel-scraper
-        # ("Web Novel Scraper"); the two apps read as one family (Phase 7).
-        self.title("Web Novel Editor")
+        self.title(APP_TITLE)
         self.minsize(MIN_WIDTH, MIN_HEIGHT)
-        # Open big enough to show every control, but never taller than the screen —
-        # a window that opens off the bottom of a small display hides the Start
-        # button, which is the one control the user must be able to find.
-        usable = max(MIN_HEIGHT, self.winfo_screenheight() - 90)
-        self.geometry(f"{MIN_WIDTH}x{min(PREFERRED_HEIGHT, usable)}")
-        self.configure(bg=WINDOW_BG)
+        width = min(OPEN_WIDTH, max(MIN_WIDTH, self.winfo_screenwidth() - 80))
+        height = min(OPEN_HEIGHT, max(MIN_HEIGHT, self.winfo_screenheight() - 90))
+        self.geometry(f"{width}x{height}")
 
-        # State
-        self.file_paths: list[str] = []       # upload mode: user-ordered flat list
-        self.folder_files: list[Path] = []    # folder mode: resolved natural-order scan
-        self.input_folder = ""                # folder mode: the selected root folder
+        self.preferences, preference_notes = prefs_store.load_preferences()
+        self.bundle = look.apply_appearance(self, self.preferences["appearance"])
+        self.configure(background=self.bundle["colors"]["window"])
+        self.log_dir = Path(log_dir) if log_dir is not None else default_log_dir()
+        self.log_retention = log_retention
+
+        # Queue state (Tk thread only).
+        self.file_paths: list[str] = []
         self.import_roots: dict[str, str] = {}
-        self._exit_when_done = False
+        self._display_paths: tuple[str, ...] = ()
+        # Run state.
         self._running = False
-        # Cooperative pause gate shared with run_batch: SET = run, cleared = pause
-        # requested. Consulted between files only, so the current file always finishes.
-        # Session-only state — a fresh batch (and app start) always begins un-paused.
+        self._exit_when_done = False
+        self._request: RunRequest | None = None
+        self._last_run_dir: str | None = None
+        self._last_run_has_failures = False
         self.pause_gate = threading.Event()
         self.pause_gate.set()
         self.stop_event = threading.Event()
-        # Batch pace, for the running-average / ETA readout. None = not tracking.
+        self._counts = {"completed": 0, "failed": 0, "skipped": 0}
+        self._elapsed_job = None
         self._batch_started: float | None = None
         self._batch_total = 0
-        self._init_fonts()
-        self._configure_styles()
+        self._preferences_dialog = None
+        self._term_counts: dict[str, int] = {}
+        self._preference_save_warned = False
+
         self._build_ui()
+        self.activity = Activity(session_log=SessionLog(self.log_dir, keep=log_retention),
+                                 on_render=self._render, job_sink=self._on_job)
+        self.pump = ActivityPump(self.activity, self.after, self.after_cancel, lambda: self._running)
+        if not self.activity.session_log.open():
+            self.activity.note_log_open_failure()
+        self._bind_shortcuts()
         self.protocol("WM_DELETE_WINDOW", self._on_close)
+        self._refresh_status()
+        self._report("Ready. Add PDF/TXT files or a folder, choose the novel and outputs, then Start. "
+                     "Nothing is sent online.", tone="muted", summary=True)
+        for note in preference_notes:
+            self._report(note, WARNING)
+        if self.activity.session_log.pruned:
+            self._report(f"Removed {len(self.activity.session_log.pruned)} old session log(s) "
+                         f"(keeping the latest {log_retention}).", tone="muted")
 
-    # -- styling ----------------------------------------------------------------
-    def _init_fonts(self) -> None:
-        import tkinter.font as tkfont
-
-        available = {f.lower() for f in tkfont.families(self)}
-
-        def pick(prefs: list[str]) -> str:
-            for fam in prefs:
-                if fam.lower() in available:
-                    return fam
-            return prefs[-1]
-
-        sans = pick(["Segoe UI", "Helvetica Neue", "Helvetica", "Arial"])
-        mono = pick(["Consolas", "DejaVu Sans Mono", "Menlo", "Courier New"])
-        # Type hierarchy (skill principle: distinct, scaled type roles).
-        self.font_title = (sans, 16, "bold")
-        self.font_subtitle = (sans, 10)
-        self.font_section = (sans, 10, "bold")
-        self.font_body = (sans, 10)
-        self.font_button = (sans, 10, "bold")
-        self.font_log = (mono, 9)
-
-    def _configure_styles(self) -> None:
-        style = ttk.Style(self)
-        # 'clam' honors custom colors; the native vista theme ignores most of them.
-        try:
-            style.theme_use("clam")
-        except tk.TclError:
-            pass
-
-        style.configure("TFrame", background=WINDOW_BG)
-        style.configure("Panel.TFrame", background=PANEL_BG)
-        style.configure("Header.TFrame", background=WINDOW_BG)
-
-        style.configure("TLabel", background=WINDOW_BG, foreground=TEXT_BODY,
-                        font=self.font_body)
-        style.configure("Title.TLabel", background=WINDOW_BG, foreground=TEXT,
-                        font=self.font_title)
-        style.configure("Subtitle.TLabel", background=WINDOW_BG, foreground=TEXT_MUTED,
-                        font=self.font_subtitle)
-        style.configure("Panel.TLabel", background=PANEL_BG, foreground=TEXT_BODY,
-                        font=self.font_body)
-        style.configure("PathValue.TLabel", background=PANEL_BG, foreground=TEXT_MUTED,
-                        font=self.font_body)
-        style.configure("Status.TLabel", background=WINDOW_BG, foreground=TEXT_MUTED,
-                        font=self.font_subtitle)
-
-        # LabelFrame as a titled "card".
-        style.configure("Card.TLabelframe", background=PANEL_BG, bordercolor=BORDER,
-                        relief="solid", borderwidth=1)
-        style.configure("Card.TLabelframe.Label", background=WINDOW_BG, foreground=ACCENT,
-                        font=self.font_section)
-
-        # Buttons — secondary (neutral) and primary (accent) with state feedback.
-        style.configure("TButton", font=self.font_body, padding=(PAD_M, PAD_S),
-                        background="#e3e8ec", foreground=TEXT, bordercolor=BORDER,
-                        focuscolor=ACCENT)
-        style.map("TButton",
-                  background=[("active", "#d3dae0"), ("disabled", "#eef1f4")],
-                  foreground=[("disabled", TEXT_MUTED)])
-
-        style.configure("Accent.TButton", font=self.font_button, padding=(PAD_L, PAD_S + 2),
-                        background=ACCENT, foreground="#ffffff", bordercolor=ACCENT)
-        style.map("Accent.TButton",
-                  background=[("active", ACCENT_HOVER), ("pressed", ACCENT_ACTIVE),
-                              ("disabled", "#9bb0b8")],
-                  foreground=[("disabled", "#eef1f4")])
-
-        style.configure("TCheckbutton", background=PANEL_BG, foreground=TEXT_BODY,
-                        font=self.font_body, focuscolor=ACCENT)
-        style.map("TCheckbutton", background=[("active", PANEL_BG)])
-
-        style.configure("TRadiobutton", background=PANEL_BG, foreground=TEXT_BODY,
-                        font=self.font_body, focuscolor=ACCENT)
-        style.map("TRadiobutton", background=[("active", PANEL_BG)])
-
-        style.configure("Accent.Horizontal.TProgressbar", background=ACCENT,
-                        troughcolor="#dbe2e7", bordercolor=BORDER, lightcolor=ACCENT,
-                        darkcolor=ACCENT)
-
-    # -- layout -----------------------------------------------------------------
+    # ------------------------------------------------------------------ layout
     def _build_ui(self) -> None:
-        root = ttk.Frame(self, style="TFrame", padding=PAD_M)
+        pad = look.METRICS["content_pad"]
+        self._build_status_bar()  # packed first so it is never squeezed out at minimum size
+        root = ttk.Frame(self, padding=(pad, pad, pad, 0))
         root.pack(fill="both", expand=True)
-        # Column 0 holds the controls at their natural size and never flexes, so no
-        # card can be squeezed however the window is resized. Column 1 is the log, and
-        # it takes every pixel of horizontal slack. Row 5 is an empty spacer that takes
-        # the vertical slack on the left, which lets the log stretch through its
-        # rowspan without stretching any control.
-        root.columnconfigure(0, weight=0, minsize=CONTROL_COLUMN_WIDTH)
-        root.columnconfigure(1, weight=1, minsize=LOG_COLUMN_WIDTH)
-        root.rowconfigure(5, weight=1)
+        root.columnconfigure(0, weight=1)
+        root.rowconfigure(1, weight=1)
 
-        self._build_header(root, row=0)
-        self._build_novel_panel(root, row=1)
-        self._build_file_panel(root, row=2)
-        self._build_options_panel(root, row=3)
-        self._build_run_row(root, row=4)
-        self._build_log_panel(root, row=1, column=1, rowspan=5)
-        self._build_status_bar(root, row=6)
+        header = ttk.Frame(root)
+        header.grid(row=0, column=0, sticky="ew", pady=(0, look.METRICS["gap_md"]))
+        ttk.Label(header, text=APP_TITLE, style="Title.TLabel").pack(side="left")
+        ttk.Label(header, text="Offline, deterministic cleanup of web-novel chapter PDF/TXT files for "
+                               "reading and TTS.", style="Secondary.TLabel").pack(side="left", padx=(12, 0))
 
-        self._refresh_status()
-        self._log("Ready. Upload PDFs or select a folder, then start the batch — "
-                  "results are saved to a new folder in your Downloads.", "muted")
+        self.paned = ttk.Panedwindow(root, orient="horizontal")
+        self.paned.grid(row=1, column=0, sticky="nsew")
+        controls = ttk.Frame(self.paned, width=CONTROL_PANE_WIDTH)
+        controls.columnconfigure(0, weight=1)
+        self.paned.add(controls, weight=0)
+        activity = ttk.Frame(self.paned)
+        self.paned.add(activity, weight=1)
 
-    def _build_header(self, parent: ttk.Frame, row: int) -> None:
-        header = ttk.Frame(parent, style="Header.TFrame")
-        header.grid(row=row, column=0, columnspan=2, sticky="ew", pady=(0, PAD_M))
-        ttk.Label(header, text="Web Novel Editor", style="Title.TLabel").pack(anchor="w")
-        ttk.Label(
-            header,
-            text="Batch-clean webscraped chapter PDFs into TTS-ready documents.",
-            style="Subtitle.TLabel",
-        ).pack(anchor="w", pady=(2, 0))
+        self._build_sources(controls, 0)
+        self._build_novel(controls, 1)
+        self._build_output(controls, 2)
+        self._build_run(controls, 3)
+        controls.rowconfigure(0, weight=1)  # the source list takes spare height
+        self._build_activity(activity)
+        self._repaint_raw_widgets()
 
-    def _build_novel_panel(self, parent: ttk.Frame, row: int) -> None:
-        frame = ttk.Labelframe(parent, text="Novel", style="Card.TLabelframe",
-                               padding=PAD_M)
-        frame.grid(row=row, column=0, sticky="ew", pady=(0, PAD_M))
-        frame.columnconfigure(1, weight=1)
-
-        ttk.Label(frame, text="Editing profile:", style="Panel.TLabel").grid(
-            row=0, column=0, sticky="w", padx=(0, PAD_S))
-
-        # Roster: "Universal" first (the default), then one entry per index file under
-        # scripts/resources/novel-index/, profile-less novels marked "no
-        # profile yet". Display strings may carry that marker, so every selection is
-        # passed through clean_novel_name before it reaches run_batch's novel_name ->
-        # pipeline dispatch or the output-folder naming.
-        roster = available_novels()
-        default = DEFAULT_NOVEL if DEFAULT_NOVEL in roster else (roster[0] if roster else "")
-        self.novel_var = tk.StringVar(value=default)
-        # Width is measured from the real roster so the longest label shows in full
-        # in both the closed display and the open dropdown list. The list itself is a
-        # native override-redirect popup that draws in front of the card content, so
-        # it correctly covers (never collides behind) the description below — no
-        # z-order handling is needed once the width is right.
-        self.novel_combo = ttk.Combobox(
-            frame, textvariable=self.novel_var, values=roster, state="readonly",
-            font=self.font_body, width=_novel_combo_width(roster),
-        )
-        self.novel_combo.grid(row=0, column=1, sticky="w")
-        self.novel_combo.bind("<<ComboboxSelected>>", self._on_novel_changed)
-
-        ttk.Label(
-            frame,
-            text="Universal applies the standard cleanup to any novel. Choosing a novel "
-                 "layers its own specific edits on top. “Names protected” means the "
-                 "novel has no extra edits of its own yet, but its names and places are "
-                 "still kept exactly as written; “universal rules only” means it has "
-                 "neither yet.",
-            style="PathValue.TLabel", wraplength=720, justify="left",
-        ).grid(row=1, column=0, columnspan=2, sticky="w", pady=(PAD_S, 0))
-
-    def _on_novel_changed(self, _event=None) -> None:
-        self._log(f"Novel selected: {self.novel_var.get()}", "info")
-        self._refresh_status()
-
-    def _build_file_panel(self, parent: ttk.Frame, row: int) -> None:
-        frame = ttk.Labelframe(parent, text="Input", style="Card.TLabelframe",
-                               padding=PAD_M)
-        frame.grid(row=row, column=0, sticky="ew", pady=(0, PAD_M))
+    def _group(self, parent, row: int, title: str) -> ttk.Labelframe:
+        frame = ttk.Labelframe(parent, text=title)
+        frame.grid(row=row, column=0, sticky="nsew", pady=(0, look.METRICS["section_gap"]),
+                   padx=(0, look.METRICS["gap_md"]))
         frame.columnconfigure(0, weight=1)
+        return frame
 
-        # Two mutually exclusive input modes (Plan 1 Phase 1). The radio pair flips
-        # which mode's controls are enabled; the shared list below always shows the
-        # resolved processing order for the active mode.
-        self.input_mode_var = tk.StringVar(value="upload")
-        modes = ttk.Frame(frame, style="Panel.TFrame")
-        modes.grid(row=0, column=0, sticky="w", pady=(0, PAD_S))
-        ttk.Radiobutton(
-            modes, text="PDF / TXT files", value="upload", variable=self.input_mode_var,
-            command=self._on_input_mode_changed,
-        ).pack(side="left")
-        ttk.Radiobutton(
-            modes, text="Select Folder", value="folder", variable=self.input_mode_var,
-            command=self._on_input_mode_changed,
-        ).pack(side="left", padx=(PAD_M, 0))
-        self.recursive_var = tk.BooleanVar(value=True)
-        ttk.Checkbutton(modes, text="Include subfolders", variable=self.recursive_var).pack(side="left", padx=(PAD_M, 0))
-
-        list_wrap = ttk.Frame(frame, style="Panel.TFrame")
-        list_wrap.grid(row=1, column=0, sticky="ew")
-        list_wrap.columnconfigure(0, weight=1)
-
-        self.file_listbox = tk.Listbox(
-            list_wrap, selectmode=tk.EXTENDED, height=4, activestyle="none", exportselection=False,
-            bg=PANEL_BG, fg=TEXT_BODY, font=self.font_body, relief="solid",
-            borderwidth=1, highlightthickness=1, highlightbackground=BORDER,
-            highlightcolor=ACCENT, selectbackground=ACCENT, selectforeground="#ffffff",
-        )
-        self.file_listbox.grid(row=0, column=0, sticky="ew")
-        scroll = ttk.Scrollbar(list_wrap, orient="vertical",
-                               command=self.file_listbox.yview)
+    def _build_sources(self, parent, row: int) -> None:
+        frame = self._group(parent, row, "1. Sources")
+        frame.rowconfigure(0, weight=1)
+        wrap = ttk.Frame(frame)
+        wrap.grid(row=0, column=0, sticky="nsew")
+        wrap.columnconfigure(0, weight=1)
+        wrap.rowconfigure(0, weight=1)
+        self.file_listbox = tk.Listbox(wrap, selectmode=tk.EXTENDED, height=6, activestyle="dotbox",
+                                       exportselection=False, relief="solid", borderwidth=1,
+                                       highlightthickness=1, font=self.bundle["fonts"]["body"])
+        self.file_listbox.grid(row=0, column=0, sticky="nsew")
+        scroll = ttk.Scrollbar(wrap, orient="vertical", command=self.file_listbox.yview)
         scroll.grid(row=0, column=1, sticky="ns")
         self.file_listbox.configure(yscrollcommand=scroll.set)
 
-        btns = ttk.Frame(frame, style="Panel.TFrame")
-        btns.grid(row=2, column=0, sticky="ew", pady=(PAD_M, 0))
-        btns.columnconfigure(3, weight=1)
-        self.add_button = ttk.Button(btns, text="Add Files", command=self._add_pdfs)
-        self.add_button.grid(row=0, column=0)
-        self.remove_button = ttk.Button(btns, text="Remove Selected",
-                                        command=self._remove_selected)
-        self.remove_button.grid(row=0, column=1, padx=(PAD_S, 0))
-        self.clear_button = ttk.Button(btns, text="Clear All", command=self._clear_all)
-        self.clear_button.grid(row=0, column=2, padx=(PAD_S, 0))
-        self.up_button = ttk.Button(btns, text="Move Up", command=lambda: self._move_selected(-1))
-        self.up_button.grid(row=0, column=3, padx=(PAD_S // 2, 0))
-        self.down_button = ttk.Button(btns, text="Move Down", command=lambda: self._move_selected(1))
-        self.down_button.grid(row=0, column=4, padx=(PAD_S // 2, 0))
+        info = ttk.Frame(frame)
+        info.grid(row=1, column=0, sticky="ew", pady=(4, 0))
+        info.columnconfigure(0, weight=1)
+        self.count_var = tk.StringVar(value="No files queued")
+        ttk.Label(info, textvariable=self.count_var, style="Secondary.TLabel").grid(row=0, column=0, sticky="w")
+        self.recursive_var = tk.BooleanVar(value=self.preferences["include_subfolders"])
+        ttk.Checkbutton(info, text="Include subfolders", variable=self.recursive_var,
+                        command=self._on_recursive_changed).grid(row=0, column=1, sticky="e")
 
-        self.choose_folder_button = ttk.Button(btns, text="Choose Folder…",
-                                               command=self._choose_input_folder)
-        self.choose_folder_button.grid(row=0, column=5, sticky="e", padx=(PAD_S // 2, 0))
+        buttons = ttk.Frame(frame)
+        buttons.grid(row=2, column=0, sticky="ew", pady=(4, 0))
+        self.add_button = ttk.Button(buttons, text="Add Files…", command=self._add_files)
+        self.add_folder_button = ttk.Button(buttons, text="Add Folder…", command=self._choose_input_folder)
+        self.up_button = ttk.Button(buttons, text="Move Up", command=lambda: self._move_selected(-1))
+        self.down_button = ttk.Button(buttons, text="Move Down", command=lambda: self._move_selected(1))
+        self.remove_button = ttk.Button(buttons, text="Remove", command=self._remove_selected)
+        self.clear_button = ttk.Button(buttons, text="Clear All", command=self._clear_all)
+        for column, button in enumerate((self.add_button, self.add_folder_button, self.up_button,
+                                         self.down_button, self.remove_button, self.clear_button)):
+            button.grid(row=0, column=column, padx=(0 if column == 0 else 4, 0))
 
-        self.folder_var = tk.StringVar(value="No folder selected")
-        ttk.Label(frame, textvariable=self.folder_var, style="PathValue.TLabel",
-                  anchor="w").grid(row=3, column=0, sticky="ew", pady=(PAD_S, 0))
+    def _build_novel(self, parent, row: int) -> None:
+        frame = self._group(parent, row, "2. Novel & Editing")
+        frame.columnconfigure(0, weight=0)
+        frame.columnconfigure(1, weight=1)
+        ttk.Label(frame, text="Novel:").grid(row=0, column=0, sticky="w", padx=(0, 6))
+        roster = available_novels()
+        self.novel_var = tk.StringVar(value=self._roster_label(roster, self.preferences["novel"]))
+        self.novel_combo = ttk.Combobox(frame, textvariable=self.novel_var, values=roster, state="readonly",
+                                        width=max((len(r) for r in roster), default=20) + 2)
+        self.novel_combo.grid(row=0, column=1, sticky="w")
+        self.novel_combo.bind("<<ComboboxSelected>>", self._on_novel_changed)
+        self.terms_var = tk.StringVar(value="")
+        ttk.Label(frame, textvariable=self.terms_var, style="Secondary.TLabel").grid(
+            row=1, column=0, columnspan=2, sticky="w", pady=(2, 0))
+        ttk.Label(frame, text=EDITING_DESCRIPTION, style="Secondary.TLabel", wraplength=CONTROL_PANE_WIDTH - 40,
+                  justify="left").grid(row=2, column=0, columnspan=2, sticky="w", pady=(2, 0))
+        self._update_term_count()
 
-        self._on_input_mode_changed(log=False)
-
-    def _build_options_panel(self, parent: ttk.Frame, row: int) -> None:
-        frame = ttk.Labelframe(parent, text="Advanced Options", style="Card.TLabelframe",
-                               padding=PAD_M)
-        frame.grid(row=row, column=0, sticky="ew", pady=(0, PAD_M))
-
+    def _build_output(self, parent, row: int) -> None:
+        frame = self._group(parent, row, "3. Output")
+        frame.columnconfigure(0, weight=0)
+        frame.columnconfigure(1, weight=1)
+        formats = set(self.preferences["output_formats"])
+        self.opt_pdf = tk.BooleanVar(value="pdf" in formats)
+        self.opt_txt = tk.BooleanVar(value="txt" in formats)
+        ttk.Label(frame, text="Formats:").grid(row=0, column=0, sticky="w", padx=(0, 6))
+        fmt = ttk.Frame(frame)
+        fmt.grid(row=0, column=1, sticky="w")
+        ttk.Checkbutton(fmt, text="PDF", variable=self.opt_pdf, command=self._on_formats_changed).pack(side="left")
+        ttk.Checkbutton(fmt, text="TXT", variable=self.opt_txt,
+                        command=self._on_formats_changed).pack(side="left", padx=(12, 0))
+        ttk.Label(frame, text="Saving to:").grid(row=1, column=0, sticky="nw", padx=(0, 6), pady=(2, 0))
+        self.output_root_var = tk.StringVar(value="")
+        ttk.Label(frame, textvariable=self.output_root_var, wraplength=CONTROL_PANE_WIDTH - 120,
+                  justify="left").grid(row=1, column=1, sticky="w", pady=(2, 0))
+        actions = ttk.Frame(frame)
+        actions.grid(row=2, column=0, columnspan=2, sticky="w", pady=(4, 0))
+        ttk.Button(actions, text="Open Output Folder", command=self.open_output_folder).pack(side="left")
+        ttk.Button(actions, text="Change in Preferences…", command=self.open_preferences).pack(
+            side="left", padx=(4, 0))
         self.opt_replacement_log = tk.BooleanVar(value=False)
         self.opt_debug_text = tk.BooleanVar(value=False)
         self.opt_dry_run = tk.BooleanVar(value=False)
-        self.opt_pdf = tk.BooleanVar(value=True)
-        self.opt_txt = tk.BooleanVar(value=False)
+        extra = ttk.Frame(frame)
+        extra.grid(row=3, column=0, columnspan=2, sticky="w", pady=(4, 0))
+        ttk.Checkbutton(extra, text="Edit audit (JSONL)", variable=self.opt_replacement_log).pack(side="left")
+        ttk.Checkbutton(extra, text="Debug full text", variable=self.opt_debug_text).pack(side="left", padx=(10, 0))
+        ttk.Checkbutton(extra, text="Dry run (no files)", variable=self.opt_dry_run).pack(side="left", padx=(10, 0))
+        self._update_output_label()
 
-        # Two columns rather than three stacked rows: the same three options, one row
-        # of height cheaper. Every pixel here is one the Start button was being pushed
-        # down by.
-        frame.columnconfigure(0, weight=1)
-        frame.columnconfigure(1, weight=1)
-        ttk.Checkbutton(
-            frame, text="Write replacement log (JSONL beside outputs)",
-            variable=self.opt_replacement_log,
-        ).grid(row=0, column=0, sticky="w")
-        ttk.Checkbutton(
-            frame, text="Dry run (full text pipeline, no output files)",
-            variable=self.opt_dry_run,
-        ).grid(row=0, column=1, sticky="w", padx=(PAD_M, 0))
-        ttk.Checkbutton(
-            frame, text="Save intermediate cleaned text (DEBUG_<name>.txt)",
-            variable=self.opt_debug_text,
-        ).grid(row=1, column=0, columnspan=2, sticky="w", pady=(PAD_S, 0))
-        formats = ttk.Frame(frame, style="Panel.TFrame")
-        formats.grid(row=2, column=0, columnspan=2, sticky="ew", pady=(PAD_S, 0))
-        ttk.Checkbutton(formats, text="PDF output", variable=self.opt_pdf).pack(side="left")
-        ttk.Checkbutton(formats, text="TXT output", variable=self.opt_txt).pack(side="left", padx=(PAD_M, 0))
-        ttk.Button(formats, text="Output root…", command=self._choose_output_root).pack(side="right")
-        self.output_root_var = tk.StringVar(value="")
+    def _build_run(self, parent, row: int) -> None:
+        frame = self._group(parent, row, "4. Run")
+        controls = ttk.Frame(frame)
+        controls.grid(row=0, column=0, sticky="ew")
+        self.run_button = ttk.Button(controls, text="Start", style="Primary.TButton", command=self._start_batch)
+        self.run_button.pack(side="left")
+        self.pause_button = ttk.Button(controls, text="Pause", command=self._toggle_pause, state=tk.DISABLED)
+        self.pause_button.pack(side="left", padx=(4, 0))
+        self.stop_button = ttk.Button(controls, text="Stop", command=self._request_stop, state=tk.DISABLED)
+        self.stop_button.pack(side="left", padx=(4, 0))
+        ttk.Separator(controls, orient="vertical").pack(side="left", fill="y", padx=8)
+        self.resume_button = ttk.Button(controls, text="Resume Run…", command=self._resume_run)
+        self.resume_button.pack(side="left")
+        self.resume_recent_button = ttk.Button(controls, text="Resume Recent", command=self._resume_recent)
+        self.resume_recent_button.pack(side="left", padx=(4, 0))
+        self.retry_button = ttk.Button(controls, text="Retry Failed", command=self._retry_failed)
+        self.retry_button.pack(side="left", padx=(4, 0))
+        self.progress = ttk.Progressbar(frame, mode="determinate")
+        self.progress.grid(row=1, column=0, sticky="ew", pady=(6, 2))
+        stats = ttk.Frame(frame)
+        stats.grid(row=2, column=0, sticky="ew")
+        stats.columnconfigure(0, weight=1)
+        self.counts_var = tk.StringVar(value="Completed 0 · Failed 0 · Skipped 0")
+        ttk.Label(stats, textvariable=self.counts_var).grid(row=0, column=0, sticky="w")
+        self.elapsed_var = tk.StringVar(value="Elapsed 0:00")
+        ttk.Label(stats, textvariable=self.elapsed_var, style="Secondary.TLabel").grid(row=0, column=1, sticky="e")
+        self.rate_var = tk.StringVar(value="")
+        ttk.Label(stats, textvariable=self.rate_var, style="Secondary.TLabel").grid(
+            row=1, column=0, columnspan=2, sticky="w")
 
-    def _build_log_panel(self, parent: ttk.Frame, row: int, *, column: int = 0,
-                         rowspan: int = 1) -> None:
-        """The log, as the right-hand column (v0.13.0).
+    def _build_activity(self, parent) -> None:
+        parent.columnconfigure(0, weight=1)
+        parent.rowconfigure(1, weight=1)
+        top = ttk.Frame(parent)
+        top.grid(row=0, column=0, sticky="ew", padx=(look.METRICS["gap_md"], 0))
+        top.columnconfigure(0, weight=1)
+        ttk.Label(top, text="Activity", style="Value.TLabel").grid(row=0, column=0, sticky="w")
+        ttk.Button(top, text="Clear Log", command=self.clear_log).grid(row=0, column=1, sticky="e")
+        self.activity_tabs = ttk.Notebook(parent)
+        self.activity_tabs.grid(row=1, column=0, sticky="nsew", padx=(look.METRICS["gap_md"], 0),
+                                pady=(4, look.METRICS["section_gap"]))
+        self.summary_text = self._activity_text("Summary")
+        self.detailed_text = self._activity_text("Detailed")
 
-        It keeps the condensed one-line-per-file format exactly as Plan 1 Phase 4 set
-        it — this is a layout change only, and nothing about what gets written here or
-        how verbose it is has moved. What changed is that the log no longer competes
-        with the controls for vertical space: it spans their rows and takes the
-        horizontal slack, so it can show more lines than it ever could at the bottom.
-        """
-        frame = ttk.Labelframe(parent, text="Log", style="Card.TLabelframe",
-                               padding=PAD_M)
-        frame.grid(row=row, column=column, rowspan=rowspan, sticky="nsew",
-                   padx=(PAD_M, 0), pady=(0, PAD_M))
+    def _activity_text(self, title: str) -> tk.Text:
+        frame = ttk.Frame(self.activity_tabs)
         frame.columnconfigure(0, weight=1)
         frame.rowconfigure(0, weight=1)
+        text = tk.Text(frame, wrap="word", state=tk.DISABLED, width=60, height=20, relief="flat",
+                       borderwidth=0, highlightthickness=0, padx=6, pady=4, font=self.bundle["fonts"]["mono"],
+                       undo=False)
+        text.grid(row=0, column=0, sticky="nsew")
+        scroll = ttk.Scrollbar(frame, orient="vertical", command=text.yview)
+        scroll.grid(row=0, column=1, sticky="ns")
+        text.configure(yscrollcommand=scroll.set)
+        self.activity_tabs.add(frame, text=title)
+        return text
 
-        self.log_text = tk.Text(
-            frame, wrap="word", state=tk.DISABLED, height=10, width=44, bg=PANEL_BG,
-            fg=COL_INFO, font=self.font_log, relief="solid", borderwidth=1,
-            highlightthickness=1, highlightbackground=BORDER, padx=PAD_S, pady=PAD_S,
-        )
-        self.log_text.grid(row=0, column=0, sticky="nsew")
-        log_scroll = ttk.Scrollbar(frame, orient="vertical",
-                                   command=self.log_text.yview)
-        log_scroll.grid(row=0, column=1, sticky="ns")
-        self.log_text.configure(yscrollcommand=log_scroll.set)
-
-        # Semantic color tags for log levels.
-        self.log_text.tag_configure("info", foreground=COL_INFO)
-        self.log_text.tag_configure("muted", foreground=TEXT_MUTED)
-        self.log_text.tag_configure("accent", foreground=ACCENT, font=self.font_log)
-        self.log_text.tag_configure("success", foreground=COL_SUCCESS)
-        self.log_text.tag_configure("warn", foreground=COL_WARN)
-        self.log_text.tag_configure("error", foreground=COL_ERROR)
-
-    def _build_run_row(self, parent: ttk.Frame, row: int) -> None:
-        bar = ttk.Frame(parent, style="TFrame")
-        bar.grid(row=row, column=0, sticky="ew", pady=(0, PAD_M))
+    def _build_status_bar(self) -> None:
+        bar = ttk.Frame(self, style="Status.TFrame", padding=look.METRICS["status_pad"])
+        bar.pack(fill="x", side="bottom")
         bar.columnconfigure(0, weight=1)
-
-        self.progress = ttk.Progressbar(bar, mode="determinate",
-                                        style="Accent.Horizontal.TProgressbar")
-        self.progress.grid(row=0, column=0, sticky="ew", padx=(0, PAD_M))
-        # Pause ⇄ Continue: enabled only while a batch runs. Pausing holds the worker
-        # between files (the current file always finishes — see run_batch's pause_gate).
-        self.pause_button = ttk.Button(bar, text="Pause", command=self._toggle_pause,
-                                       state=tk.DISABLED)
-        self.pause_button.grid(row=0, column=1, sticky="e", padx=(0, PAD_S))
-        self.stop_button = ttk.Button(
-            bar, text="Stop", command=self._request_stop, state=tk.DISABLED
-        )
-        self.stop_button.grid(row=0, column=2, sticky="e", padx=(0, PAD_S))
-        self.run_button = ttk.Button(bar, text="Start Batch Processing",
-                                     style="Accent.TButton", command=self._start_batch)
-        self.run_button.grid(row=0, column=3, sticky="e")
-
-        # Observed pace of the running batch (Plan 2a Phase 7): a plain running
-        # average over the chapters finished so far, and what it implies for the
-        # rest. Blank until the first chapter completes — an ETA from zero
-        # samples would be a guess dressed up as information.
-        self.rate_var = tk.StringVar(value="")
-        ttk.Label(bar, textvariable=self.rate_var, style="Subtitle.TLabel",
-                  anchor="w").grid(row=1, column=0, columnspan=4, sticky="ew",
-                                   pady=(PAD_S // 2, 0))
-        recovery = ttk.Frame(bar)
-        recovery.grid(row=2, column=0, columnspan=4, sticky="w")
-        ttk.Button(recovery, text="Resume Run…", command=self._resume_run).pack(side="left")
-        ttk.Button(recovery, text="Retry Failed…", command=lambda: self._resume_run(retry_failed=True)).pack(side="left", padx=(PAD_S, 0))
-        ttk.Button(recovery, text="Find Recent Run", command=self._resume_recent).pack(side="left", padx=(PAD_S, 0))
-
-    def _build_status_bar(self, parent: ttk.Frame, row: int) -> None:
         self.status_var = tk.StringVar(value="")
-        ttk.Label(parent, textvariable=self.status_var, style="Status.TLabel",
-                  anchor="w").grid(row=row, column=0, columnspan=2, sticky="ew")
+        ttk.Label(bar, textvariable=self.status_var, style="Status.TLabel").grid(row=0, column=0, sticky="w")
+        self.dark_var = tk.BooleanVar(value=self.bundle["appearance"] == look.DARK)
+        self.theme_toggle = ttk.Checkbutton(bar, text="Dark mode", variable=self.dark_var,
+                                            command=self.toggle_appearance, style="Toolbutton")
+        self.theme_toggle.grid(row=0, column=1, padx=(8, 0))
+        ttk.Button(bar, text="Preferences & Data…", style="Toolbutton",
+                   command=self.open_preferences).grid(row=0, column=2, padx=(4, 0))
+        ttk.Button(bar, text="Open Log Folder", style="Toolbutton",
+                   command=self.open_log_folder).grid(row=0, column=3, padx=(4, 0))
 
-    # -- input mode -------------------------------------------------------------
-    def _on_input_mode_changed(self, log: bool = True) -> None:
-        """Flip which mode's controls are live and re-show that mode's file order."""
-        folder_mode = self.input_mode_var.get() == "folder"
-        upload_state = tk.DISABLED if folder_mode else tk.NORMAL
-        folder_state = tk.NORMAL if folder_mode else tk.DISABLED
-        self.add_button.configure(state=upload_state)
-        self.choose_folder_button.configure(state=folder_state)
+    # ------------------------------------------------------------------ appearance
+    def _repaint_raw_widgets(self) -> None:
+        bundle = self.bundle
+        c = bundle["colors"]
+        self.configure(background=c["window"])
+        look.style_tk_widget(self.file_listbox, bundle, "field")
+        for text in (getattr(self, "summary_text", None), getattr(self, "detailed_text", None)):
+            if text is None:
+                continue
+            look.style_tk_widget(text, bundle, "log")
+            text.tag_configure("success", foreground=c["success"])
+            text.tag_configure("accent", foreground=c["accent"])
+            text.tag_configure("muted", foreground=c["secondary"])
+            text.tag_configure(WARNING, foreground=c["warning"])
+            text.tag_configure(ERROR, foreground=c["danger"])
+        look.style_combobox_popdown(self.novel_combo, bundle)
 
-        self._refresh_file_list()
-        if log:
-            mode_label = "Select Folder" if folder_mode else "Upload PDFs"
-            self._log(f"Input mode: {mode_label}", "info")
+    def toggle_appearance(self) -> None:
+        self.set_appearance(look.DARK if self.dark_var.get() else look.LIGHT)
+
+    def set_appearance(self, value: str) -> None:
+        self.bundle = look.apply_appearance(self, value)
+        self.dark_var.set(self.bundle["appearance"] == look.DARK)
+        self._repaint_raw_widgets()
+        if self._preferences_dialog is not None:
+            self._preferences_dialog.apply_appearance(self.bundle)
+        self._save_preference(appearance=self.bundle["appearance"])
+
+    # ------------------------------------------------------------------ preferences
+    def _save_preference(self, **values) -> bool:
+        self.preferences.update(values)
+        try:
+            prefs_store.save_preferences(values)
+            return True
+        except (OSError, ValueError) as exc:
+            if not self._preference_save_warned:
+                self._preference_save_warned = True
+                self._report(f"Preferences could not be saved ({type(exc).__name__}); your choice applies to "
+                             "this session only.", WARNING)
+            return False
+
+    def default_output_root(self) -> Path:
+        return downloads_dir() / DEFAULT_OUTPUT_FOLDER
+
+    def output_root(self) -> Path:
+        custom = self.preferences.get("output_root")
+        return Path(custom) if custom else self.default_output_root()
+
+    def set_output_root(self, value: str | None) -> None:
+        if value is not None and not Path(value).is_absolute():
+            raise ValueError("The output folder must be a full path")
+        self.preferences["output_root"] = value
+        prefs_store.save_preferences({"output_root": value})
+        self._update_output_label()
+        self._refresh_status()
+        self._report(f"Output folder for new runs: {self.output_root()}", tone="muted", summary=True)
+
+    def reset_preferences(self) -> None:
+        prefs_store.reset_preferences()
+        defaults, _notes = prefs_store.load_preferences()
+        self.preferences = defaults
+        self.recursive_var.set(defaults["include_subfolders"])
+        self.opt_pdf.set("pdf" in defaults["output_formats"])
+        self.opt_txt.set("txt" in defaults["output_formats"])
+        self.novel_var.set(self._roster_label(list(self.novel_combo.cget("values")), defaults["novel"]))
+        self._update_term_count()
+        self.bundle = look.apply_appearance(self, defaults["appearance"])
+        self.dark_var.set(self.bundle["appearance"] == look.DARK)
+        self._repaint_raw_widgets()
+        if self._preferences_dialog is not None:
+            self._preferences_dialog.apply_appearance(self.bundle)
+        self._update_output_label()
+        self._refresh_status()
+        self._report("Preferences were reset to their defaults.", summary=True)
+
+    def open_preferences(self) -> None:
+        from gui.preferences import PreferencesDialog
+        if self._preferences_dialog is not None and self._preferences_dialog.winfo_exists():
+            self._preferences_dialog.lift()
+            self._preferences_dialog.focus_set()
+            return
+        self._preferences_dialog = PreferencesDialog(self)
+
+    def preferences_closed(self, dialog) -> None:
+        if self._preferences_dialog is dialog:
+            self._preferences_dialog = None
+
+    def _on_recursive_changed(self) -> None:
+        self._save_preference(include_subfolders=bool(self.recursive_var.get()))
+
+    def _selected_formats(self) -> tuple[str, ...]:
+        return tuple(fmt for fmt, var in (("pdf", self.opt_pdf), ("txt", self.opt_txt)) if var.get())
+
+    def _on_formats_changed(self) -> None:
+        formats = self._selected_formats()
+        if formats:
+            self._save_preference(output_formats=list(formats))
         self._refresh_status()
 
+    @staticmethod
+    def _roster_label(roster: list[str], saved: str) -> str:
+        for label in roster:
+            if label == saved or clean_novel_name(label) == saved:
+                return label
+        return DEFAULT_NOVEL if DEFAULT_NOVEL in roster else (roster[0] if roster else "")
+
+    def _on_novel_changed(self, _event=None) -> None:
+        novel = clean_novel_name(self.novel_var.get())
+        self._update_term_count()
+        self._save_preference(novel=novel)
+        self._report(f"Novel selected: {novel}", tone="muted")
+        self._refresh_status()
+
+    def _update_term_count(self) -> None:
+        novel = clean_novel_name(self.novel_var.get())
+        if novel not in self._term_counts:
+            try:
+                dispatch = resolve_dispatch(novel)
+                index = str(NOVEL_INDEX_DIR / dispatch.index_filename) if dispatch.index_filename else ""
+                self._term_counts[novel] = len(load_protected_lexicon(index, dispatch.canonical_names).terms)
+            except Exception:  # noqa: BLE001 - informational only; the run reports real errors
+                self._term_counts[novel] = -1
+        count = self._term_counts[novel]
+        self.terms_var.set("Protected-term list unavailable" if count < 0 else
+                           f"{count:,} protected term(s) kept exactly as written" if count else
+                           "No protected terms for this selection (universal rules only)")
+
+    def _update_output_label(self) -> None:
+        kind = "custom folder" if self.preferences.get("output_root") else "default"
+        self.output_root_var.set(f"{self.output_root()}  ({kind})")
+
+    # ------------------------------------------------------------------ shortcuts
+    def _bind_shortcuts(self) -> None:
+        mod = "Command" if self.tk.call("tk", "windowingsystem") == "aqua" else "Control"
+        box = self.file_listbox
+        box.bind(f"<{mod}-a>", self._select_all_sources)
+        box.bind(f"<{mod}-A>", self._select_all_sources)
+        for key in ("<Delete>", "<BackSpace>"):
+            box.bind(key, lambda _e: (self._remove_selected(), "break")[1])
+        box.bind("<Alt-Up>", lambda _e: (self._move_selected(-1), "break")[1])
+        box.bind("<Alt-Down>", lambda _e: (self._move_selected(1), "break")[1])
+        for text in (self.summary_text, self.detailed_text):
+            text.bind(f"<{mod}-a>", lambda e: (e.widget.tag_add("sel", "1.0", "end-1c"), "break")[1])
+            # A disabled Text still allows selection and copy; keep focus possible for Ctrl+C.
+            text.bind("<Button-1>", lambda e: e.widget.focus_set())
+        self.bind(f"<{mod}-o>", lambda _e: self._add_files())
+
+    def _select_all_sources(self, _event=None):
+        self.file_listbox.selection_set(0, tk.END)
+        return "break"
+
+    # ------------------------------------------------------------------ activity
+    def _report(self, message: str, severity: str = INFO, *, tone: str | None = None,
+                summary: bool | None = None) -> None:
+        if summary is None:
+            summary = severity != INFO or tone in ("success", "accent")
+        self.activity.report(ActivityEvent("app", message, severity, summary=summary, tone=tone))
+
+    def _render(self, update) -> None:
+        if update.cleared:
+            for text in (self.summary_text, self.detailed_text):
+                text.configure(state=tk.NORMAL)
+                text.delete("1.0", tk.END)
+                text.configure(state=tk.DISABLED)
+        for text, lines in ((self.summary_text, update.summary), (self.detailed_text, update.detailed)):
+            if not lines:
+                continue
+            at_bottom = text.yview()[1] >= 0.999
+            text.configure(state=tk.NORMAL)
+            for line in lines:
+                tag = line.tone or (line.severity if line.severity != INFO else "")
+                text.insert(tk.END, line.text + "\n", (tag,) if tag else ())
+            excess = int(text.index("end-1c").split(".")[0]) - 1 - self.activity.model.line_cap
+            if excess > 0:
+                text.delete("1.0", f"{excess + 1}.0")
+            text.configure(state=tk.DISABLED)
+            if at_bottom:
+                text.see(tk.END)
+
+    def clear_log(self) -> None:
+        """Clear the displayed views only; session log files and run state are untouched."""
+        self.activity.clear_display()
+
+    def open_log_folder(self) -> None:
+        path = self.activity.session_log.path.parent if self.activity.session_log.path else self.log_dir
+        if not open_in_file_manager(path):
+            self._report(f"Could not open the log folder automatically. It is here: {path}", WARNING)
+
+    def open_output_folder(self) -> None:
+        target = Path(self._last_run_dir) if self._last_run_dir and Path(self._last_run_dir).is_dir() \
+            else self.output_root()
+        if not target.is_dir():
+            messagebox.showinfo("Output folder", f"The output folder will be created when the first run "
+                                                 f"starts:\n{target}")
+            return
+        if not open_in_file_manager(target):
+            self._report(f"Could not open the output folder automatically. It is here: {target}", WARNING)
+
+    def _on_job(self, event: ActivityEvent) -> None:
+        kind, value = event.payload
+        if kind == "progress":
+            self._set_progress(value)
+        elif kind == "item":
+            self._counts[value] = self._counts.get(value, 0) + 1
+            self._update_counts()
+        elif kind == "done":
+            self._on_done(value)
+        elif kind == "error":
+            self._on_error(value)
+        elif kind == "stale":
+            self._confirm_stale_recovery()
+
+    # ------------------------------------------------------------------ queue
     def _choose_input_folder(self) -> None:
         directory = filedialog.askdirectory(title="Add a folder of PDF/TXT files to the queue")
         if directory:
             self._apply_input_folder(directory)
 
     def _apply_input_folder(self, directory: str) -> None:
-        """Scan ``directory`` (recursive, natural order) and display the result."""
+        exclude = self._request.output_dir if self._running and self._request else self.output_root()
+        warnings: list[str] = []
         try:
-            self.folder_files = scan_folder(directory, recursive=self.recursive_var.get(),
-                                            exclude=self._batch_output_dir if self._running else self._output_root(),
-                                            warn=lambda m: self._log(m, "warn"))
+            found = scan_folder(directory, recursive=self.recursive_var.get(), exclude=exclude,
+                                warn=warnings.append)
         except (ValueError, NotADirectoryError, OSError) as exc:
-            self._log(f"Could not scan folder: {exc}", "error")
+            self._report(f"Could not scan folder: {exc}", ERROR)
             return
-        self.input_folder = directory
+        for message in warnings:
+            self._report(message, WARNING)
         existing = {os.path.normcase(str(Path(p).resolve())) for p in self.file_paths}
-        for path in self.folder_files:
+        added = 0
+        for path in found:
             key = os.path.normcase(str(path.resolve()))
             if key not in existing:
                 self.file_paths.append(str(path))
                 self.import_roots[str(path)] = directory
                 existing.add(key)
-        self.folder_var.set(directory)
+                added += 1
         self._refresh_file_list()
-        self._log(
-            f"Scanned folder: {directory} — {len(self.folder_files)} PDF/TXT file(s) in "
-            "processing order.", "info")
-        if not self.folder_files:
-            self._log("No PDF/TXT files found in that folder.", "warn")
+        self._report(f"Added folder {directory}: {added} PDF/TXT file(s) in natural order"
+                     + ("" if self.recursive_var.get() else " (subfolders not included)") + ".", summary=True)
+        if not found:
+            self._report("No PDF/TXT files were found in that folder.", WARNING)
         self._refresh_status()
 
-    def _refresh_file_list(self) -> None:
-        """Refresh the shared queue while retaining surviving selections and focus."""
-        previous = getattr(self, "_display_paths", ())
-        selected = {previous[i] for i in self.file_listbox.curselection() if i < len(previous)}
-        active = self.file_listbox.index(tk.ACTIVE)
-        focused = previous[active] if active < len(previous) else None
-        self.file_listbox.delete(0, tk.END)
-        for index, path in enumerate(self.file_paths):
-            imported = self.import_roots.get(path)
-            label = Path(path).relative_to(Path(imported).parent).as_posix() if imported else Path(path).name
-            self.file_listbox.insert(tk.END, label)
-            if path in selected:
-                self.file_listbox.selection_set(index)
-            if path == focused:
-                self.file_listbox.activate(index)
-        self._display_paths = tuple(self.file_paths)
-
-    # -- file list actions ------------------------------------------------------
-    def _add_pdfs(self) -> None:
-        paths = filedialog.askopenfilenames(
-            title="Select PDF/TXT files", filetypes=[("PDF / TXT files", "*.pdf *.txt")])
+    def _add_files(self) -> None:
+        chosen = filedialog.askopenfilenames(title="Select PDF/TXT files",
+                                             filetypes=[("PDF / TXT files", "*.pdf *.txt")])
         try:
-            paths = natural_order(scan_upload(paths))
+            paths = natural_order(scan_upload(chosen))
         except (OSError, ValueError) as exc:
-            self._log(f"Could not add files: {exc}", "error")
+            self._report(f"Could not add files: {exc}", ERROR)
             return
         added = 0
         existing = {os.path.normcase(str(Path(p).resolve())) for p in self.file_paths}
@@ -568,7 +593,29 @@ class WebnovelEditorApp(tk.Tk):
                 added += 1
         self._refresh_file_list()
         if added:
-            self._log(f"Added {added} file(s).", "info")
+            self._report(f"Added {added} file(s).", summary=True)
+        self._refresh_status()
+
+    def _refresh_file_list(self) -> None:
+        """Rebuild the visible queue while retaining surviving selections, focus and scroll."""
+        previous = self._display_paths
+        selected = {previous[i] for i in self.file_listbox.curselection() if i < len(previous)}
+        active = self.file_listbox.index(tk.ACTIVE)
+        focused = previous[active] if active < len(previous) else None
+        top = self.file_listbox.yview()[0]
+        self.file_listbox.delete(0, tk.END)
+        for index, path in enumerate(self.file_paths):
+            imported = self.import_roots.get(path)
+            label = Path(path).relative_to(Path(imported).parent).as_posix() if imported else Path(path).name
+            self.file_listbox.insert(tk.END, label)
+            if path in selected:
+                self.file_listbox.selection_set(index)
+            if path == focused:
+                self.file_listbox.activate(index)
+        self.file_listbox.yview_moveto(top)
+        self._display_paths = tuple(self.file_paths)
+        count = len(self.file_paths)
+        self.count_var.set("No files queued" if not count else f"{count} file(s) queued")
         self._refresh_status()
 
     def _remove_selected(self) -> None:
@@ -578,7 +625,7 @@ class WebnovelEditorApp(tk.Tk):
         for index in reversed(selection):
             self.import_roots.pop(self.file_paths.pop(index), None)
         self._refresh_file_list()
-        self._log(f"Removed {len(selection)} file(s).", "info")
+        self._report(f"Removed {len(selection)} file(s).", tone="muted")
         self._refresh_status()
 
     def _clear_all(self) -> None:
@@ -588,11 +635,10 @@ class WebnovelEditorApp(tk.Tk):
         self.file_paths.clear()
         self.import_roots.clear()
         self._refresh_file_list()
-        self._log(f"Cleared {count} file(s).", "info")
+        self._report(f"Cleared {count} file(s) from the queue.", tone="muted")
         self._refresh_status()
 
-    # -- run / worker -----------------------------------------------------------
-    def _move_selected(self, direction):
+    def _move_selected(self, direction: int) -> None:
         selected = set(self.file_listbox.curselection())
         active = self.file_listbox.index(tk.ACTIVE)
         for index in sorted(selected, reverse=direction > 0):
@@ -606,33 +652,33 @@ class WebnovelEditorApp(tk.Tk):
                 elif active == other:
                     active = index
         self._refresh_file_list()
+        self.file_listbox.selection_clear(0, tk.END)
         for index in sorted(selected):
             self.file_listbox.selection_set(index)
         self.file_listbox.activate(active)
         if selected:
             self.file_listbox.see(active)
 
-    def _output_root(self):
-        value = self.output_root_var.get()
-        return Path(value) if value else downloads_dir() / "PDF-Editor-Outputs"
-
-    def _choose_output_root(self):
-        directory = filedialog.askdirectory(title="Choose output root (numbered runs go directly inside)")
-        if directory:
-            self.output_root_var.set(directory)
-            self._log(f"Output root: {directory}", "info")
-            self._refresh_status()
-
-    def _resume_recent(self):
+    # ------------------------------------------------------------------ run control
+    def _resume_recent(self) -> None:
         if self._running:
             return
-        offer = find_resumable_run(self._output_root())
+        offer = find_resumable_run(self.output_root())
         if offer.available:
             self._resume_run(directory=offer.output_dir)
         else:
             messagebox.showinfo("Resume Run", offer.reason)
 
-    def _resume_run(self, *, retry_failed=False, directory=None, recover=False):
+    def _retry_failed(self) -> None:
+        if self._running:
+            return
+        if self._last_run_dir and self._last_run_has_failures:
+            self._resume_run(retry_failed=True, directory=self._last_run_dir)
+        else:
+            self._resume_run(retry_failed=True)
+
+    def _resume_run(self, *, retry_failed: bool = False, directory: str | None = None,
+                    recover: bool = False) -> None:
         if self._running:
             return
         directory = directory or filedialog.askdirectory(title="Select the original run folder")
@@ -640,223 +686,219 @@ class WebnovelEditorApp(tk.Tk):
             return
         try:
             saved = read_manifest(manifest_path(directory))
-        except Exception as exc:
+        except Exception as exc:  # noqa: BLE001 - every refusal is shown, nothing is allocated
+            self._report(f"Resume refused for {directory}: {exc}", ERROR)
             messagebox.showerror("Resume refused", str(exc))
             return
-        self._begin(files=saved["queue"], output_dir=saved["output_dir"],
-                    mirror_root=None, novel=saved["run"]["novel"], saved=saved,
-                    retry_failed=retry_failed, recover=recover)
+        options = saved["run"]["options"]
+        completed = sum(e["status"] == "completed" for e in saved["entries"])
+        request = RunRequest(files=tuple(saved["queue"]), output_dir=saved["output_dir"],
+                             novel=saved["run"]["novel"], formats=tuple(options["formats"]),
+                             write_replacement_log=options["write_replacement_log"],
+                             write_debug_text=options["write_debug_text"], dry_run=False, resume=True,
+                             retry_failed=retry_failed, recover=recover, previously_completed=completed)
+        self._begin(request)
 
     def _start_batch(self) -> None:
         if self._running:
             return
-        files = list(self.file_paths)
-        mirror_root = None
+        files = tuple(self.file_paths)
         if not files:
-            messagebox.showwarning("No files", "Add PDF/TXT files or a folder before running.")
+            messagebox.showwarning("No files", "Add PDF/TXT files or a folder before starting.")
             return
-        if not self.opt_pdf.get() and not self.opt_txt.get():
+        formats = self._selected_formats()
+        if not formats:
             messagebox.showwarning("No output format", "Select PDF, TXT, or both before starting.")
             return
-
-        # Map the display selection to its clean novel name BEFORE it reaches dispatch
-        # or folder naming: the roster markers are display-only ("Universal" passes
-        # through and kebab-cases to universal-x).
         novel = clean_novel_name(self.novel_var.get())
-
-        # Forced output location: a fresh auto-numbered Downloads\<novel>-x folder,
-        # named for the current selection. Only named here — run_batch creates it
-        # when the batch actually starts (and not at all on a dry run).
         name = kebab_case(novel) or "output"
+        root = self.output_root()
+        dry = bool(self.opt_dry_run.get())
         try:
-            proposed = next_numbered_output_dir(self._output_root(), name)
-            plan_outputs(files, proposed, formats=tuple(fmt for fmt, enabled in (
-                ("pdf", self.opt_pdf.get()), ("txt", self.opt_txt.get())) if enabled),
-                import_roots=self.import_roots, debug=self.opt_debug_text.get(), audit=self.opt_replacement_log.get())
-            output_dir = str(proposed if self.opt_dry_run.get()
-                             else reserve_run_dir(self._output_root(), name))
+            proposed = next_numbered_output_dir(root, name)
+            plan_outputs(files, proposed, formats=formats, import_roots=self.import_roots,
+                         debug=self.opt_debug_text.get(), audit=self.opt_replacement_log.get())
+            output_dir = str(proposed if dry else reserve_run_dir(root, name))
         except (OSError, ValueError) as exc:
+            self._report(f"Output allocation failed: {exc}", ERROR)
             messagebox.showerror("Output allocation failed", str(exc))
             return
-        return self._begin(
-            files=files, output_dir=output_dir, mirror_root=mirror_root, novel=novel)
+        request = RunRequest(files=files, output_dir=output_dir, novel=novel, formats=formats,
+                             write_replacement_log=bool(self.opt_replacement_log.get()),
+                             write_debug_text=bool(self.opt_debug_text.get()), dry_run=dry,
+                             import_roots=tuple((k, v) for k, v in self.import_roots.items() if k in files))
+        self._begin(request)
 
-    def _begin(self, *, files, output_dir, mirror_root, novel, saved=None, retry_failed=False, recover=False) -> None:
-        """Commit to one batch and start the worker."""
-        # Per-batch snapshot state: the worker thread reads only these plain
-        # attributes, never Tk variables (Tk objects are not thread-safe).
-        self._batch_files = tuple(files)
-        self._batch_output_dir = output_dir
-        self._batch_mirror_root = mirror_root
-        self._batch_novel = novel
-        self._batch_replacement_log = self.opt_replacement_log.get()
-        self._batch_debug_text = self.opt_debug_text.get()
-        self._batch_dry_run = self.opt_dry_run.get()
-        self._batch_formats = tuple(fmt for fmt, enabled in (("pdf", self.opt_pdf.get()), ("txt", self.opt_txt.get())) if enabled)
-        self._batch_roots = dict(self.import_roots)
-        self._batch_resume = saved is not None
-        self._batch_retry = retry_failed
-        self._batch_recover = recover
-        if saved:
-            options = saved["run"]["options"]
-            self._batch_formats = tuple(options["formats"])
-            self._batch_replacement_log = options["write_replacement_log"]
-            self._batch_debug_text = options["write_debug_text"]
-            self._batch_dry_run = False
-
+    def _begin(self, request: RunRequest) -> None:
+        """Commit to one run: freeze the request, arm the controls and start the worker."""
+        self._request = request
         self._running = True
-        self.run_button.configure(state=tk.DISABLED)
-        self.pause_gate.set()  # a new batch always starts un-paused
+        self._counts = {"completed": 0, "failed": 0, "skipped": 0}
+        self._update_counts()
+        self.pause_gate.set()
         self.stop_event.clear()
-        self.pause_button.configure(state=tk.NORMAL, text="Pause")
-        self.stop_button.configure(state=tk.NORMAL)
-        self.progress.configure(maximum=len(files), value=0)
-        self._begin_rate_tracking(len(files))
-        dry = self._batch_dry_run
-        self._log(
-            "--- Starting batch ---" + (" (dry run, no PDF output)" if dry else ""),
-            "accent",
-        )
+        self._set_run_controls(running=True)
+        self.progress.configure(maximum=max(1, len(request.files)), value=0)
+        self._begin_rate_tracking(len(request.files))
+        label = ("Retry Failed" if request.retry_failed else "Resume" if request.resume
+                 else "Dry run" if request.dry_run else "Run")
+        self.activity.report(ActivityEvent("app", f"──── {label} started {time.strftime('%H:%M:%S')} ────",
+                                           kind="separator"))
+        self._report(f"{label}: {len(request.files)} file(s), novel {request.novel or 'Universal'}, "
+                     f"formats {', '.join(f.upper() for f in request.formats)}.", tone="accent")
+        self._report(f"Destination: {request.output_dir}" + (" (dry run: nothing is written)"
+                                                             if request.dry_run else ""), summary=True)
+        if request.previously_completed:
+            self._report(f"{request.previously_completed} item(s) were already completed and will be "
+                         "verified, not reprocessed.", summary=True)
+        self.pump.start()
+        self._tick_elapsed()
+        threading.Thread(target=self._process_worker, args=(request,), daemon=True).start()
 
-        thread = threading.Thread(target=self._process_worker, daemon=True)
-        thread.start()
-
-    def _process_worker(self) -> None:
-        """Runs on a daemon thread. All UI updates go through self.after(0, ...)."""
+    def _process_worker(self, request: RunRequest) -> None:
+        """Worker thread: emits events only. Never touches Tk."""
+        emit = self.activity.emit
         try:
             summary = run_batch(
-                self._batch_files,
-                self._batch_output_dir,
-                write_replacement_log=self._batch_replacement_log,
-                write_debug_text=self._batch_debug_text,
-                dry_run=self._batch_dry_run,
-                novel_name=self._batch_novel,  # the clean (marker-stripped) selection
-                mirror_root=self._batch_mirror_root,
-                output_formats=self._batch_formats,
-                import_roots=self._batch_roots,
-                resume=self._batch_resume,
-                retry_failed=self._batch_retry,
-                recover_stale=self._batch_recover,
-                pause_gate=self.pause_gate,
-                stop_event=self.stop_event,
-                gui_log=lambda message, level="info": self.after(
-                    0, self._log, message, level),
-                progress=lambda value: self.after(0, self._set_progress, value),
+                request.files, request.output_dir,
+                write_replacement_log=request.write_replacement_log,
+                write_debug_text=request.write_debug_text,
+                dry_run=request.dry_run, novel_name=request.novel,
+                output_formats=request.formats, import_roots=dict(request.import_roots),
+                resume=request.resume, retry_failed=request.retry_failed, recover_stale=request.recover,
+                pause_gate=self.pause_gate, stop_event=self.stop_event,
+                gui_log=lambda message, level="info": emit(bridge_event(message, level)),
+                progress=lambda value: emit(_job("progress", value, coalesce="progress")),
+                item_result=lambda _source, outcome: emit(_job("item", outcome)),
             )
         except StaleLock:
-            self.after(0, self._confirm_stale_recovery)
+            emit(_job("stale"))
             return
-        except Exception as exc:  # defensive: keep the UI responsive on any crash
-            self.after(0, self._on_error, exc)
+        except Exception as exc:  # noqa: BLE001 - reported on the Tk thread; the UI stays responsive
+            emit(_job("error", f"{type(exc).__name__}: {exc}"))
             return
-        self.after(0, self._on_done, summary)
+        emit(_job("done", summary))
 
-    def _confirm_stale_recovery(self):
+    def _set_run_controls(self, *, running: bool) -> None:
+        idle = tk.DISABLED if running else tk.NORMAL
+        busy = tk.NORMAL if running else tk.DISABLED
+        for button in (self.run_button, self.resume_button, self.resume_recent_button, self.retry_button):
+            button.configure(state=idle)
+        self.pause_button.configure(state=busy, text="Pause")
+        self.stop_button.configure(state=busy)
+
+    def _finish_run_ui(self) -> None:
         self._running = False
-        self.run_button.configure(state=tk.NORMAL)
-        self._reset_pause_control()
-        self._reset_stop_control()
+        self.pause_gate.set()
+        self.stop_event.clear()
+        self._set_run_controls(running=False)
         self._end_rate_tracking()
-        if self._exit_when_done:
-            self.destroy()
-            return
-        if messagebox.askyesno("Recover stale run?", "The former owner is proven exited or its process identity differs. Preserve its ownership record and recover this run?"):
-            self._resume_run(directory=self._batch_output_dir, retry_failed=self._batch_retry, recover=True)
+        if self._elapsed_job is not None:
+            try:
+                self.after_cancel(self._elapsed_job)
+            except tk.TclError:
+                pass
+            self._elapsed_job = None
+        self._refresh_status()
 
-    def _on_close(self):
+    def _confirm_stale_recovery(self) -> None:
+        request = self._request
+        self._finish_run_ui()
+        if self._exit_when_done:
+            self._shutdown()
+            return
+        self._report("The run folder has a stale ownership record; recovery needs confirmation.", WARNING)
+        if request and messagebox.askyesno(
+                "Recover stale run?", "The former owner is proven exited or its process identity differs. "
+                "Preserve its ownership record and recover this run?"):
+            self._resume_run(directory=request.output_dir, retry_failed=request.retry_failed, recover=True)
+
+    def _on_close(self) -> None:
         if not self._running:
-            self.destroy()
-        elif messagebox.askyesno("Stop and exit?", "Finish the current file safely, save the checkpoint, then exit?"):
+            self._shutdown()
+        elif messagebox.askyesno("Stop and exit?", "Finish the current file safely, save the checkpoint, "
+                                                   "then exit?"):
             self._exit_when_done = True
             self._request_stop()
 
+    def _shutdown(self) -> None:
+        self.pump.stop()
+        self.activity.close()
+        self.destroy()
+
     def _toggle_pause(self) -> None:
-        """Pause ⇄ Continue. Pausing clears the gate; the worker holds between files
-        (the current file always finishes first), so this can never corrupt an output."""
+        """Pause ⇄ Continue at a file boundary; the current file always finishes first."""
         if not self._running:
             return
         if self.pause_gate.is_set():
             self.pause_gate.clear()
             self.pause_button.configure(text="Continue")
-            self._log("Pause requested — the current file will finish first.", "warn")
+            self._report("Pause requested — the current file will finish first.", WARNING)
         else:
             self.pause_gate.set()
             self.pause_button.configure(text="Pause")
-
-    def _reset_pause_control(self) -> None:
-        """Back to idle: gate open, button disabled and relabelled for the next batch."""
-        self.pause_gate.set()
-        self.pause_button.configure(state=tk.DISABLED, text="Pause")
+            self._report("Continue requested.", tone="accent")
 
     def _request_stop(self) -> None:
-        """Request a clean stop after the currently in-flight file."""
+        """Stop after the in-flight file; also releases a paused worker."""
         if not self._running:
             return
         self.stop_event.set()
-        # Release a between-files pause so the worker can observe the stop request.
         self.pause_gate.set()
-        self.pause_button.configure(text="Pause")
+        self.pause_button.configure(text="Pause", state=tk.DISABLED)
         self.stop_button.configure(state=tk.DISABLED)
-        self._log("Stop requested — the current file will finish first.", "warn")
-
-    def _reset_stop_control(self) -> None:
-        self.stop_event.clear()
-        self.stop_button.configure(state=tk.DISABLED)
+        self._report("Stop requested — the current file will finish first.", WARNING)
 
     def _on_done(self, summary: dict) -> None:
-        self._running = False
+        request = self._request
+        self._finish_run_ui()
+        self._last_run_dir = summary.get("output_dir")
+        self._last_run_has_failures = bool(summary.get("finished_with_errors"))
+        if "completed_total" in summary:
+            self._report(f"Run totals: completed {summary['completed_total']}, failed/incomplete "
+                         f"{summary.get('failed_total', 0)}, skipped {summary.get('skipped_total', 0)}, pending "
+                         f"{summary.get('pending_total', 0)}. Elapsed "
+                         f"{format_elapsed(time.monotonic() - request.started)}.", summary=True,
+                         tone=None if summary.get("finished_with_errors") else "success")
         if self._exit_when_done:
-            self.destroy()
+            self._shutdown()
             return
-        self.run_button.configure(state=tk.NORMAL)
-        self._reset_pause_control()
-        self._reset_stop_control()
-        self._end_rate_tracking()
-        skipped = summary.get("skipped", 0)
-
-        # Auto-open the output folder so the user lands on their results (spec GUI
-        # requirement). Only when real files were written; log if it could not open.
         if summary.get("outputs"):
             if open_in_file_manager(summary["output_dir"]):
-                self._log(f"Opened output folder: {summary['output_dir']}", "muted")
+                self._report(f"Opened output folder: {summary['output_dir']}", tone="muted")
             else:
-                self._log(
-                    f"Could not open the output folder automatically. "
-                    f"It is here: {summary['output_dir']}", "warn")
+                self._report(f"Could not open the output folder automatically. It is here: "
+                             f"{summary['output_dir']}", WARNING)
+        title = ("Run stopped" if summary.get("stopped") else "Finished with errors"
+                 if summary.get("finished_with_errors") else "Run incomplete"
+                 if summary.get("run_complete") is False else "Run complete")
+        messagebox.showinfo(title, f"Processed {summary['total']} file(s).\n"
+                                   f"Completed: {summary.get('completed_total', summary.get('succeeded', 0))}   "
+                                   f"Failed: {summary.get('failed_total', summary.get('failed', 0))}   "
+                                   f"Skipped: {summary.get('skipped_total', summary.get('skipped', 0))}\n"
+                                   f"Output folder: {summary['output_dir']}")
 
-        if summary.get("stopped"):
-            title = "Batch stopped"
-        elif summary.get("finished_with_errors"):
-            title = "Finished with errors"
-        elif summary.get("run_complete") is False:
-            title = "Run incomplete"
-        else:
-            title = "Batch complete"
-        messagebox.showinfo(
-            title,
-            f"Processed {summary['total']} file(s).\n"
-            f"Completed: {summary.get('completed_total', summary['succeeded'])}   "
-            f"Failed: {summary.get('failed_total', summary['failed'])}   Skipped: {summary.get('skipped_total', skipped)}\n"
-            f"Output folder: {summary['output_dir']}",
-        )
-
-    def _on_error(self, exc: Exception) -> None:
-        self._running = False
+    def _on_error(self, message: str) -> None:
+        self._finish_run_ui()
+        self._report(f"Run stopped: {message}", ERROR)
         if self._exit_when_done:
-            self._log(f"Stopped with error: {type(exc).__name__}: {exc}", "error")
-            messagebox.showerror("Stopped with error", str(exc))
-            self.destroy()
+            self._shutdown()
             return
-        self.run_button.configure(state=tk.NORMAL)
-        self._reset_pause_control()
-        self._reset_stop_control()
-        self._end_rate_tracking()
-        self._log(f"Batch aborted: {type(exc).__name__}: {exc}", "error")
-        messagebox.showerror("Batch error", f"{type(exc).__name__}: {exc}")
+        messagebox.showerror("Run error", message)
 
-    # -- helpers ----------------------------------------------------------------
+    # ------------------------------------------------------------------ progress
+    def _update_counts(self) -> None:
+        c = self._counts
+        self.counts_var.set(f"Completed {c['completed']} · Failed {c['failed']} · Skipped {c['skipped']}")
+
+    def _tick_elapsed(self) -> None:
+        if not self._running or self._request is None:
+            self._elapsed_job = None
+            return
+        self.elapsed_var.set("Elapsed " + format_elapsed(time.monotonic() - self._request.started))
+        self._elapsed_job = self.after(1000, self._tick_elapsed)
+
     def _begin_rate_tracking(self, total: int) -> None:
-        """Start (or restart) the pace clock, clearing any previous run's readout."""
         self._batch_total = max(0, int(total))
         self._batch_started = time.monotonic()
         self.rate_var.set("")
@@ -868,40 +910,21 @@ class WebnovelEditorApp(tk.Tk):
         started = self._batch_started
         if started is None or not self._batch_total:
             return
-        rate = compute_rate(
-            completed, self._batch_total, time.monotonic() - started)
-        self.rate_var.set(format_rate(rate))
+        self.rate_var.set(format_rate(compute_rate(completed, self._batch_total, time.monotonic() - started)))
 
     def _set_progress(self, value: int) -> None:
         self.progress.configure(value=value)
         self._update_rate(value)
 
-    def _thread_log(self, message: str, level: str = "info") -> None:
-        """Log from a worker thread. Tk objects are not thread-safe, so every
-        message is marshalled back onto the UI thread exactly as run_batch's own
-        gui_log callback already does."""
-        self.after(0, self._log, message, level)
-
-    def _log(self, message: str, level: str = "info") -> None:
-        # The single GUI log sink: everything shown in the panel goes through here.
-        self.log_text.configure(state=tk.NORMAL)
-        self.log_text.insert(tk.END, message + "\n", level)
-        self.log_text.see(tk.END)
-        self.log_text.configure(state=tk.DISABLED)
-
     def _refresh_status(self) -> None:
         if not hasattr(self, "status_var"):
-            return  # called during panel construction, before the status bar exists
-        novel = getattr(self, "novel_var", None)
-        # Status shows the clean name; the output label kebabs the clean name too, so a
-        # marked selection never leaks "-no-profile-yet" into the folder preview.
-        novel_label = clean_novel_name(novel.get()) if novel is not None else "—"
-        out_label = f"{self._output_root().name}/{kebab_case(novel_label) or 'output'}-N"
-        mode_label = "mixed queue"
-        queued = len(self.file_paths)
-        self.status_var.set(
-            f"novel: {novel_label}   |   input: {mode_label}   |   "
-            f"{queued} file(s) queued   |   output: {out_label}")
+            return
+        novel = clean_novel_name(self.novel_var.get()) if hasattr(self, "novel_var") else "—"
+        formats = "+".join(f.upper() for f in self._selected_formats()) if hasattr(self, "opt_pdf") else ""
+        state = "Running" if self._running else "Ready"
+        self.status_var.set(f"{state} · {len(self.file_paths)} file(s) queued · {novel} · "
+                            f"{formats or 'no format selected'} → {self.output_root().name}/"
+                            f"{kebab_case(novel) or 'output'}-N")
 
 
 def launch() -> None:

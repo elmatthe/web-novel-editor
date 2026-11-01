@@ -12,8 +12,13 @@ candidate; merge/tag/release only on explicit user authorization (DECISIONS 078)
   approved, zero unexpected. Details: `files/checkpoints/WNE-P02A-data-path.md`.
 - **Evidence harness:** ignored `files/run-temp/rc/evidence.py <mode>` (verify*/baseline*),
   logs under ignored `files/test-logs/rc/`.
-- **Next exact action:** Phase 02B (GUI four groups/Activity/theme/preferences/logging;
-  `scripts/bootstrap.py` + `scripts/launcher.py`). Version stays v0.13.0 until Phase 04.
+- **Phase 02B:** complete (internal Gate 02): four-group GUI + Activity, Light/Dark, Preferences
+  & Data, session logs, `scripts/bootstrap.py`, `scripts/launcher.py`, thin root launchers.
+  Verifier 889/0 skip, 0 network; corpus 810 + 18, zero unexpected.
+  Report: `files/checkpoints/WNE-P02B-desktop-bootstrap.md` (manual checks pending listed there).
+- **Next exact action:** Phase 03 — protection hardening (loader validation, bounded matching),
+  conservative curly quotes/apostrophes (D5), narrow OCR l/1->I (D6), page numbers deferred (D7).
+  Version stays v0.13.0 until Phase 04.
 
 ## Previous Focus — Phase 02A implementation (Codex; findings remediated 2026-11-01)
 

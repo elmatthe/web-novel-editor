@@ -179,3 +179,13 @@ def test_requirements_declare_no_ai_sdk():
     }
     assert declared.isdisjoint({"ollama", "google-genai", "google-generativeai", "groq"})
     assert {"pdfplumber", "reportlab", "natsort", "tomli", "pytest"} <= declared
+
+
+def test_verify_gate_checks_the_launcher_version_against_config():
+    import sys
+
+    sys.path.insert(0, str(_repo_root() / "scripts"))
+    import verify
+
+    assert verify.check_launcher_version(_config_version()) is True
+    assert verify.check_launcher_version("99.99.99") is False
