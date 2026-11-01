@@ -4,14 +4,42 @@ from __future__ import annotations
 import hashlib
 import os
 from pathlib import Path
+import re
 import unicodedata
 
 from core.input_scanner import check_no_links
 from utils.file_utils import next_numbered_output_dir, sanitize_output_filename
 
+# Run-root names owned by the run machinery. One definition: run_manifest/run_lock
+# import these. Imported folders and stems share the run root, so preflight treats
+# every name below (after NFC/casefold) as already taken and applies the ordinary
+# deterministic `_N` suffix instead of letting user content alias control files.
+MANIFEST_NAME = "run-manifest.json"
+LOCK_NAME = ".run-lock.json"
+GUARD_NAME = ".run-writer.guard"
+STAGING_DIR = ".s"
+_RESERVED_NAMES = (MANIFEST_NAME, LOCK_NAME, GUARD_NAME, STAGING_DIR)
+# Temporary/archive families written beside the manifest: atomic-manifest temp files,
+# preserved pre-prepare orphans and archived stale lock records.
+_RESERVED_PATTERNS = (re.compile(r"\.m-.*\.tmp"), re.compile(r"\.orphan-.*\.tmp"),
+                      re.compile(r"\.run-lock\.stale-.*\.json"))
+
 
 def path_key(path: str | Path) -> str:
     return "/".join(unicodedata.normalize("NFC", p).casefold() for p in Path(path).parts)
+
+
+_RESERVED_KEYS = frozenset(path_key(name) for name in _RESERVED_NAMES)
+
+
+def is_internal_name(name: str) -> bool:
+    """True when a run-root component aliases a manifest/lock/guard/staging/temp name."""
+    key = path_key(name)
+    return key in _RESERVED_KEYS or any(p.fullmatch(key) for p in _RESERVED_PATTERNS)
+
+
+def _taken(relative: Path, used: set) -> bool:
+    return path_key(relative) in used or (len(relative.parts) == 1 and is_internal_name(relative.name))
 
 
 def validate_path(path: Path, *, budget: int | None = None) -> None:
@@ -110,7 +138,7 @@ def plan_outputs(paths, output_dir, *, formats=("pdf",), import_roots=None,
                 if original not in directories:
                     cleaned = sanitize_output_filename(part, truncate=False)
                     candidate, n = parent / cleaned, 1
-                    while path_key(candidate) in used:
+                    while _taken(candidate, used):
                         n += 1
                         candidate = parent / f"{cleaned}_{n}"
                     directories[original] = candidate
@@ -125,12 +153,12 @@ def plan_outputs(paths, output_dir, *, formats=("pdf",), import_roots=None,
                 outputs["debug"] = (parent / f"DEBUG_{label}.txt").as_posix()
             if audit:
                 outputs["audit"] = (parent / f"{label}_replacements.jsonl").as_posix()
-            keys = [path_key(p) for p in outputs.values()]
-            if not any(key in used for key in keys):
+            if not any(_taken(Path(rel), used) for rel in outputs.values()):
                 break
             n += 1
-        used.update(keys)
-        staged = {kind: (Path(".s") / str(index) / Path(rel).name).as_posix() for kind, rel in outputs.items()}
+        used.update(path_key(p) for p in outputs.values())
+        staged = {kind: (Path(STAGING_DIR) / str(index) / Path(rel).name).as_posix()
+                  for kind, rel in outputs.items()}
         for rel in (*outputs.values(), *staged.values()):
             target = contained_path(root, rel)
             check_existing_aliases(root, rel, existing_names)

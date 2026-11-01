@@ -15,11 +15,9 @@ import subprocess
 import sys
 import uuid
 
-from core.output_plan import contained_path, validate_path
+from core.output_plan import GUARD_NAME, LOCK_NAME, contained_path, validate_path
 from utils.atomic_io import rename_no_clobber
 
-LOCK_NAME = ".run-lock.json"
-GUARD_NAME = ".run-writer.guard"
 
 
 class LockConflict(RuntimeError):

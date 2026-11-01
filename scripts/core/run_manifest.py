@@ -15,12 +15,11 @@ import time
 import uuid
 
 from core.input_scanner import check_no_links
-from core.output_plan import contained_path, plan_outputs, check_existing_aliases
+from core.output_plan import MANIFEST_NAME, contained_path, plan_outputs, check_existing_aliases
 from core.run_lock import RunLock
 from utils.atomic_io import sharing_retry, rename_no_clobber
 from utils.settings import write_settings_atomic
 
-MANIFEST_NAME = "run-manifest.json"
 SCHEMA_VERSION = 3
 STATUS_COMPLETED = "completed"
 STATUS_FAILED = "failed"

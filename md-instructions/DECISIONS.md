@@ -9,6 +9,39 @@ its original decision date. New decisions continue to be appended here (newest o
 
 ---
 
+## 078 — Autonomous completion workflow: internal gates, one final independent review — 2026-11-01 — Claude Code
+
+**Status:** Accepted (user directive, 2026-11-01).
+**Decision:** The remaining Master Plan scope (Gate 02A remediation, Phase 02B, Phase 03,
+Phase 04) is implemented by Claude Code (Opus 5.5, xHigh) in one continuous session.
+Gates 02A, 02 and 03 become internal engineering checkpoints: their technical acceptance
+criteria still apply, but no intermediate operator stop or independent review is scheduled.
+Exactly one fresh, read-only independent Codex review covers the complete v0.4.0 candidate
+SHA. Merge to `main`, the annotated `v0.4.0` tag and the GitHub release remain separate,
+explicit user authorizations after that review.
+**Unchanged:** product requirements, editorial approval boundaries (unapproved rules stay
+disabled and are documented as deferrals), data-safety rules, the release blocker status
+of unverifiable mandatory checks, and the no-fabricated-evidence rule.
+
+## 077 — Run-root control namespace is reserved during preflight — 2026-11-01 — Claude Code (Gate 02A remediation)
+
+**Status:** Implemented; closes Gate 02A finding A.
+**Context:** Imported folders share the run root with `run-manifest.json`, the writer
+lock/guard, the `.s/` staging tree and temporary/archive files. A folder named
+`run-manifest.json` (or a casefold alias such as `RUN-MANIFEST.JSON` or a long-s
+spelling) passed preflight, then could not be published once the manifest existed.
+**Decision:** The names live once in `core/output_plan.py` (imported by `run_manifest`
+and `run_lock`). Preflight treats any run-root component whose NFC/casefold key equals a
+control name, or matches the `.m-*.tmp`, `.orphan-*.tmp` and `.run-lock.stale-*.json`
+families, as already taken and applies the ordinary deterministic `_N` suffix
+(`run-manifest.json_2/…`). Disambiguation over rejection keeps imports usable and matches
+the existing duplicate-root rule. Mappings without such names are byte-identical, so
+existing schema-3 runs resume unchanged; a pre-fix run whose mapping used a control alias
+now fails the re-plan check and is refused rather than re-mapped (fail-closed).
+**Test seam (finding B):** `utils.atomic_io._WINDOWS` selects the publication primitive
+(Windows `os.rename`; POSIX `os.link` + unlink) so tests inject faults into the primitive
+actually used on each branch, without patching `os.name`. Production behaviour is unchanged.
+
 ## 076 — Frozen schema-3 runs and prepared publication — 2026-10-29 — Codex (Phase 02A)
 
 **Status:** Implemented for Gate 02A review; user acceptance remains pending.

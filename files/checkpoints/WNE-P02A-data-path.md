@@ -1,6 +1,8 @@
 # Phase 02A — Mixed data paths and durable recovery
 
-**Gate 02A: implementation checkpoint complete; pending independent review and user acceptance. Do not begin Phase 02B.**
+**Gate 02A: PASS (internal gate, 2026-11-01).** The independent audit of `ce7bd84` found exactly two P2
+defects; both are remediated below. Per the user's 2026-11-01 directive (DECISIONS 078), Gate 02A is an
+internal checkpoint and Phase 02B continues without an intermediate review.
 Writer: Codex CLI, HOME-PC, 2026-10-29. Branch: `feature/0.4.0-script-only-editor`.
 Approved input: `c6e68ed7a1ba77a1e7b69c5816a716296a76922d`; local, refreshed tracking
 and live origin matched before editing. `main` was not merged or modified.
@@ -126,3 +128,31 @@ redesign remain Phase 02B. POSIX no-clobber hard-link behavior was exercised on 
 does not replace actual macOS testing. No distributed-lock or power-loss guarantee is claimed.
 Windows reparse paths are conservatively refused, including other reparse types; support
 for cloud-placeholder source/destination paths is not claimed.
+
+## Gate 02A remediation — 2026-11-01 (Claude Code, Opus 5.5 / xHigh, HOME-PC)
+
+Input: `ce7bd84fd9791ee69f0c0babce6a7d2fb736d343` (local = tracking = live origin; only the
+unrelated untracked `md-instructions/plan-2-ai-editor-integration.md` present, preserved).
+
+- **A — internal namespace collisions (P2).** `core/output_plan.py` now owns the run-root
+  control names (manifest, lock, guard, `.s/` staging) and the `.m-*.tmp`, `.orphan-*.tmp`,
+  `.run-lock.stale-*.json` families; `run_manifest`/`run_lock` import them. Preflight treats
+  their NFC/casefold aliases as taken and applies the existing `_N` suffix, so a folder
+  `run-manifest.json` / `RUN-MANIFEST.JSON` / long-s alias maps to `<name>_2/…`. Other
+  mappings are unchanged (resume-compatible); a pre-fix run that used an alias is refused by
+  the re-plan check. Tests: every control name and alias reserved, 13 valid nearby names not
+  reserved, trailing-dot/space variants, leading-dot folders, a deterministic multi-item
+  mapping, and a full start/publish/finish/resume run with the manifest untouched. The new
+  mapping/integration tests failed (7/7) against the pre-fix code.
+- **B — platform-correct sharing-error test (P2).** `utils.atomic_io._WINDOWS` selects the
+  publication primitive. Tests inject into the primitive actually used (Windows `os.rename`,
+  POSIX `os.link`) and assert the other primitive never sees the target. Windows: five
+  attempts, exact backoff 0.1/0.2/0.4/0.8 s (1.5 s ≤ 2 s); POSIX: one attempt, no sleep.
+  Both keep the prepared record and staged bytes, then recover to completion after the
+  injection is removed. Transient success, direct no-clobber refusal for both primitives,
+  and a POSIX-shaped manifest-replace failure are covered. Production logic is unchanged.
+- **Verification:** focused `test_output_plan.py` + `test_publication.py` 69 passed. Strict
+  offline verifier **830 passed / 0 skipped / 0 failed**, four checks PASS, zero network
+  attempts (the Bash PATH case now executes in this session's environment). Frozen corpus:
+  828 results = 810 identical + 18 approved Phase 01 deltas, zero unexpected, zero input
+  changes; all protection invariants true. Logs: ignored `files/test-logs/rc/`.

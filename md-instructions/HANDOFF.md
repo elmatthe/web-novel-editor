@@ -1,6 +1,21 @@
 # Web Novel Editor — Handoff
 
-## Current Focus — Phase 02A complete; STOP AT GATE 02A
+## Current Focus — v0.4.0 autonomous completion (Claude Code, one session)
+
+**Snapshot (2026-11-01, Claude Code Opus 5.5 / xHigh, HOME-PC).** Branch
+`feature/0.4.0-script-only-editor`, input `ce7bd84`. Directive: finish Gate 02A findings,
+then Phases 02B, 03, 04 with internal gates; ONE final read-only Codex review of the full
+candidate; merge/tag/release only on explicit user authorization (DECISIONS 078).
+
+- **Gate 02A:** both P2 findings fixed (control-namespace reservation; platform-correct
+  sharing-retry tests). Strict verifier 830/0 skip, 0 network; frozen corpus 810 + 18
+  approved, zero unexpected. Details: `files/checkpoints/WNE-P02A-data-path.md`.
+- **Evidence harness:** ignored `files/run-temp/rc/evidence.py <mode>` (verify*/baseline*),
+  logs under ignored `files/test-logs/rc/`.
+- **Next exact action:** Phase 02B (GUI four groups/Activity/theme/preferences/logging;
+  `scripts/bootstrap.py` + `scripts/launcher.py`). Version stays v0.13.0 until Phase 04.
+
+## Previous Focus — Phase 02A implementation (Codex; findings remediated 2026-11-01)
 
 **Snapshot (2026-10-29, Codex CLI, HOME-PC).** Branch
 `feature/0.4.0-script-only-editor`; approved input `c6e68ed7a1ba77a1e7b69c5816a716296a76922d`
