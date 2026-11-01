@@ -337,10 +337,13 @@ class RunCheckpoint:
                 raise ManifestError("Required output/companion has not been built in this attempt")
             target = self._path(relative)
             if kind == "pdf":
+                # Readability: the document, cross-reference table and full page tree must
+                # parse, and page 1 (which always carries the chapter heading/text) must yield
+                # text. Full-text layout of every page was ~40% of per-file time (v0.4.0).
                 import pdfplumber
                 with pdfplumber.open(target) as document:
-                    extracted = [page.extract_text() or "" for page in document.pages]
-                    if not extracted or not any(text.strip() for text in extracted):
+                    pages = document.pages
+                    if not pages or not (pages[0].extract_text() or "").strip():
                         raise ManifestError("PDF validation failed")
             else:
                 text = target.read_text(encoding="utf-8")
@@ -384,11 +387,19 @@ class RunCheckpoint:
         for kind, relative in entry["outputs"].items():
             self._fault_hook("before_publish:" + kind)
             def validate():
-                self._path(relative)
-                self._path(entry["staged"][kind])
+                # Before every attempt: ownership + containment of both paths, no alias of
+                # the destination, and the exact bytes about to be published still match the
+                # prepared hash. The whole item (source + every output) is re-verified once
+                # after publication and before completion.
+                final, stage = self._path(relative), self._path(entry["staged"][kind])
                 check_existing_aliases(Path(self.output_dir), relative)
-                self.verify_source(source)
-                self.verify_prepared(entry)
+                current = final if final.exists() else stage
+                try:
+                    valid = _same_bytes(fingerprint(current), entry["expected"][kind])
+                except OSError as exc:
+                    raise ManifestError(f"Prepared output missing/unreadable: {relative}") from exc
+                if not valid:
+                    raise ManifestError(f"Prepared output conflict: {relative}; preserved")
             def publish_one():
                 final = self._path(relative)
                 if final.exists():

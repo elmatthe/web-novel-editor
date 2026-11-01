@@ -168,3 +168,15 @@ def test_index_term_shields_against_special_fix(tmp_path):
     protected = resolve_dispatch("Shadow Slave").run_pipeline(seeded, prot_lex)
     assert "Almanach" in protected
     assert re.search(r"(?<![A-Za-z])Almanac(?![A-Za-z])", protected) is None
+
+
+def test_compiled_term_patterns_are_cached_and_masking_is_unchanged():
+    from core.protected_lexicon import _term_regex, mask_protected_terms, unmask_placeholders
+    lex = load_protected_lexicon("", frozenset({"Clan Valor", "Valor", "Sunny"}))
+    text = "Clan  Valor met VALOR and Sunny's friend; valorous Sunnyside stayed."
+    masked, mapping = mask_protected_terms(text, lex)
+    assert "valorous" in masked and "Sunnyside" in masked  # letter boundaries respected
+    assert sorted(mapping.values()) == ["Clan  Valor", "Sunny's", "VALOR"]
+    assert unmask_placeholders(masked, mapping, {}) == text
+    assert _term_regex("Valor") is _term_regex("Valor")
+    assert mask_protected_terms(text, lex) == (masked, mapping)  # repeatable

@@ -9,6 +9,26 @@ its original decision date. New decisions continue to be appended here (newest o
 
 ---
 
+## 081 — Release-gate throughput regression: measured causes and behaviour-preserving fixes — 2026-11-01 — Claude Code
+
+**Status:** Implemented (Phase 04).
+**Context:** The first release workload ran at ~1.10 s/file against the Phase 00 like-for-like
+0.54 s/file mean (beyond the plan's 20% investigation threshold). A cProfile of 200 real Shadow
+Slave chapters attributed it to: (1) protected-term masking recompiling every term regex on every
+call because a lexicon's ~2,000 patterns overflow the `re` module's 512-entry cache — pre-existing,
+and doubled by Phase 03's second (typography) masking pass; (2) the publication validator
+re-extracting the full text of every page of every rendered PDF; (3) per-output publication
+attempts re-hashing the source and every prepared output (O(k²) per item, ~96 path checks).
+**Decision:** cache each term's compiled pattern (identical patterns and order); cache the
+combined typography lexicon with a sorted, hash-seed-independent term order; validate a rendered
+PDF by parsing the document and full page tree and requiring text on page 1; before each
+publication attempt check ownership, containment, aliases and the hash of the one file being
+published, keeping the whole-item source + output verification before completion. Manifest
+persistence was measured and kept (4.9 MB full-queue manifest, ~19 ms per atomic write).
+**Result:** identical inputs/options A/B — Phase 00 code 0.696 s/file, current 0.493 s/file
+(order-reversed run; first run 0.682 vs 0.585). Frozen-corpus outputs are unchanged by these fixes.
+Not done: a different journal format or parallel processing (not needed).
+
 ## 080 — Phase 03 editorial scope: protection floor, paired curly quotes, attested OCR l — 2026-11-01 — Claude Code
 
 **Status:** Implemented (internal Gate 03).

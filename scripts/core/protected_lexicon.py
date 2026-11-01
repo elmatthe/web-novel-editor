@@ -16,6 +16,7 @@ from __future__ import annotations
 import json
 import re
 from dataclasses import dataclass
+from functools import lru_cache
 from pathlib import Path
 from typing import Callable, Optional
 
@@ -102,6 +103,7 @@ def load_protected_lexicon(
     return ProtectedLexicon(terms=ordered, term_set_lower=lower)
 
 
+@lru_cache(maxsize=64)
 def expand_lexicon_variants(terms: tuple[str, ...]) -> tuple[str, ...]:
     """Add possessive/plural forms for single-word terms (bounded).
 
@@ -159,6 +161,19 @@ def mask_chapter_lines(text: str) -> tuple[str, dict[str, str]]:
     return "\n".join(out), mapping
 
 
+@lru_cache(maxsize=None)
+def _term_regex(term: str) -> "re.Pattern[str]":
+    """Compiled once per term. A lexicon has thousands of patterns, far more than the
+    `re` module's own 512-entry cache, which used to recompile every pattern on every
+    call (v0.4.0 performance fix; the patterns themselves are unchanged)."""
+    if " " in term:
+        inner = r"\s+".join(re.escape(p) for p in term.split())
+        return re.compile(f"({inner})", re.IGNORECASE)
+    # Letter boundaries (not \\b): matches terms adjacent to punctuation
+    # and consistently before an apostrophe/suffix letter.
+    return re.compile(rf"(?<![A-Za-z])({re.escape(term)})(?![A-Za-z])", re.IGNORECASE)
+
+
 def _mask_terms_in_plain_text(
     segment: str,
     terms: tuple[str, ...],
@@ -169,16 +184,7 @@ def _mask_terms_in_plain_text(
     for term in terms:
         if not term or len(term) < 2 or term in _SKIP_LEXICON_MASK:
             continue
-        if " " in term:
-            inner = r"\s+".join(re.escape(p) for p in term.split())
-            regex = re.compile(f"({inner})", re.IGNORECASE)
-        else:
-            # Letter boundaries (not \\b): matches terms adjacent to punctuation
-            # and consistently before an apostrophe/suffix letter.
-            regex = re.compile(
-                rf"(?<![A-Za-z])({re.escape(term)})(?![A-Za-z])",
-                re.IGNORECASE,
-            )
+        regex = _term_regex(term)
 
         def repl(m: re.Match[str]) -> str:
             ph = f"__WE_P_{start_idx[0]:05d}__"

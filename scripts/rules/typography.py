@@ -24,6 +24,7 @@ their spelling, their possessives and the punctuation touching them are never ch
 from __future__ import annotations
 
 import re
+from functools import lru_cache
 
 from core.protected_lexicon import (
     ProtectedLexicon,
@@ -109,7 +110,13 @@ def curl_apostrophes(text: str) -> tuple[str, int]:
 
 def protection_lexicon(lexicon: ProtectedLexicon | None) -> ProtectedLexicon:
     terms = frozenset(lexicon.terms) if lexicon is not None else frozenset()
-    return load_protected_lexicon("", terms | RULINGS_FLOOR)
+    return _combined_lexicon(terms)
+
+
+@lru_cache(maxsize=16)
+def _combined_lexicon(terms: frozenset) -> ProtectedLexicon:
+    # Sorted input gives equal-length terms a stable, hash-seed-independent order.
+    return load_protected_lexicon("", sorted(terms | RULINGS_FLOOR))
 
 
 def apply_typography(text: str, lexicon: ProtectedLexicon | None, repl_log=None) -> str:

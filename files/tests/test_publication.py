@@ -273,3 +273,89 @@ def test_atomic_manifest_publication_uses_same_bounded_windows_retries(tmp_path,
         assert sum(delays) <= 2 and (error == "winerror5" or delays == [])
     finally:
         cp.close()
+
+
+# --- v0.4.0 performance fixes keep their safety contracts -------------------------------
+
+def _blank_pdf(path):
+    from reportlab.pdfgen import canvas
+    c = canvas.Canvas(str(path))
+    c.showPage()
+    c.save()
+
+
+@pytest.mark.parametrize("damage", ["blank", "truncated", "not_a_pdf"])
+def test_prepare_rejects_unreadable_or_empty_pdf_output(tmp_path, damage):
+    src = tmp_path / "chapter.txt"
+    src.write_text("Clan Valor remained.", encoding="utf-8")
+    cp = RunCheckpoint(tmp_path / "out", [str(src)], novel="Universal")
+    cp.start(formats=("pdf",), rules_digest="rules")
+    try:
+        def writer(path):
+            if damage == "blank":
+                _blank_pdf(path)
+            elif damage == "truncated":
+                from pdf.builder import build_pdf
+                build_pdf("Chapter 1: Test\n\nClan Valor remained.", str(path))
+                data = path.read_bytes()
+                path.write_bytes(data[: len(data) // 3])
+            else:
+                path.write_bytes(b"this is not a PDF")
+        cp.stage(src, "pdf", writer)
+        with pytest.raises(Exception):
+            cp.prepare(src)
+        assert cp.entry(src)["status"] == "pending"
+        assert not (Path(cp.output_dir) / "chapter.pdf").exists()
+    finally:
+        cp.close()
+
+
+def test_multi_page_pdf_with_text_passes_validation(tmp_path):
+    from pdf.builder import build_pdf
+    src = tmp_path / "chapter.txt"
+    src.write_text("x", encoding="utf-8")
+    cp = RunCheckpoint(tmp_path / "out", [str(src)], novel="Universal")
+    cp.start(formats=("pdf",), rules_digest="rules")
+    try:
+        long_text = "Chapter 1: Long\n\n" + "\n\n".join("Paragraph %d of a long chapter." % i for i in range(400))
+        cp.stage(src, "pdf", lambda path: build_pdf(long_text, str(path)))
+        cp.prepare(src)
+        cp.publish(src)
+        assert cp.entry(src)["status"] == "completed"
+    finally:
+        cp.close()
+
+
+def test_staged_output_altered_after_prepare_is_never_published(tmp_path):
+    cp, src = create(tmp_path)
+    try:
+        stage(cp, src)
+        cp.prepare(src)
+        staged_txt = Path(cp.output_dir) / cp.entry(src)["staged"]["txt"]
+        staged_txt.write_text("tampered after prepare", encoding="utf-8")
+        with pytest.raises(ManifestError, match="conflict"):
+            cp.publish(src)
+        assert not (Path(cp.output_dir) / "chapter.txt").exists()
+        assert staged_txt.read_text(encoding="utf-8") == "tampered after prepare"
+        assert cp.entry(src)["status"] == "prepared"
+    finally:
+        cp.close()
+
+
+def test_source_changed_during_publication_blocks_completion(tmp_path, monkeypatch):
+    cp, src = create(tmp_path)
+    try:
+        stage(cp, src)
+        cp.prepare(src)
+        original = cp._fault_hook
+
+        def change_source(point):
+            if point == "after_publish:txt":
+                src.write_text("Changed while publishing", encoding="utf-8")
+        cp._fault_hook = change_source
+        with pytest.raises(ManifestError, match="Source bytes changed"):
+            cp.publish(src)
+        cp._fault_hook = original
+        assert cp.entry(src)["status"] == "prepared"
+    finally:
+        cp.close()
