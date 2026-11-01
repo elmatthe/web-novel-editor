@@ -1,6 +1,56 @@
 # Webnovel Editor — Project Briefing
 
-## Version: v0.13.0
+## Version: v0.4.0 — Offline Script-Only Modernization
+
+Version: v0.4.0 — Offline Script-Only Modernization; see GitHub Releases for publication status.
+The number is an intentional reset after v0.13.0 (DECISIONS 074). Sensitivity: personal-private
+(copyrighted local corpora and baselines stay in ignored folders; never commit chapter text).
+
+## Current State (v0.4.0)
+
+**What it is.** An offline, deterministic, script-only desktop editor that cleans web-novel chapter
+PDFs and UTF-8 TXT files for reading and TTS. No AI, model, account or network is used for editing.
+Master Plan: `files/plans/Web-Novel-Editor-Master-Implementation-Plan.md`; phase reports in
+`files/checkpoints/WNE-P00…P04-*.md`.
+
+**Stack.** Python ≥ 3.10 (tested 3.13/3.12; 3.11/3.10 declared), Tkinter/ttk (`clam`), pdfplumber
+(extraction), ReportLab (rendering), natsort, tomli on 3.10. Exact pins in `scripts/requirements.txt`.
+
+**Architecture.**
+- Launch chain: root `Setup_and_Run-Web-Novel-Editor.bat`/`.command` → `scripts/bootstrap.py`
+  (stdlib-only health proof, offline fast path, in-place repair, guarded `.venv` rebuild) →
+  `scripts/launcher.py` (headless `--help/--version/--check`) → `scripts/main.py` → `gui/app.py`.
+- GUI (`scripts/gui/`): four groups (Sources, Novel & Editing, Output, Run) + Activity pane
+  (Summary/Detailed); `activity.py` (Tk-free event channel, session logs in
+  `files/runtime-data/logs`, retention 20), `appearance.py` (Light/Dark), `preferences.py`.
+  Workers only emit events; the Tk thread drains them.
+- Engine: one `pipelines/universal.py` (Block A cleanup, Block B masked corrections, Block C
+  editorial, final typography); novels differ only by data (`resources/novel-index/*.txt`,
+  `profiles/corrections/*.toml`, built-in canonical floors).
+- Runs: `core/output_plan.py` (exclusive numbered folders, collision/path preflight, reserved
+  internal names), `core/run_manifest.py` (schema 3: hashes, prepared → completed publication,
+  resume/retry), `core/run_lock.py` (single writer, process identity), `core/batch_runner.py`.
+- Preferences: per-user `settings.json` (`%LOCALAPPDATA%\WebNovelEditor` /
+  `~/Library/Application Support/WebNovelEditor`); legacy key files are never read.
+
+**Editorial contract.** Conservative: protected names and the mandatory rulings (Clan Valor, Valor
+Clan, Valor, …) never change; curly quotes only for unambiguous pairs; apostrophes only in
+contraction/possessive endings; OCR `l`→`I` only in attested contexts; no grammar/pronoun
+guessing. Page-number removal is deferred (no evidence). Historical text below that describes
+straight-quote normalization, AI providers, cloud runs or `scripts/Universal/` is superseded.
+
+**Known limits.** Windows 11 tested; macOS launcher has static/simulated checks only; no genuine
+Python-free machine was tested; first setup downloads packages; local single-writer guarantees
+only (no cloud-sync/distributed locking).
+
+**Verification.** `.venv\Scripts\python.exe scripts\verify.py` (pytest, pins, CHANGELOG/BRIEFING,
+config, launcher version). Corpus/workload harnesses are ignored under `files/run-temp/rc/`.
+
+---
+
+## Historical record (v0.13.0 and earlier)
+
+### Former version header: v0.13.0
 
 > **Development direction (read first).** **Active work targets v0.4.0 — Offline Script-Only Modernization** (Master Plan `files/plans/Web-Novel-Editor-Master-Implementation-Plan.md`; DECISIONS 074 and 075). On `feature/0.4.0-script-only-editor`, Phase 01 has removed every AI path (local Ollama, the Gemini and Groq providers, model pickers, API-key / consent / quota UI and the AI dependencies), moved `scripts/Universal/*` to `scripts/*`, and consolidated the five near-identical pipelines into the single `scripts/pipelines/universal.py`. Editing is offline, deterministic and script-only. The version fields (this file, `config.toml`, the top CHANGELOG heading, README) deliberately still read v0.13.0 until the 0.4.0 release is prepared in Phase 04. **Everything below describes the v0.13.0 line this branch grew from; what it says about AI providers, cloud runs, `scripts/Universal/` or per-novel pipeline modules is historical.**
 

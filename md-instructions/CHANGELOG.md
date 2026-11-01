@@ -1,5 +1,58 @@
 # Webnovel Editor — Changelog
 
+## v0.4.0 — 2026-11-01 — Offline Script-Only Modernization
+
+This version number is an intentional reset: v0.4.0 follows v0.13.0 (DECISIONS 074). The older
+`v0.4.0 — 2026-06-21 — Phase 4: Editorial Rule Pipeline` entry further down is a separate,
+historical heading and is left unchanged.
+
+### Removed
+- **All AI editing**: the local Ollama pass, the Gemini and Groq cloud providers, model pickers,
+  API-key/consent/quota controls, AI prompts and the `ollama`, `google-genai` and `groq`
+  dependencies. Editing is offline, deterministic and script-only; no model service or account is
+  needed. Old API keys (`%LOCALAPPDATA%\WebNovelEditor\secrets.json`, a repo `.env`,
+  `GEMINI_API_KEY`/`GROQ_API_KEY`) are never read, moved or deleted — remove them yourself and
+  revoke them with each provider.
+
+### Changed — one engine
+- The five near-identical per-novel pipelines are one universal engine; novels differ only by data
+  (protected-term indexes and approved literal corrections in TOML). `carcassess` → `carcasses` is a
+  bounded universal fix; `threestoried` and `tompost shelf` were retired (DECISIONS 075).
+
+### Added — inputs, outputs and recovery
+- One queue of PDF and UTF-8 TXT files and folders (optional subfolders, natural order, manual
+  reordering). PDF, TXT or both from the same corrected text. Original names and folder structure
+  are kept; source files are never modified.
+- Runs go to `Downloads/PDF-Editor-Outputs/<novel>-N` or a custom folder chosen in Preferences.
+  Exclusive numbered folders, Unicode/case-aware collision handling, path-length preflight and a
+  reserved internal namespace (`run-manifest.json`, locks, staging) prevent overwrites.
+- Durable runs (manifest schema 3): content hashes of sources and outputs, prepared-then-completed
+  publication, single-writer locking with process identity, Pause/Continue/Stop at file boundaries,
+  Resume in the original folder and Retry Failed. Legacy cloud manifests are refused read-only.
+
+### Added — desktop and setup
+- Compact window: four numbered groups (Sources, Novel & Editing, Output, Run) and a resizable
+  Activity pane with Summary/Detailed tabs; remembered Light/Dark mode; Preferences & Data (output
+  folder, log location/retention, Reset Preferences); session logs without chapter text (latest 20).
+- New self-healing bootstrap: offline healthy fast path, exact-pin verification, in-place package
+  repair, guarded `.venv` rebuild from an external Python, Microsoft Store alias exclusion and a
+  consent-gated user-scope Python install on Windows. `launcher.py --version/--check`.
+
+### Changed — conservative editorial corrections (Phase 03, DECISIONS 080)
+- Correct curly double quotes are preserved (no longer flattened); clearly paired straight doubles
+  in one paragraph become “…”; uncertain cases are left as written. Unambiguous contractions and
+  possessives get ’.
+- OCR `l` → `I` only in the attested contexts (`l'm`, `l'll`, `l've`, `l'd`; sentence-initial `l`
+  before attested verbs). Digit `1`, letter names and split words are untouched.
+- Protection floor: corrections can never delete words (Clan Valor always stays Clan Valor), must
+  match whole tokens and may not overlap protected terms; possessives and punctuation touching
+  protected names are never changed.
+- Deferred: position-aware page-number removal (no page-number evidence in the corpora).
+
+### Known limitations
+- Windows 11 is the tested platform; the macOS launcher has static and simulated checks only.
+- First-time setup downloads packages; it is not an offline installer.
+
 ## v0.13.0 — 2026-07-27 — Optional Cloud AI Providers: Gemini and Groq (Plan 2b)
 
 **Status: complete on `feature/plan-2b-cloud-providers`, awaiting sign-off and merge.** Cloud editing
