@@ -293,8 +293,17 @@ class RunCheckpoint:
         return contained_path(Path(self.output_dir), relative)
 
     def _persist(self, data):
+        """Write ``data`` and adopt it only after a successful write.
+
+        Callers always pass a fresh top-level dict and entries list; unchanged entry dicts are
+        shared with the previous state because no code mutates a stored entry in place
+        (``entry()``/``payload()`` hand out deep copies and ``_update`` copies the one entry it
+        changes). A failed write therefore leaves ``self._data`` exactly as it was. (v0.4.0:
+        two whole-manifest deep copies per update cost ~80 ms on a 3,000-item queue.)
+        """
         self._lock.assert_owned()
-        data = deepcopy(data)
+        data = dict(data)
+        data["entries"] = list(data["entries"])
         data["updated_at"] = self._clock()
         data["next_index"] = sum(e["status"] in {"completed", "failed", "skipped"} for e in data["entries"])
         try:
@@ -304,10 +313,15 @@ class RunCheckpoint:
         self._data = data
 
     def _update(self, source, **changes):
-        data = self.payload()
-        item = next(e for e in data["entries"] if e["source"] == str(Path(source).absolute()))
-        item.update(changes, recorded_at=self._clock())
-        self._persist(data)
+        if self._data is None:
+            raise ManifestError("Run has not been started")
+        source = str(Path(source).absolute())
+        entries = list(self._data["entries"])
+        index = next(i for i, e in enumerate(entries) if e["source"] == source)
+        item = deepcopy(entries[index])
+        item.update(deepcopy(changes), recorded_at=self._clock())
+        entries[index] = item
+        self._persist({**self._data, "entries": entries})
 
     def stage(self, source, kind, writer):
         entry = self.entry(source)
@@ -384,6 +398,7 @@ class RunCheckpoint:
             raise ManifestError("Publication requires a durable prepared record")
         self.verify_source(source)
         self.verify_prepared(entry)
+        aliases = {}  # one directory snapshot per item's publication
         for kind, relative in entry["outputs"].items():
             self._fault_hook("before_publish:" + kind)
             def validate():
@@ -392,7 +407,7 @@ class RunCheckpoint:
                 # prepared hash. The whole item (source + every output) is re-verified once
                 # after publication and before completion.
                 final, stage = self._path(relative), self._path(entry["staged"][kind])
-                check_existing_aliases(Path(self.output_dir), relative)
+                check_existing_aliases(Path(self.output_dir), relative, aliases)
                 current = final if final.exists() else stage
                 try:
                     valid = _same_bytes(fingerprint(current), entry["expected"][kind])

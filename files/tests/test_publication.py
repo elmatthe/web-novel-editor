@@ -359,3 +359,26 @@ def test_source_changed_during_publication_blocks_completion(tmp_path, monkeypat
         assert cp.entry(src)["status"] == "prepared"
     finally:
         cp.close()
+
+
+def test_updates_share_untouched_entries_but_never_mutate_earlier_state(tmp_path):
+    srcs = []
+    for i in range(3):
+        srcs.append(tmp_path / f"c{i}.txt")
+        srcs[-1].write_text(f"Chapter {i}.", encoding="utf-8")
+    cp = RunCheckpoint(tmp_path / "out", [str(s) for s in srcs], novel="Universal")
+    cp.start(formats=("txt",), rules_digest="rules")
+    try:
+        before_state = cp._data
+        snapshot = cp.payload()
+        handed_out = cp.entry(srcs[1])
+        handed_out["status"] = "completed"  # a caller mutating its copy changes nothing stored
+        cp.record_skipped(srcs[0], "empty")
+        assert before_state["entries"][0]["status"] == "pending"  # old state object untouched
+        assert cp._data["entries"][0]["status"] == "skipped"
+        assert cp._data["entries"][1] is before_state["entries"][1]  # untouched entry shared
+        assert cp.entry(srcs[1])["status"] == "pending"
+        assert snapshot["entries"][0]["status"] == "pending"  # an earlier payload() copy is frozen
+        assert read_manifest(cp.path)["entries"][0]["status"] == "skipped"
+    finally:
+        cp.close()

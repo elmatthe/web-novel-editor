@@ -1,6 +1,7 @@
 """Exclusive run allocation and portable, frozen per-source output mappings."""
 from __future__ import annotations
 
+from functools import lru_cache
 import hashlib
 import os
 from pathlib import Path
@@ -65,8 +66,18 @@ def contained_path(root: Path, relative: str) -> Path:
     return target
 
 
+@lru_cache(maxsize=200_000)
+def _name_key(name: str) -> str:
+    """NFC + casefold key of one directory entry name (cached: names repeat across scans)."""
+    return unicodedata.normalize("NFC", name).casefold()
+
+
 def check_existing_aliases(root: Path, relative: str, cache=None) -> None:
-    """Reject an existing spelling that aliases a reservation on another filesystem."""
+    """Reject an existing spelling that aliases a reservation on another filesystem.
+
+    ``cache`` (optional dict) reuses one directory snapshot across several checks made
+    together, e.g. all outputs of one item at publication time.
+    """
     current = root
     for part in Path(relative).parts:
         if current.is_dir():
@@ -74,11 +85,12 @@ def check_existing_aliases(root: Path, relative: str, cache=None) -> None:
                 indexed = cache[current]
             else:
                 indexed = {}
-                for entry in current.iterdir():
-                    indexed.setdefault(path_key(entry.name), []).append(entry.name)
+                with os.scandir(current) as entries:
+                    for entry in entries:
+                        indexed.setdefault(_name_key(entry.name), []).append(entry.name)
                 if cache is not None:
                     cache[current] = indexed
-            if any(name != part for name in indexed.get(path_key(part), ())):
+            if any(name != part for name in indexed.get(_name_key(part), ())):
                 raise FileExistsError(f"Unicode/case-equivalent existing destination: {current / part}")
         current = current / part
 

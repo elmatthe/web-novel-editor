@@ -28,6 +28,14 @@ persistence was measured and kept (4.9 MB full-queue manifest, ~19 ms per atomic
 **Result:** identical inputs/options A/B — Phase 00 code 0.696 s/file, current 0.493 s/file
 (order-reversed run; first run 0.682 vs 0.585). Frozen-corpus outputs are unchanged by these fixes.
 Not done: a different journal format or parallel processing (not needed).
+**Second round (full-size workload):** the release workload on the fixed code still ran at a
+0.80 s/file median and slowed as the run progressed — costs a 200-item A/B cannot show. Measured on
+the real 3,095-item run: every checkpoint update deep-copied the whole 4.9 MB manifest twice
+(~41 ms each); updates now copy only the changed entry and share untouched ones (no code mutates a
+stored entry in place; callers still receive deep copies; a failed write still leaves state
+unchanged). The alias scan listed the growing run folder before every output (47 ms at 9,289
+entries); it now uses `os.scandir`, cached per-name keys, and one directory snapshot per item's
+publication (11.6 ms, once per item). Outputs remain byte-identical.
 
 ## 080 — Phase 03 editorial scope: protection floor, paired curly quotes, attested OCR l — 2026-11-01 — Claude Code
 
