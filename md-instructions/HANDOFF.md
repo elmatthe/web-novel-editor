@@ -1,28 +1,25 @@
 # Web Novel Editor — Handoff
 
-## Current Focus — v0.4.0 autonomous completion (Claude Code, one session)
+## Current Focus — v0.4.0 release candidate ready for the single independent review
 
 **Snapshot (2026-11-01, Claude Code Opus 5.5 / xHigh, HOME-PC).** Branch
-`feature/0.4.0-script-only-editor`, input `ce7bd84`. Directive: finish Gate 02A findings,
-then Phases 02B, 03, 04 with internal gates; ONE final read-only Codex review of the full
-candidate; merge/tag/release only on explicit user authorization (DECISIONS 078).
+`feature/0.4.0-script-only-editor`. Directive: internal gates 02A/02/03, ONE final read-only Codex
+review of the whole candidate, merge/tag/release only on explicit user authorization (DECISIONS 078).
 
-- **Gate 02A:** both P2 findings fixed (control-namespace reservation; platform-correct
-  sharing-retry tests). Strict verifier 830/0 skip, 0 network; frozen corpus 810 + 18
-  approved, zero unexpected. Details: `files/checkpoints/WNE-P02A-data-path.md`.
-- **Evidence harness:** ignored `files/run-temp/rc/evidence.py <mode>` (verify*/baseline*),
-  logs under ignored `files/test-logs/rc/`.
-- **Phase 02B:** complete (internal Gate 02): four-group GUI + Activity, Light/Dark, Preferences
-  & Data, session logs, `scripts/bootstrap.py`, `scripts/launcher.py`, thin root launchers.
-  Verifier 889/0 skip, 0 network; corpus 810 + 18, zero unexpected.
-  Report: `files/checkpoints/WNE-P02B-desktop-bootstrap.md` (manual checks pending listed there).
-- **Phase 03:** complete (internal Gate 03): protection floor, paired curly quotes + apostrophes,
-  attested OCR l->I; page numbers deferred, `Asa`/digit-1 excluded (DECISIONS 080). Verifier
-  1013/0 skip, 0 network; corpus 828 results, all 738 changes attributed (0 unexplained).
-  Report: `files/checkpoints/WNE-P03-editorial-corrections.md`.
-- **Next exact action:** Phase 04 — version-prep commit (config/BRIEFING/CHANGELOG/README to 0.4.0),
-  then release workload (`files/run-temp/rc/workload.py`, durable), fresh non-AI env check,
-  real Windows launch (`files/run-temp/rc/real_launch.py`), final candidate, one Codex review.
+- **Pushed:** `08f1010` Gate 02A fixes · `d248e71` Phase 02B · `5bda685` Phase 03 · `b762a6c`
+  v0.4.0 version prep · `058610c` + `772b4dd` performance fixes (DECISIONS 081) · final candidate
+  commit with `files/checkpoints/WNE-P04-release-readiness.md` (SHA in the CLI report).
+- **Verified:** verifier 1021/0 skip, 0 network; frozen corpus 738/828 changed, 0 unexplained,
+  byte-identical across perf fixes; release workload 3,095 + 889 real chapters (stop, pause, hard kill,
+  stale recovery, retry; 0 false completions; 0 unexplained editorial deltas; 92.1/min, −17% vs
+  Phase 00, within threshold); fresh sandbox setup/repair/rebuild; real Windows `.bat` launch.
+- **Pending:** the single read-only Codex review of the exact candidate SHA (prompt:
+  `files/run-temp/rc/codex-review-prompt.md`, ignored), then the user's explicit authorization for
+  merge into `main`, the annotated `v0.4.0` tag and the GitHub release (mark Latest). Manual checks
+  listed in the P04 report. A pre-existing GitHub **draft** release "Web Novel Editor v1.0.0" exists;
+  it is not touched.
+- **Next exact action:** run the Codex review; if PASS, present the consolidated approval request;
+  if BLOCKED, preserve the review, fix only justified findings, re-verify, and return for direction.
 
 ## Previous Focus — Phase 02A implementation (Codex; findings remediated 2026-11-01)
 
