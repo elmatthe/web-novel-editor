@@ -121,7 +121,8 @@ def test_the_three_block_stage_order_is_preserved(monkeypatch, novel):
 
 # -- audit-row policy (Gate 00: legacy counts unchanged) ---------------------------------
 
-_ROW_TEXT = "Chapter 1: Rows.\n\n“He scored 6/7 today — then he left,” she said.\n"
+# Non-standard doubles still trigger the legacy fold row (standard curly doubles are kept).
+_ROW_TEXT = "Chapter 1: Rows.\n\n„He scored 6/7 today — then he left,‟ she said.\n"
 _SUMMARY_RULES = {"quote_normalize", "slash_replace", "em_dash"}
 
 

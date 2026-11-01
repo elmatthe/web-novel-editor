@@ -14,7 +14,7 @@ structure:
 
   BLOCK A  Pre-mask cleanup (raw single-\\n line stream)
     1   unicode_cleanup.normalize_unicode     NFC, invisibles, space-likes
-    1a  unicode_cleanup.normalize_quotes      curly DOUBLE quotes -> straight "
+    1a  unicode_cleanup.normalize_quotes      NON-STANDARD doubles -> straight " (“ ” kept, Phase 03)
     2   ligature_cleanup.normalize_ligatures
     1.5 junk_strip.strip_junk                 ad/URL/fingerprint (Tier 1 on, Tier 2 off)
     3   unicode_cleanup.remove_scanner_junk    squares / replacement glyphs
@@ -26,6 +26,7 @@ structure:
   BLOCK B  Masked corrections (letter-mutating passes run shielded)
     8   MASK chapter lines + protected terms
     9   ocr_repair.repair_ocr                  (non-placeholder segments)
+    9b  ocr_repair.repair_pronoun_l            Phase 03 (D6): attested OCR l -> I only (before 10)
     10  spacing_cleanup.fix_spurious_spaces + collapse_spaces
     10a slash_replace + first em_dash pass
     11  literal corrections (universal first, then the profile's) while protected terms
@@ -41,6 +42,8 @@ structure:
     18  tidy blank lines
     19  chapter_titles.insert_chapter_page_breaks   \\f for the PDF builder
     20  chapter_titles.validate_headings       log-only
+    21  typography.apply_typography            Phase 03: paired curly doubles + unambiguous
+                                               apostrophes; protected names + rulings masked
 
 Letter-mutating corrections (OCR, spurious-space) run inside the mask so protected names
 can never be altered; structural passes (punctuation, grammar, the final em-dash sweep,
@@ -71,6 +74,7 @@ from rules import (
     punctuation,
     slash_replace,
     spacing_cleanup,
+    typography,
     unicode_cleanup,
 )
 
@@ -79,7 +83,7 @@ if TYPE_CHECKING:
     from core.replacement_log import ReplacementLog
 
 # Count-only patterns for the audit summary (the transforms themselves live in the rules).
-_COUNT_DOUBLE_QUOTES = re.compile("[“”„‟❝❞〝〞＂«»]")
+_COUNT_DOUBLE_QUOTES = re.compile("[„‟❝❞〝〞＂«»]")  # exactly what normalize_quotes folds
 _COUNT_SPACED_DASH = re.compile(r"\S+[\s   -   　]+[–—―⸺][\s   -   　]+\S+")
 
 #: Literal corrections that are safe for EVERY novel. Deliberately tiny and bounded: a
@@ -158,17 +162,47 @@ def _apply_universal_fixes(text: str, repl_log) -> str:
     return text
 
 
+def _apply_pronoun_l(text: str, repl_log) -> str:
+    """OCR-L-PRONOUN (Phase 03, D6) on unmasked segments; one audit row with the count."""
+    total = 0
+
+    def repair(segment: str) -> str:
+        nonlocal total
+        fixed, count = ocr_repair.repair_pronoun_l(segment)
+        total += count
+        return fixed
+
+    text = for_non_placeholder_segments(text, repair)
+    if total and repl_log is not None:
+        repl_log.record(f"{total} OCR 'l' for the pronoun", "I", "ocr_repair.pronoun_l", "ocr",
+                        "OCR-L-PRONOUN: attested contraction or clause-initial verb context")
+    return text
+
+
+def _token_bounded(literal: str) -> "re.Pattern[str]":
+    """An escaped literal that cannot match inside a longer word (Phase 03, §8.2).
+
+    A boundary is enforced at each end of the key that is a letter or digit, so a key never
+    consumes or splits a neighbouring word; punctuation-edged keys keep their literal edge.
+    """
+    left = r"(?<![^\W_])" if literal[:1].isalnum() else ""
+    right = r"(?![^\W_])" if literal[-1:].isalnum() else ""
+    return re.compile(left + re.escape(literal) + right)
+
+
 def _apply_special_fixes(text: str, repl_log, special_fixes: Mapping[str, str]) -> str:
     """A profile's forced substitutions, applied longest-key-first; each logged discretely.
 
     Longest-first is not cosmetic: when one key is a prefix of another ("Ligo" / "Ligou")
-    the shorter would otherwise corrupt the longer's replacement.
+    the shorter would otherwise corrupt the longer's replacement. Since Phase 03 a key only
+    matches on token boundaries (deterministic, never inside another word).
     """
-    for bad, good in sorted(special_fixes.items(), key=lambda kv: -len(kv[0])):
-        if bad in text:
+    for bad, good in sorted(special_fixes.items(), key=lambda kv: (-len(kv[0]), kv[0])):
+        pattern = _token_bounded(bad)
+        if pattern.search(text):
             if repl_log is not None:
                 repl_log.record(bad, good, "special_fixes", "forced_substitution", bad)
-            text = text.replace(bad, good)
+            text = pattern.sub(lambda _m, good=good: good, text)
     return text
 
 
@@ -219,13 +253,16 @@ def run_pipeline(
         text = _txt_paragraphs(text)
     text = spacing_cleanup.reconstruct_paragraphs(text)
     if profile.summary_rows:
-        _summary(repl_log, n_quotes, "quote_normalize", "quote", "curly doubles -> straight")
+        _summary(repl_log, n_quotes, "quote_normalize", "quote", "non-standard doubles -> straight")
     log("  ✓ Block A: cleanup + paragraph reconstruction")
 
     # --- BLOCK B — masked corrections --------------------------------------
     text, ch_map = mask_chapter_lines(text)
     text, prot_map = mask_protected_terms(text, lexicon)
     text = for_non_placeholder_segments(text, ocr_repair.repair_ocr)
+    # OCR-L-PRONOUN must precede the legacy single-letter rejoin, which otherwise glues a
+    # space-preceded "l" to the next word ("left. l hope" -> "left. lhope").
+    text = _apply_pronoun_l(text, repl_log)
     text = for_non_placeholder_segments(text, spacing_cleanup.fix_spurious_spaces)
     text = for_non_placeholder_segments(text, unicode_cleanup.collapse_spaces)
     slash_count_before = text.count("/")
@@ -252,6 +289,8 @@ def run_pipeline(
 
     for bad in chapter_titles.validate_headings(text):
         log(f"  ⚠ Non-normalized chapter line: {bad}...")
+    # Phase 03 typography runs last so no earlier stage ever sees a changed glyph.
+    text = typography.apply_typography(text, lexicon, repl_log)
     log("  ✓ Block C: editorial normalization")
 
     return text

@@ -4,10 +4,11 @@ Stage 1: NFC-normalize; strip invisibles (U+200B/C/D, U+FEFF, control/format cha
 keeping newline/CR/tab/form-feed); convert space-like chars (U+00A0, U+2009, U+2002/3,
 U+202F, U+205F, U+3000, the U+2000-200A range, U+1680) to a plain U+0020.
 
-Quote normalization (project decision: dialogue uses STRAIGHT doubles): curly/odd
-DOUBLE quotes are folded to ASCII ``"``. Single quotes / apostrophes (U+2019 ``'``,
-U+2018) are left untouched -- U+2019 is the consistent apostrophe in this corpus and
-must be preserved.
+Quote normalization (revised in Phase 03, Master Plan §8.3): only NON-STANDARD double
+quotes (low/reversed, ornamental, fullwidth, guillemets) are folded to ASCII ``"``. Correct
+curly doubles “ ” are preserved as written; the old fold-everything-to-straight direction is
+superseded. Single quotes / apostrophes (U+2019, U+2018) are left untouched here;
+``rules.typography`` handles unambiguous apostrophes at the end of the pipeline.
 
 Stage 3: remove stray squares (U+25A0/25A1) and replacement glyphs (U+FFFD), and
 collapse runs of spaces to one (without touching paragraph/newline structure).
@@ -26,10 +27,13 @@ _SPACE_LIKE_RE = re.compile(
 # Visible scanner junk: black square, white square, replacement glyph.
 _SCANNER_JUNK_RE = re.compile("[■□�]")
 
-# DOUBLE-quote variants folded to ASCII '"' (single quotes intentionally excluded):
-# curly/low/reversed doubles, ornamental doubles, fullwidth, and guillemets.
+# NON-STANDARD double-quote variants folded to ASCII '"' (single quotes intentionally
+# excluded): low/reversed doubles, ornamental doubles, fullwidth, and guillemets. Since
+# Phase 03 the standard curly pair U+201C/U+201D is preserved as written (it used to be
+# flattened, which degraded already-correct typography); later stages treat “ ” and " alike
+# and `rules.typography` pairs clearly bounded straight quotes at the end of the pipeline.
 _DOUBLE_QUOTE_RE = re.compile(
-    "[“”„‟❝❞〝〞＂«»]"
+    "[„‟❝❞〝〞＂«»]"
 )
 
 # Collapse 2+ spaces/tabs (but never newlines) to a single space.
@@ -49,7 +53,7 @@ def normalize_unicode(text: str) -> str:
 
 
 def normalize_quotes(text: str) -> str:
-    """Fold curly/odd DOUBLE quotes to ASCII '"'; leave single quotes/apostrophes."""
+    """Fold non-standard DOUBLE quotes to ASCII '"'; keep “ ” and single quotes/apostrophes."""
     return _DOUBLE_QUOTE_RE.sub('"', text)
 
 

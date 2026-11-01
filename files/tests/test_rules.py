@@ -29,7 +29,10 @@ def test_normalize_unicode_spaces_and_invisibles():
 
 
 def test_normalize_quotes_doubles_only():
-    assert unicode_cleanup.normalize_quotes("“Hi”") == '"Hi"'
+    # Phase 03 (D5): correct curly doubles are preserved as written, never flattened.
+    assert unicode_cleanup.normalize_quotes("“Hi”") == "“Hi”"
+    # Non-standard double variants are still folded to straight (then paired at the end).
+    assert unicode_cleanup.normalize_quotes("„Hi‟ «x» ＂y＂") == '"Hi" "x" "y"'
     # apostrophes / single quotes are preserved
     assert unicode_cleanup.normalize_quotes("It’s ‘x’") == "It’s ‘x’"
 

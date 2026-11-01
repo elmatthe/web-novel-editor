@@ -16,9 +16,13 @@ candidate; merge/tag/release only on explicit user authorization (DECISIONS 078)
   & Data, session logs, `scripts/bootstrap.py`, `scripts/launcher.py`, thin root launchers.
   Verifier 889/0 skip, 0 network; corpus 810 + 18, zero unexpected.
   Report: `files/checkpoints/WNE-P02B-desktop-bootstrap.md` (manual checks pending listed there).
-- **Next exact action:** Phase 03 — protection hardening (loader validation, bounded matching),
-  conservative curly quotes/apostrophes (D5), narrow OCR l/1->I (D6), page numbers deferred (D7).
-  Version stays v0.13.0 until Phase 04.
+- **Phase 03:** complete (internal Gate 03): protection floor, paired curly quotes + apostrophes,
+  attested OCR l->I; page numbers deferred, `Asa`/digit-1 excluded (DECISIONS 080). Verifier
+  1013/0 skip, 0 network; corpus 828 results, all 738 changes attributed (0 unexplained).
+  Report: `files/checkpoints/WNE-P03-editorial-corrections.md`.
+- **Next exact action:** Phase 04 — version-prep commit (config/BRIEFING/CHANGELOG/README to 0.4.0),
+  then release workload (`files/run-temp/rc/workload.py`, durable), fresh non-AI env check,
+  real Windows launch (`files/run-temp/rc/real_launch.py`), final candidate, one Codex review.
 
 ## Previous Focus — Phase 02A implementation (Codex; findings remediated 2026-11-01)
 

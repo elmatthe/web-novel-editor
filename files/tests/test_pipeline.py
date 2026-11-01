@@ -112,8 +112,9 @@ def test_audit_log_replacement_field_is_a_description_not_rule_name():
     # in `replacement` (and the rule name only in `rule`), so the JSONL audit is trustworthy.
     lex = ProtectedLexicon()
     log = ReplacementLog()
-    # Curly doubles + a numeric ratio + a spaced em-dash -> all bulk-summary transforms.
-    text = 'Chapter 1: Test.\n\n“He scored 6/7 today — Then he left.”'
+    # Non-standard doubles + a numeric ratio + a spaced em-dash -> all bulk-summary transforms.
+    # (Phase 03: standard curly doubles are preserved, so they no longer trigger the fold.)
+    text = 'Chapter 1: Test.\n\n„He scored 6/7 today — Then he left.‟'
     resolve_dispatch("Shadow Slave").run_pipeline(text, lex, repl_log=log)
 
     rows = {e.rule: e for e in log.entries}

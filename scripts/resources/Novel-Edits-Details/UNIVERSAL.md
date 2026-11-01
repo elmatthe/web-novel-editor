@@ -37,8 +37,9 @@ relationship to term-masking.
 ### Block A — Pre-mask cleanup
 - **Unicode normalization** — NFC form; strip invisible/zero-width characters; normalize
   space-like characters to a normal space.
-- **Quote normalization** — curly double quotes (`“ ” „ ‟ « »`) become straight `"`;
-  apostrophes are left as-is.
+- **Quote normalization** — non-standard double quotes (`„ ‟ « »`, ornamental and fullwidth)
+  become straight `"`; correct curly doubles `“ ”` and apostrophes are kept as written
+  (v0.4.0: the old fold-everything-to-straight step is retired).
 - **Ligature cleanup** — `ﬁ`, `ﬂ`, etc. expanded to their plain letters.
 - **Junk strip** — remove ad lines, scraper URLs, and watermark fingerprints (Tier 1 on).
 - **Scanner-junk removal** — drop replacement glyphs / stray boxes.
@@ -54,7 +55,12 @@ relationship to term-masking.
 Protected terms and chapter-heading lines are masked first so letter-mutating passes can
 never alter a real name:
 - **OCR repair** (conservative — only repairs that cannot fire on clean prose).
+- **OCR `l` for the pronoun `I`** (v0.4.0) — only `l'm`/`l'll`/`l've`/`l'd` and a
+  sentence-initial `l` before a short list of verbs actually seen in the corpus
+  (`l know` → `I know`). Digit `1`, mid-sentence `l`, letter names and list labels are untouched.
 - **Spurious-space repair** and **multiple-space collapse**.
+- Novel-specific substitutions match whole tokens only (never inside a longer word) and can
+  never shorten a name (for example `Clan Valor` can never become `Valor`).
 - **Slash replacement** — numeric ratios only (`6/7` → `6 out of 7`); every other slash
   (`and/or`, `his/her`, …) is preserved verbatim.
 - **First spaced em/en-dash pass**.
@@ -69,6 +75,13 @@ never alter a real name:
 - **Duplicate chapter-title removal**, blank-line tidy, and chapter page-break (`\f`)
   insertion for the PDF builder.
 - **Heading validation** (log-only).
+- **Typography** (v0.4.0, last step) — straight double quotes become `“…”` only when a whole
+  paragraph's quotes pair up unambiguously; anything uncertain (speech running across
+  paragraphs, inch marks, quotes touching a protected name) is left exactly as written.
+  `don't`, `it's`, `dog's` and similar endings get `’`; leading elisions (`'em`), plural
+  possessives (`dogs'`), feet marks and single quotation marks are left alone. Protected names
+  — including Clan Valor, Valor Clan and Valor in every novel — and their possessives are never
+  changed.
 
 ---
 

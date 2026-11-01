@@ -9,6 +9,30 @@ its original decision date. New decisions continue to be appended here (newest o
 
 ---
 
+## 080 — Phase 03 editorial scope: protection floor, paired curly quotes, attested OCR l — 2026-11-01 — Claude Code
+
+**Status:** Implemented (internal Gate 03).
+**Approval basis:** the verbatim Gate 00 answers for D5–D7 are not in the repository. Phase 01 was
+conditional on approval of D1–D10 and proceeded, and the 2026-11-01 directive lists conservative
+curly quotes/apostrophes and bounded OCR as Phase 03 work; D5/D6 are implemented exactly as the
+P00 report proposed and nothing broader. D7 (page numbers) stays deferred; `Asa result` excluded.
+**Decisions:**
+1. Correction data may never merely delete words, duplicate an NFC-equivalent key, or overlap a
+   protected term; violations stop a run before any folder exists. Profile corrections match on
+   token boundaries only.
+2. Correct curly doubles are no longer flattened. Straight doubles are paired to “…” only within one
+   reliably bounded line; uncertain lines keep their original glyphs and are counted in the audit.
+   Apostrophes become ’ only in word-final contraction/possessive endings after a letter.
+3. Typography runs as the last stage so no earlier decision depends on glyph shape; the three
+   classes that inspected `"` now include “ ” so earlier stages are glyph-independent.
+4. A mandatory rulings floor (Clan Valor, Valor Clan, Valor, Grey Wolf Tribe, Ember Queen, God of
+   Peace, Demon of Desire, War God, Goddess of Life) is masked for typography in every profile,
+   so possessives and punctuation touching those names stay exactly as written even in Universal.
+5. OCR `l` -> `I` is limited to the attested Supreme Magus contexts (contractions; clause-initial `l`
+   before 37 attested words) and runs before the legacy single-letter rejoin. Digit `1` is excluded.
+6. The legacy single-letter rejoin's mid-clause gluing (`the letter l was` -> `lwas`) is recorded,
+   not changed, because no approved delta covers it.
+
 ## 079 — Phase 02B desktop, logging, preferences and bootstrap boundaries — 2026-11-01 — Claude Code
 
 **Status:** Implemented (internal Gate 02).

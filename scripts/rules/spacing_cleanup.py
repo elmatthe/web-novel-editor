@@ -22,7 +22,7 @@ from core.protected_lexicon import CHAPTER_LINE_START_RE
 
 # A line "ends a sentence" if it ends in terminal punctuation, allowing trailing
 # closing quotes/brackets after it (e.g. `bitter!"` or `end.)`).
-_ENDS_SENTENCE_RE = re.compile(r"""[.!?…:]["'’”)\]]*$""")
+_ENDS_SENTENCE_RE = re.compile(r"""[.!?…:]["“'’”)\]]*$""")  # “ added in Phase 03 (glyph-neutral)
 
 # Standalone page-number line (just digits, optionally spaced).
 _PAGE_NUMBER_LINE_RE = re.compile(r"^\s*\d{1,4}\s*$")

@@ -24,6 +24,8 @@ from core.run_manifest import (RunCheckpoint, ManifestError, CheckpointError,
 from core.run_lock import LockConflict
 from pdf.builder import build_pdf, detect_heading_only_pages
 from pdf.extractor import extract_text_from_pdf, is_low_confidence
+from pipelines.universal import UNIVERSAL_LITERAL_FIXES
+from profiles.loader import validate_against_protection
 
 
 def _noop(*_args, **_kwargs) -> None:
@@ -67,6 +69,7 @@ def run_batch(pdf_paths, output_dir, *, output_formats=("pdf",), resume=False,
     dispatch = resolve_dispatch(novel)
     index = str(NOVEL_INDEX_DIR / dispatch.index_filename) if dispatch.index_filename else ""
     lexicon = load_protected_lexicon(index, dispatch.canonical_names)
+    _validate_protection(dispatch, lexicon)  # before any run folder, manifest or output exists
     digest = effective_rules_digest(novel, dispatch, lexicon)
     try:
         if resume:
@@ -100,6 +103,14 @@ def _log_detail(log, name, repl_log, extract_s, edit_s, publish_s) -> None:
     if publish_s is not None:
         timing += f", render/publish {publish_s:.2f}s"
     log(f"        {name}: {timing}; edits by category: {categories}", "muted")
+
+
+def _validate_protection(dispatch, lexicon) -> None:
+    """Phase 03 safety floor: refuse correction data that a protected term would mask or
+    contradict, before any file is touched (raises ``CorrectionsError``, a ``ValueError``)."""
+    profile = getattr(dispatch.run_pipeline, "profile", None)
+    validate_against_protection({**UNIVERSAL_LITERAL_FIXES, **dict(getattr(profile, "special_fixes", {}))},
+                                lexicon.terms, source=dispatch.display_name)
 
 
 def serialize_txt(text: str) -> str:
@@ -167,6 +178,7 @@ def _run_batch(
         str(NOVEL_INDEX_DIR / dispatch.index_filename) if dispatch.index_filename else ""
     )
     lexicon = _lexicon or load_protected_lexicon(index_path, dispatch.canonical_names)
+    _validate_protection(dispatch, lexicon)
     term_count = len(lexicon.terms)
     log(f"Loaded {term_count} protected term(s) for "
         f"{dispatch.display_name}.", "muted")

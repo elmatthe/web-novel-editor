@@ -295,9 +295,11 @@ _TEMPLATE_EXCLUSIVE = frozenset(
 
 # Sentence-boundary characters for the leftward scan. The apostrophes are
 # boundaries only when NOT letter-flanked (contractions stay whole words).
-_BOUNDARY_CHARS = '.!?"…'
+# Phase 03: curly doubles are no longer folded to '"' before this stage, so they are
+# listed beside it; every decision is identical whichever double-quote glyph is present.
+_BOUNDARY_CHARS = '.!?"“”…'
 _APOSTROPHES = "'’"
-_TRAILING_PUNCT = ".!?\"…,;:'’"
+_TRAILING_PUNCT = ".!?\"“”…,;:'’"
 
 _MAX_TEMPLATE_TOKENS = 12
 
