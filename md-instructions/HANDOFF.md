@@ -1,23 +1,29 @@
 # Web Novel Editor — Handoff
 
-## Current Focus — v0.4.0 candidate fixed after a BLOCKED independent review
+## Current Focus — v0.4.0 attribution evidence remediated; awaiting independent re-review
 
 **Snapshot (2026-11-01, Claude Code Opus 5.5 / xHigh, HOME-PC).** Branch
-`feature/0.4.0-script-only-editor`. Directive: internal gates, ONE planned read-only Codex review,
-merge/tag/release only on explicit user authorization (DECISIONS 078).
+`feature/0.4.0-script-only-editor`, remediation commit on top of `0989804` (SHA in the CLI
+report). Merge/tag/release only on explicit user authorization (DECISIONS 078).
 
-- **Review:** Codex (`gpt-6.1-sol`, high, read-only, ephemeral) reviewed `8d93186` → **BLOCKED**
-  (4 P1, 3 P2), preserved in `files/checkpoints/WNE-P04-codex-review-8d93186.md`.
-- **Fixed:** all seven in `4b4d605` (DECISIONS 082); verifier 1045/0 skip, 0 network; frozen corpus
-  and full real workload (3,095 + 889 chapters) re-run on `4b4d605` with contract attribution:
-  0 unexplained; 101.4 chapters/min (−9% vs Phase 00); memory flat. Report:
-  `files/checkpoints/WNE-P04-release-readiness.md`.
-- **Pending user decisions:** (1) whether a second independent review of the fixed candidate is
-  required (recommended — the first verdict does not cover it); (2) merge into `main`, annotated
-  `v0.4.0` tag and GitHub release (Latest). Manual checks are listed in the P04 report, including
-  a real launch/edit with the network disabled at OS level. A pre-existing GitHub **draft** release
-  "Web Novel Editor v1.0.0" exists and is untouched.
-- **Next exact action:** wait for the user's direction. Do not merge, tag or publish.
+- **Reviews:** `8d93186` BLOCKED (7 findings; fixed in `4b4d605`). `0989804` re-reviewed: BLOCKED
+  on one P1 — the editorial attribution checker accepted OCR beside protected `Hope` and
+  reoriented/mixed source quotes (`files/checkpoints/WNE-P04-codex-review-0989804.md`). No
+  production defect was reproduced; the earlier "all seven fixed" claim is corrected.
+- **Remediated (DECISIONS 083, no production change):** tracked contract
+  `files/qa-tools/editorial_contract.py`, runner `files/qa-tools/attribute_evidence.py`, 62
+  failing-first tests `files/tests/test_editorial_contract.py`. Both Codex exploits now fail;
+  frozen 828 (738 changed), Shadow Slave 3,095 (2,631 changed) and Noble Queen 889 re-attributed
+  with **0 unexplained**, all saved texts reproduced by current code, all hashes re-confirmed.
+  Report and corrected provenance: `files/checkpoints/WNE-P04-release-readiness.md`.
+- **Verification:** strict verifier 1,107 passed (1,045 + 62 new), 0 skipped, 0 network attempts;
+  `git diff --check` clean. Re-run: `files/qa-tools/attribute_evidence.py all` (needs the ignored
+  local evidence).
+- **Pending manual tests (user):** Windows themes/dialogs/keyboard; a real launch AND editing run
+  with networking disabled at the OS level (Python socket guards are not equivalent); PDF/TXT/TTS
+  skim; macOS and Python-free-machine paths untested. GitHub **draft** release "v1.0.0" untouched.
+- **Next exact action:** user decides whether to run the independent re-review of the remediation
+  commit. Do not merge, tag or publish.
 
 ## Previous Focus — Phase 02A implementation (Codex; findings remediated 2026-11-01)
 

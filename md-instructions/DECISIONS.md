@@ -9,6 +9,44 @@ its original decision date. New decisions continue to be appended here (newest o
 
 ---
 
+## 083 — Re-review of 0989804 BLOCKED on attribution evidence; contract rebuilt on production conditions — 2026-11-01 — Claude Code
+
+**Status:** Remediated on the feature branch; awaiting independent re-review. No production code
+changed. Review preserved in `files/checkpoints/WNE-P04-codex-review-0989804.md`.
+**Context:** The re-review resolved six of the seven original findings (POSIX log retention
+implemented but not independently executed) and kept the P1 attribution finding open: the ignored
+harness `files/run-temp/rc/contract.py` (SHA-256 `8f9509a4…6fa6011`, kept unchanged) accepted
+(A) OCR `l`→`I` before Shadow Slave's protected `Hope` and (B) reoriented or mixed source quotes,
+because it accepted a plausible replacement before consulting the production masking boundary or
+the source glyphs. Decision 082 item 4 therefore overstated the evidence. Failing-first tests
+found three more gaps of the same kind (exact-case attested words, masked chapter lines, protected
+plural variants such as `Sunnys`) and that source-preserved glyphs were counted as new pairings.
+**Decisions:**
+1. The contract, its evidence runner and its regressions are tracked:
+   `files/qa-tools/editorial_contract.py`, `files/qa-tools/attribute_evidence.py`,
+   `files/tests/test_editorial_contract.py` (synthetic text only; part of the verifier). Chapter
+   text, outputs and reports stay in ignored paths.
+2. Protection is the union of the production masking boundary (`mask_protected_terms` on the
+   profile lexicon plus the rulings floor) and an independent scan of every term with its
+   `'s`/`’s`/`s` variants, so the contract is never more permissive than production.
+3. OCR re-states stage 9b: exact case, chapter lines excluded, and every character the production
+   regex consults (clause context, the `l`, the attested word) must be unprotected.
+4. Quotes are judged from source provenance first: a line with any source `“`/`”` must equal the
+   source glyph for glyph; otherwise the only acceptable output is the re-stated TYPO-DQ-PAIR
+   result (all converted, correctly oriented, or none). Missing conversions, and straight
+   apostrophes TYPO-APOS would convert, are also unexplained.
+5. Provenance alignment: exact folded-line match (repeated lines resolved by order), else
+   12-gram-anchored character alignment. A quote outside every matching block is resolved only when
+   exactly one double quote lies in the corresponding gap on both sides, bounded by the source line
+   break at a paragraph edge. This rule was added after the first full frozen run left one line
+   (× 9 profiles) unresolved, a dialogue line opening `"..`, where the legacy punctuation rule collapsed
+   `..`; it is covered by positive and ambiguous-gap negative tests.
+6. The Noble Queen workload has no Phase 00 baseline; its baseline is the current pipeline with
+   exactly the three Phase 03 rules disabled (`phase03_rules_disabled`).
+**Limitations:** OCR context is judged on the final text; an attested `l` production left
+unrepaired is not flagged; quote provenance depends on the extracted source text, whose fitness is
+shown indirectly by byte-exact reproduction of every saved output text.
+
 ## 082 — Independent review of 8d93186 was BLOCKED; findings fixed, verdict not transferred — 2026-11-01 — Claude Code
 
 **Status:** Fixes implemented; the review (`files/checkpoints/WNE-P04-codex-review-8d93186.md`,

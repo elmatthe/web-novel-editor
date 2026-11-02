@@ -45,6 +45,9 @@ only (no cloud-sync/distributed locking).
 
 **Verification.** `.venv\Scripts\python.exe scripts\verify.py` (pytest, pins, CHANGELOG/BRIEFING,
 config, launcher version). Corpus/workload harnesses are ignored under `files/run-temp/rc/`.
+Editorial-delta attribution (does every output change match an approved rule?) is tracked:
+`files/qa-tools/editorial_contract.py` + `attribute_evidence.py` (runs over the ignored local
+evidence; DECISIONS 083), regressions in `files/tests/test_editorial_contract.py`.
 
 ---
 
