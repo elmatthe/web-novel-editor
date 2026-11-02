@@ -9,6 +9,31 @@ its original decision date. New decisions continue to be appended here (newest o
 
 ---
 
+## 082 — Independent review of 8d93186 was BLOCKED; findings fixed, verdict not transferred — 2026-11-01 — Claude Code
+
+**Status:** Fixes implemented; the review (`files/checkpoints/WNE-P04-codex-review-8d93186.md`,
+Codex `gpt-6.1-sol`, high, read-only, ephemeral) applies only to `8d93186` and does not certify the
+fixed candidate. Whether a second independent review is required is the user's decision.
+**Fixes:**
+1. P1 PDF validation: page 1 must yield text AND every later page's content streams must decode
+   and interpret (pdfminer, no layout objects; ~43 ms vs ~89 ms for full extraction). A two-page
+   PDF with a corrupt second-page stream is now rejected.
+2. P1 protected neighbours: no quote or apostrophe is changed in a whitespace-delimited token that
+   contains a protected name, so punctuation reached through possessives or other punctuation
+   (`"the Clan Valor's".`, `"Valor,"`) stays as written in every profile.
+3. P1 stale alias snapshot: the alias check scans the directory freshly before every publication
+   attempt (kept fast by `os.scandir` and cached name keys).
+4. P1 evidence: attribution now checks an explicit contract (`files/run-temp/rc/contract.py`):
+   converted lines must be correctly oriented, alternating, digit-free and outside protected tokens;
+   other curly glyphs must match the extracted source; apostrophes and OCR `l` must sit in their
+   authorized contexts. Frozen corpus: 0 unexplained (22,926 paired, 966 source-preserved, 4,505
+   apostrophes); the workload is re-attributed the same way.
+5. P2 malformed `output_formats` (e.g. `[{}]`) now falls back to defaults instead of raising.
+6. P2 POSIX: each session holds an advisory lock on its own log; retention skips locked logs.
+7. P2 the `.bat` applies the WindowsApps exclusion to the `py` launcher's own location.
+**Not changed:** OS-level network-disabled launch evidence remains a manual check (the automated
+guard is Python-level), as the review noted.
+
 ## 081 — Release-gate throughput regression: measured causes and behaviour-preserving fixes — 2026-11-01 — Claude Code
 
 **Status:** Implemented (Phase 04).

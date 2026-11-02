@@ -182,3 +182,17 @@ def test_bridged_diagnostics_are_bounded():
     event = bridge_event("x" * 5000, "warn")
     assert len(event.message) == MAX_MESSAGE_CHARS and event.message.endswith("…")
     assert bridge_event("short", "warn").message == "short"
+
+
+def test_retention_never_removes_another_instances_active_log(tmp_path):
+    other = SessionLog(tmp_path, keep=20, clock=lambda: datetime(2026, 1, 1, 0, 0, 0))
+    assert other.open()  # an older, still-running instance
+    for day in range(1, 26):
+        (tmp_path / f"session-202610{day:02d}-000000.log").write_text("closed")
+    mine = SessionLog(tmp_path, keep=20, clock=lambda: datetime(2026, 11, 1, 0, 0, 0))
+    assert mine.open()
+    assert other.path.exists(), "an active session log was pruned"
+    other.write(ActivityEvent("app", "still writing"))
+    other.close()
+    mine.close()
+    assert "still writing" in other.path.read_text(encoding="utf-8")

@@ -382,3 +382,61 @@ def test_updates_share_untouched_entries_but_never_mutate_earlier_state(tmp_path
         assert read_manifest(cp.path)["entries"][0]["status"] == "skipped"
     finally:
         cp.close()
+
+
+# --- Codex review 8d93186 regressions ----------------------------------------------------
+
+def _two_page_pdf_with_corrupt_second_page(path):
+    import re as _re
+    from reportlab.pdfgen import canvas
+    c = canvas.Canvas(str(path), pageCompression=1)
+    c.drawString(72, 720, "Chapter 1: Page one text")
+    c.showPage()
+    c.drawString(72, 720, "Page two text")
+    c.showPage()
+    c.save()
+    data = path.read_bytes()
+    start = [m.end() for m in _re.finditer(rb"(?<!end)stream\r?\n", data)][-1]
+    end = data.index(b"endstream", start)
+    path.write_bytes(data[:start] + bytes(b ^ 0x5A for b in data[start:end]) + data[end:])
+
+
+def test_prepare_rejects_a_pdf_whose_later_page_stream_is_unreadable(tmp_path):
+    src = tmp_path / "chapter.txt"
+    src.write_text("Clan Valor remained.", encoding="utf-8")
+    cp = RunCheckpoint(tmp_path / "out", [str(src)], novel="Universal")
+    cp.start(formats=("pdf",), rules_digest="rules")
+    try:
+        cp.stage(src, "pdf", _two_page_pdf_with_corrupt_second_page)
+        with pytest.raises(Exception):
+            cp.prepare(src)
+        assert cp.entry(src)["status"] == "pending"
+        assert not (Path(cp.output_dir) / "chapter.pdf").exists()
+    finally:
+        cp.close()
+
+
+def test_an_alias_created_between_outputs_is_caught_before_the_next_publication(tmp_path):
+    src = tmp_path / "Caf\u00e9.txt"
+    src.write_text("Clan Valor remained.", encoding="utf-8")
+    cp = RunCheckpoint(tmp_path / "out", [str(src)], novel="Universal")
+    cp.start(formats=("pdf", "txt"), rules_digest="rules")
+    out = Path(cp.output_dir)
+    alias = out / "Cafe\u0301.txt"
+
+    def external_alias(point):
+        if point == "after_publish:pdf":
+            alias.write_bytes(b"external file")
+    try:
+        from pdf.builder import build_pdf
+        cp.stage(src, "pdf", lambda path: build_pdf("Chapter 1: Test\n\nClan Valor remained.", str(path)))
+        cp.stage(src, "txt", lambda path: path.write_text("Clan Valor remained.\n", encoding="utf-8"))
+        cp.prepare(src)
+        cp._fault_hook = external_alias
+        with pytest.raises(FileExistsError):
+            cp.publish(src)
+        assert cp.entry(src)["status"] == "prepared"
+        assert alias.read_bytes() == b"external file"
+        assert not (out / "Caf\u00e9.txt").exists()
+    finally:
+        cp.close()

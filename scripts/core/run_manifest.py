@@ -351,14 +351,24 @@ class RunCheckpoint:
                 raise ManifestError("Required output/companion has not been built in this attempt")
             target = self._path(relative)
             if kind == "pdf":
-                # Readability: the document, cross-reference table and full page tree must
-                # parse, and page 1 (which always carries the chapter heading/text) must yield
-                # text. Full-text layout of every page was ~40% of per-file time (v0.4.0).
+                # Readability: the document, cross-reference table and page tree must parse,
+                # page 1 (which always carries the chapter heading/text) must yield text, and
+                # every later page's content streams must decode and interpret (pdfminer, no
+                # layout/char objects — about half the cost of full text extraction).
                 import pdfplumber
+                from pdfminer.pdfdevice import PDFDevice
+                from pdfminer.pdfinterp import PDFPageInterpreter, PDFResourceManager
                 with pdfplumber.open(target) as document:
                     pages = document.pages
                     if not pages or not (pages[0].extract_text() or "").strip():
                         raise ManifestError("PDF validation failed")
+                    resources = PDFResourceManager()
+                    interpreter = PDFPageInterpreter(resources, PDFDevice(resources))
+                    try:
+                        for page in pages[1:]:
+                            interpreter.process_page(page.page_obj)
+                    except Exception as exc:  # noqa: BLE001 - any parse failure means unreadable
+                        raise ManifestError("PDF validation failed: a page cannot be read") from exc
             else:
                 text = target.read_text(encoding="utf-8")
                 if not text.strip() or "\x00" in text:
@@ -398,7 +408,6 @@ class RunCheckpoint:
             raise ManifestError("Publication requires a durable prepared record")
         self.verify_source(source)
         self.verify_prepared(entry)
-        aliases = {}  # one directory snapshot per item's publication
         for kind, relative in entry["outputs"].items():
             self._fault_hook("before_publish:" + kind)
             def validate():
@@ -407,7 +416,8 @@ class RunCheckpoint:
                 # prepared hash. The whole item (source + every output) is re-verified once
                 # after publication and before completion.
                 final, stage = self._path(relative), self._path(entry["staged"][kind])
-                check_existing_aliases(Path(self.output_dir), relative, aliases)
+                # Fresh directory scan per attempt: an alias may appear at any moment.
+                check_existing_aliases(Path(self.output_dir), relative)
                 current = final if final.exists() else stage
                 try:
                     valid = _same_bytes(fingerprint(current), entry["expected"][kind])

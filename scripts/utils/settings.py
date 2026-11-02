@@ -98,8 +98,9 @@ def _valid(key: str, value: Any) -> bool:
     if key == "novel":
         return isinstance(value, str) and 0 < len(value) <= 200
     if key == "output_formats":
-        return (isinstance(value, list) and 0 < len(value) <= 2 and len(set(value)) == len(value)
-                and all(v in ("pdf", "txt") for v in value))
+        return (isinstance(value, list) and 0 < len(value) <= 2
+                and all(isinstance(v, str) and v in ("pdf", "txt") for v in value)
+                and len(set(value)) == len(value))
     if key == "include_subfolders":
         return type(value) is bool
     if key == "output_root":

@@ -170,3 +170,12 @@ def test_reset_refuses_a_directory_in_place_of_the_settings_file(tmp_path):
     with pytest.raises(OSError):
         reset_preferences(weird)
     assert (weird / "inside.txt").read_text() == "keep"
+
+
+@pytest.mark.parametrize("formats", [[{}], [["pdf"]], [None], "pdf", [1]])
+def test_malformed_saved_formats_fall_back_without_crashing(tmp_path, formats):
+    from utils.settings import DEFAULT_PREFERENCES, load_preferences
+    path = tmp_path / "settings.json"
+    path.write_text(json.dumps({"output_formats": formats}), encoding="utf-8")
+    prefs, notes = load_preferences(path)
+    assert prefs["output_formats"] == DEFAULT_PREFERENCES["output_formats"] and notes

@@ -147,6 +147,21 @@ def test_bat_healthy_fast_path_runs_only_the_offline_check(tmp_path):
 
 
 @windows_only
+def test_bat_never_executes_a_py_launcher_that_lives_in_windowsapps(tmp_path):
+    """Codex review 8d93186: the `py` probe must apply the same Store-location exclusion."""
+    root = _bat_sandbox(tmp_path, venv=True, codes={"--launch-only": 3, "setup": 0})
+    apps, marker = _fake_store_alias(tmp_path)
+    py_marker = tmp_path / "py-alias-was-executed.txt"
+    (apps / "py.bat").write_text(f'@echo off\r\necho executed> "{py_marker}"\r\nexit /b 0\r\n', encoding="utf-8")
+    base = Path(_base_python())
+    done, calls = _run_bat(root, path_dirs=[apps, base.parent], tmp_path=tmp_path)
+    assert done.returncode == 0, done.stdout + done.stderr
+    assert not py_marker.exists(), "a py launcher inside WindowsApps was executed"
+    assert not marker.exists()
+    assert Path(calls[-1]["exe"]).resolve() == base.resolve()
+
+
+@windows_only
 def test_bat_launch_failure_is_reported_without_setup(tmp_path):
     root = _bat_sandbox(tmp_path, venv=True, codes={"--launch-only": 4})
     done, calls = _run_bat(root, path_dirs=[], tmp_path=tmp_path)

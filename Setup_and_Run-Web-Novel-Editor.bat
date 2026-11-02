@@ -124,14 +124,19 @@ exit /b %RC%
 :: find_python - BASE_PY = first Python 3.10+ that is not a Store alias.
 :find_python
 set "BASE_PY="
-where py >nul 2>&1
-if errorlevel 1 goto find_python_dirs
-for /f "delims=" %%E in ('py -3 -c "import sys; print(sys.executable)" 2^>nul') do if not defined BASE_PY call :try_python "%%E"
-:find_python_dirs
+for /f "delims=" %%L in ('where py 2^>nul') do if not defined BASE_PY call :try_py_launcher "%%L"
 if defined BASE_PY goto :eof
 if defined LOCALAPPDATA for /d %%D in ("%LOCALAPPDATA%\Programs\Python\Python3*") do if not defined BASE_PY call :try_python "%%D\python.exe"
 if defined ProgramFiles for /d %%D in ("%ProgramFiles%\Python3*") do if not defined BASE_PY call :try_python "%%D\python.exe"
 for /f "delims=" %%P in ('where python 2^>nul') do if not defined BASE_PY call :try_python "%%P"
+goto :eof
+
+:: try_py_launcher "path" - ask a py launcher (never one inside WindowsApps) for its Python 3.
+:try_py_launcher
+set "PY_LAUNCHER=%~1"
+echo "%PY_LAUNCHER%" | find /i "\WindowsApps\" >nul
+if not errorlevel 1 goto :eof
+for /f "delims=" %%E in ('call "%PY_LAUNCHER%" -3 -c "import sys; print(sys.executable)" 2^>nul') do if not defined BASE_PY call :try_python "%%E"
 goto :eof
 
 :: try_python "path" - accept only an existing, non-Store interpreter that runs and is 3.10+.

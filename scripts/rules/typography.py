@@ -7,8 +7,8 @@ Two narrowly bounded rules, applied once at the very end of the pipeline so no e
     Within ONE paragraph (one line), straight double quotes become “…” only when the whole
     line is reliably bounded: an even number of straight quotes, no curly double already on
     the line, every quote in an unambiguous opening or closing position, strictly alternating
-    open/close, no empty pair, no quote after a digit (inch marks), and no quote touching a
-    protected name. Otherwise every quote on that line is left exactly as written (uncertain).
+    open/close, no empty pair, no quote after a digit (inch marks), and no quote in the same
+    whitespace-delimited token as a protected name (so through possessives and punctuation). Otherwise every quote on that line is left exactly as written (uncertain).
     There is no cross-line or global alternating counter. Existing curly quotes are never changed.
 
 ``TYPO-APOS`` (``typography.apostrophe_contraction``)
@@ -17,8 +17,9 @@ Two narrowly bounded rules, applied once at the very end of the pipeline so no e
     elisions ('em), plural possessives (dogs'), feet marks (5'), other in-name apostrophes
     (Xi'an, O'Brien's first apostrophe) and single quotation marks stay as written.
 
-Protected names (the profile's lexicon plus the mandatory rulings floor) are masked first, so
-their spelling, their possessives and the punctuation touching them are never changed.
+Protected names (the profile's lexicon plus the mandatory rulings floor) are masked first, and
+no quote or apostrophe in a token containing one is changed, so their spelling, possessives and
+the punctuation around them are never changed.
 """
 
 from __future__ import annotations
@@ -48,6 +49,7 @@ STRAIGHT, OPEN, CLOSE = '"', "“", "”"
 _OPEN_BEFORE = frozenset(" \t\f([{—–-/")
 _CLOSE_AFTER = frozenset(" \t.,;:!?)]}—–-…'’")
 _PLACEHOLDER_EDGE = re.compile(r"__WE_(?:P|CH)_\d{5}__")
+_TOKEN_RE = re.compile(r"\S+")
 _APOSTROPHE_RE = re.compile(r"(?<=[^\W\d_])'(?=(?:[sStTdDmM]|re|RE|ve|VE|ll|LL)(?![^\W_]))")
 
 
@@ -66,11 +68,17 @@ def _role(line: str, i: int) -> str | None:
     return "open" if opening else "close"
 
 
-def _touches_placeholder(line: str, i: int) -> bool:
-    for match in _PLACEHOLDER_EDGE.finditer(line):
-        if match.end() == i or match.start() == i + 1:
-            return True
-    return False
+def _in_protected_token(line: str, i: int) -> bool:
+    """True when position ``i`` shares a whitespace-delimited token with a protected name, so
+    punctuation reached through a possessive or other punctuation (``"Clan Valor's".``,
+    ``"Valor,"``) counts as touching the name (Codex review 8d93186)."""
+    start = i
+    while start > 0 and not line[start - 1].isspace():
+        start -= 1
+    end = i + 1
+    while end < len(line) and not line[end].isspace():
+        end += 1
+    return _PLACEHOLDER_EDGE.search(line, start, end) is not None
 
 
 def pair_line(line: str) -> tuple[str, int, bool]:
@@ -83,7 +91,7 @@ def pair_line(line: str) -> tuple[str, int, bool]:
     chars = list(line)
     for n, i in enumerate(positions):
         expected = "open" if n % 2 == 0 else "close"
-        if _role(line, i) != expected or _touches_placeholder(line, i):
+        if _role(line, i) != expected or _in_protected_token(line, i):
             return line, 0, True
         if expected == "close" and positions[n - 1] == i - 1:
             return line, 0, True  # empty pair
@@ -104,8 +112,22 @@ def curl_double_quotes(text: str) -> tuple[str, int, int]:
 
 
 def curl_apostrophes(text: str) -> tuple[str, int]:
-    """Apply TYPO-APOS. Returns (text, apostrophes converted)."""
-    return _APOSTROPHE_RE.subn("’", text)
+    """Apply TYPO-APOS. Returns (text, apostrophes converted).
+
+    A token (whitespace-delimited) that contains a protected name is left exactly as written.
+    """
+    total = 0
+
+    def token(match: "re.Match[str]") -> str:
+        nonlocal total
+        word = match.group(0)
+        if _PLACEHOLDER_EDGE.search(word):
+            return word
+        word, count = _APOSTROPHE_RE.subn("’", word)
+        total += count
+        return word
+
+    return _TOKEN_RE.sub(token, text), total
 
 
 def protection_lexicon(lexicon: ProtectedLexicon | None) -> ProtectedLexicon:

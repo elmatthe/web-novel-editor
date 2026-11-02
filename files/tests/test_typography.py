@@ -170,3 +170,29 @@ def test_pdf_and_txt_outputs_carry_the_curly_glyphs(tmp_path):
     with pdfplumber.open(tmp_path / "out" / "Chapter 3.pdf") as pdf:
         extracted = "\n".join(page.extract_text() or "" for page in pdf.pages)
     assert O in extracted and C in extracted and A in extracted and "Don" in extracted
+
+
+# --- Codex review 8d93186: punctuation touching protected names, through suffixes ----------
+
+@pytest.mark.parametrize("line", [
+    'He said "the Clan Valor\'s".',
+    '"Valor," he said.',
+    '"Clan Valor!" she cried, "go."',
+    '"(Valor)" was carved.',
+    'They chanted "Valor Clan\'s pride" loudly.',
+])
+def test_quotes_in_a_token_with_a_protected_name_are_left_as_written(line):
+    assert apply_typography(line, None) == line
+
+
+def test_apostrophes_in_a_token_with_a_protected_name_are_left_as_written():
+    out = apply_typography("A Clan Valor-man's oath and the cat's tail.", None)
+    assert out == "A Clan Valor-man's oath and the cat\u2019s tail."
+
+
+@pytest.mark.parametrize("novel", ["Universal", "Shadow Slave", "Supreme Magus", "The Noble Queen",
+                                   "Renegade Immortal", "Reverend Insanity", "Re Monster",
+                                   "Lord of the Mysteries", "Circle of Inevitability"])
+def test_protected_possessive_with_quotes_is_verbatim_in_every_profile(novel):
+    out = _run('Chapter 9: Names.\n\nHe said "the Clan Valor\'s". "Valor," she said.', novel)
+    assert 'He said "the Clan Valor\'s". "Valor," she said.' in out

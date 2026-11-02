@@ -235,12 +235,40 @@ def prune_session_logs(directory: str | Path, *, keep: int = DEFAULT_LOG_RETENTI
         return []
     removed = []
     for old in logs[max(0, keep):]:
+        if _held_by_live_session(old):
+            continue  # another running instance is still writing it
         try:
-            old.unlink()
+            old.unlink()  # on Windows an open log cannot be deleted; that error is ignored
             removed.append(old)
         except OSError:
             pass
     return removed
+
+
+def _hold_session_lock(handle) -> None:
+    """POSIX: keep an advisory lock on this session's own log for its lifetime."""
+    if os.name != "nt":
+        import fcntl
+        try:
+            fcntl.flock(handle.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except OSError:
+            pass
+
+
+def _held_by_live_session(path: Path) -> bool:
+    if os.name == "nt":
+        return False  # the open-file deletion refusal protects active logs on Windows
+    import fcntl
+    try:
+        with path.open("a") as probe:
+            try:
+                fcntl.flock(probe.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+            except OSError:
+                return True
+            fcntl.flock(probe.fileno(), fcntl.LOCK_UN)
+    except OSError:
+        return True
+    return False
 
 
 class SessionLog:
@@ -279,6 +307,7 @@ class SessionLog:
                     counter += 1
                     path = self.directory / f"session-{stamp}-{counter}.log"
                 self._handle = path.open("x", encoding="utf-8", newline="\n", buffering=1)
+                _hold_session_lock(self._handle)
                 self.path = path
                 self._handle.write(f"{self._clock():%Y-%m-%d %H:%M:%S} [info] Web Novel Editor session started\n")
             except OSError as exc:
