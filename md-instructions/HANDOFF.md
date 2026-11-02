@@ -1,25 +1,23 @@
 # Web Novel Editor — Handoff
 
-## Current Focus — v0.4.0 release candidate ready for the single independent review
+## Current Focus — v0.4.0 candidate fixed after a BLOCKED independent review
 
 **Snapshot (2026-11-01, Claude Code Opus 5.5 / xHigh, HOME-PC).** Branch
-`feature/0.4.0-script-only-editor`. Directive: internal gates 02A/02/03, ONE final read-only Codex
-review of the whole candidate, merge/tag/release only on explicit user authorization (DECISIONS 078).
+`feature/0.4.0-script-only-editor`. Directive: internal gates, ONE planned read-only Codex review,
+merge/tag/release only on explicit user authorization (DECISIONS 078).
 
-- **Pushed:** `08f1010` Gate 02A fixes · `d248e71` Phase 02B · `5bda685` Phase 03 · `b762a6c`
-  v0.4.0 version prep · `058610c` + `772b4dd` performance fixes (DECISIONS 081) · final candidate
-  commit with `files/checkpoints/WNE-P04-release-readiness.md` (SHA in the CLI report).
-- **Verified:** verifier 1021/0 skip, 0 network; frozen corpus 738/828 changed, 0 unexplained,
-  byte-identical across perf fixes; release workload 3,095 + 889 real chapters (stop, pause, hard kill,
-  stale recovery, retry; 0 false completions; 0 unexplained editorial deltas; 92.1/min, −17% vs
-  Phase 00, within threshold); fresh sandbox setup/repair/rebuild; real Windows `.bat` launch.
-- **Pending:** the single read-only Codex review of the exact candidate SHA (prompt:
-  `files/run-temp/rc/codex-review-prompt.md`, ignored), then the user's explicit authorization for
-  merge into `main`, the annotated `v0.4.0` tag and the GitHub release (mark Latest). Manual checks
-  listed in the P04 report. A pre-existing GitHub **draft** release "Web Novel Editor v1.0.0" exists;
-  it is not touched.
-- **Next exact action:** run the Codex review; if PASS, present the consolidated approval request;
-  if BLOCKED, preserve the review, fix only justified findings, re-verify, and return for direction.
+- **Review:** Codex (`gpt-6.1-sol`, high, read-only, ephemeral) reviewed `8d93186` → **BLOCKED**
+  (4 P1, 3 P2), preserved in `files/checkpoints/WNE-P04-codex-review-8d93186.md`.
+- **Fixed:** all seven in `4b4d605` (DECISIONS 082); verifier 1045/0 skip, 0 network; frozen corpus
+  and full real workload (3,095 + 889 chapters) re-run on `4b4d605` with contract attribution:
+  0 unexplained; 101.4 chapters/min (−9% vs Phase 00); memory flat. Report:
+  `files/checkpoints/WNE-P04-release-readiness.md`.
+- **Pending user decisions:** (1) whether a second independent review of the fixed candidate is
+  required (recommended — the first verdict does not cover it); (2) merge into `main`, annotated
+  `v0.4.0` tag and GitHub release (Latest). Manual checks are listed in the P04 report, including
+  a real launch/edit with the network disabled at OS level. A pre-existing GitHub **draft** release
+  "Web Novel Editor v1.0.0" exists and is untouched.
+- **Next exact action:** wait for the user's direction. Do not merge, tag or publish.
 
 ## Previous Focus — Phase 02A implementation (Codex; findings remediated 2026-11-01)
 

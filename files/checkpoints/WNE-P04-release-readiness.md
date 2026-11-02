@@ -1,16 +1,19 @@
 # WNE Phase 04 — Release readiness (v0.4.0 candidate)
 
-Status: **READY FOR INDEPENDENT REVIEW** — release-candidate verification complete on HOME-PC;
-publication is pending (single independent Codex review, then the user's explicit merge/tag/release
-authorization). This report does not certify publication.
+Status: **CANDIDATE FIXED AND RE-VERIFIED — NOT INDEPENDENTLY RE-REVIEWED.** The single
+independent Codex review of `8d93186` returned **BLOCKED** (preserved verbatim in
+`WNE-P04-codex-review-8d93186.md`). All seven findings are fixed in `4b4d605` and re-verified below;
+that verdict does not certify the fixed candidate. Whether a second independent review is required,
+and merge/tag/release, are the user's decisions. This report does not certify publication.
 Writer: Claude Code, Opus 5.5 / xHigh, HOME-PC (Windows 11, Python 3.13.12 project `.venv`).
 
 ## Git state
 
 - Branch `feature/0.4.0-script-only-editor`. Commits this session (all pushed):
   `08f1010` Gate 02A remediation · `d248e71` Phase 02B · `5bda685` Phase 03 · `b762a6c` version
-  preparation · `058610c` + `772b4dd` performance fixes (DECISIONS 081) · final candidate commit (this report; its SHA is
-  given in the CLI report — a commit cannot contain its own SHA).
+  preparation · `058610c` + `772b4dd` performance fixes (DECISIONS 081) · `8d93186` first
+  candidate (reviewed: BLOCKED) · `4b4d605` review fixes (DECISIONS 082) · final candidate commit
+  (this report; its SHA is given in the CLI report — a commit cannot contain its own SHA).
 - `main` = `72d68ca` (v0.12.0). Tags: `v0.4.0` absent locally and remotely (checked before tagging).
 - Unrelated untracked `md-instructions/plan-2-ai-editor-integration.md` preserved, never staged.
 
@@ -25,20 +28,20 @@ sentence (historical `v0.4.0 — 2026-06-21` entry untouched); README publicatio
 
 | # | Check | Result |
 |---|---|---|
-| 1 | Strict offline verifier (`--require-local-corpora -rs`, keys unset, network guard in child) | 1021 passed, 0 skipped, 0 failed; all 5 checks PASS; 0 network attempts on the code commit `772b4dd` (`verify-04-perf2.*`); the final docs-only candidate SHA is re-verified and reported in the CLI report |
+| 1 | Strict offline verifier (`--require-local-corpora -rs`, keys unset, network guard in child) | **1045 passed, 0 skipped, 0 failed; all 5 checks PASS; 0 network attempts** on the fix commit `4b4d605` (`verify-04-fix.*`); the final docs-only candidate SHA is re-verified and reported in the CLI report |
 | 2 | Local-corpus tests | executed inside #1 (strict; any missing corpus fails) |
-| 3 | Protected terms + editorial deltas | frozen corpus 828 results: 738 changed, all attributed (24,130 quote glyphs, 4,505 apostrophes), 0 unexplained, invariants pass in 9 profiles × direct/PDF; outputs byte-identical before/after the performance fixes |
-| 4 | Mixed PDF/TXT generation | 889 real The Noble Queen chapters, PDF + TXT: 889/889 complete pairs, 0 failed/skipped, TXT UTF-8 + LF, no form feeds, final newline; sources unchanged; manifest complete (374.9 s) |
+| 3 | Protected terms + editorial deltas | frozen corpus 828 results, 738 changed; **contract-based attribution** (`files/run-temp/rc/contract.py`, self-tests in `contract-selftest.txt`): 22,926 validly paired quotes, 966 curly glyphs confirmed against the extracted source, 4,505 apostrophes, **0 unexplained**; second application of the new rules a no-op on all 828; mandatory invariants pass in 9 profiles × direct/PDF |
+| 4 | Mixed PDF/TXT generation | 889 real The Noble Queen chapters (1 overlong title excluded in-repo), PDF + TXT: 889/889 complete pairs, 0 failed/skipped, TXT UTF-8 + LF, no form feeds, final newline; sources unchanged; manifest complete (348.9 s) |
 | 5 | Crash/restart/resume/retry | on 3,095 real chapters: Pause held 3.0 s with 0 progress; cooperative Stop at exactly 500; real hard kill of the worker process at queue index 1,500 → manifest valid, 1,500 completed / 1,595 pending, 0 false completions; Resume refused until stale-lock recovery was confirmed; one injected transient publication hold failed once and Retry Failed completed it |
 | 6 | Lock and collision regressions | unit/integration suites in #1 (run_lock, output_plan incl. reserved names, publication faults) |
 | 7 | Settings/privacy/credential sentinels | `test_settings`, `test_gui_desktop` reset sentinels (secrets.json/siblings unchanged); session-log privacy with a real run |
 | 8 | GUI/Tk and bootstrap | all Tk cases execute in fresh guarded Windows children (0 skips); bootstrap + executed `.bat` sandbox flows |
 | 9 | Clean non-AI dependency/startup | real first-time setup in a sandbox copy (path with spaces, parentheses, Ü): 14 s; offline healthy check 0.8 s, 0 network attempts; no AI SDK installed; `pip check` clean; in-place repair after removing a package (no rebuild); rebuild after interpreter damage |
-| 10 | Actual Windows launch | real `.bat` → offline fast path 3.9 s → real window (pythonw) → `WM_CLOSE` → exit 0; window-only capture inspected |
+| 10 | Actual Windows launch | real `.bat` → offline fast path → real window (pythonw) → `WM_CLOSE` → exit 0 (3.9 s on `b762a6c`; re-run on the final candidate is reported in the CLI report); window-only capture inspected |
 | 11 | PDF layout + TXT/TTS inspection | rendered page 1 of published PDFs (styled heading, justified paragraphs, “ ” ’ glyphs render); TXT sample: heading, blank-line paragraphs, LF only, UTF-8 curly glyphs; human visual/TTS acceptance pending (manual item 2) |
-| 12 | Large batch (real chapters) | 3,095 real Shadow Slave chapters (10 overlong titles excluded in-repo, see notes), PDF + debug + audit, like-for-like options with Phase 00: wall 2,016 s incl. the stop/kill/two resume validations, **92.1 chapters/min vs 111.3 at Phase 00 (−17%, within the 20% threshold; ≈104/min excluding the resume validations Phase 00 never had)**; per-file median 0.646 s / p95 0.849 s (Phase 00 0.481 / 0.763); durable publication (prepare + publish + manifest) ≈0.22 s/file; resume validation ≈70 s per resume of 3,095 sources + 9,285 outputs; working set flat 111–129 MB over 600 chapters, peak 135 MB (Phase 00 peak 143 MB); 0 network attempts |
-| 13 | Source/output hashes, no duplicate publication | all 3,095 + 889 source SHA-256 unchanged; 9,285 recorded outputs all match their manifest hashes; 0 duplicate (`_2`) outputs; 0 leftover staging files; attribution of every debug text against Phase 00: 2,639 changed / 456 identical, **0 unexplained** (58,591 quote glyphs, 793 apostrophes, 1 OCR `l`→`I`) |
-| 14 | `git diff --check`, clean committed candidate | `git diff --check` clean on every commit; candidate verified from a clean tracked tree (only the user's untracked file present) |
+| 12 | Large batch (real chapters) | on `4b4d605`: 3,095 real Shadow Slave chapters (10 overlong titles excluded in-repo, see notes), PDF + debug + audit, like-for-like options with Phase 00: wall 1,830.7 s incl. stop, hard kill and two resume validations, **101.4 chapters/min vs 111.3 at Phase 00 (−9%)**; per-file median 0.516 s / p95 0.666 s (Phase 00 0.481 / 0.763); resume validation ≈60 s per resume of 3,095 sources + 9,285 outputs; memory: see notes; 0 network attempts |
+| 13 | Source/output hashes, no duplicate publication | all 3,095 + 889 source SHA-256 unchanged; 9,285 recorded outputs all match their manifest hashes; 0 duplicate outputs; 0 leftover staging files; contract attribution of every debug text against Phase 00: 2,631 changed / 464 identical, **0 unexplained** (54,520 paired quotes, 413 source-confirmed curly glyphs, 793 apostrophes, 1 OCR `l`→`I`) |
+| 14 | `git diff --check`, clean committed candidate | `git diff --check c6e68ed HEAD` clean; over `main..HEAD` only two Phase 00 documents are flagged (Markdown two-space hard breaks in the user's master plan, kept verbatim; a trailing blank line in a historical Plan 2b pilot report); candidate verified from a clean tracked tree |
 
 ### Large-batch notes
 
@@ -50,7 +53,21 @@ sentence (historical `v0.4.0 — 2026-06-21` entry untouched); README publicatio
 - An earlier attempt ran ~2× slower than Phase 00; it was investigated, fixed and re-measured
   (DECISIONS 081), and was also hard-terminated as a real crash test: manifest valid, 1,248
   completed with matching outputs, 1,847 pending, 0 false completions, stale lock left for
-  confirmed recovery.
+  confirmed recovery. Runs on `772b4dd` (92.1/min) were superseded by the run on `4b4d605`.
+- Memory: on `4b4d605`, working set flat at 116–130 MB from item 100 to 600 of a real run (no chapter accumulation), peak 137 MB (Phase 00 peak 143 MB).
+- Two workload lines first counted as unexplained were curly opening quotes present in the source
+  (`“Humanity — all of you — …`); the approved spaced-dash rule had rewritten the text after them.
+  The classifier gained a line-anchored source lookup and still rejects every negative self-test.
+
+## Independent review
+
+- Single planned review: Codex CLI 0.166.0, `gpt-6.1-sol`, reasoning high, `--sandbox read-only`,
+  `--ephemeral`, of exactly `8d93186`: **BLOCKED** — four P1 (PDF later-page validation, protected
+  punctuation through possessives, stale alias snapshot, over-permissive attribution) and three P2
+  (malformed preferences crash, POSIX active-log pruning, `py` Store-location check).
+- All seven fixed in `4b4d605` with failing-first regression tests (DECISIONS 082). The verdict is not
+  transferred to the fixed candidate; a second independent review was not run (user directive: do
+  not silently schedule repeated reviews).
 
 ## Release notes (draft for the GitHub release)
 
