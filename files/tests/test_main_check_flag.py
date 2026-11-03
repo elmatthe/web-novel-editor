@@ -1,4 +1,4 @@
-"""Phase 9 — the `--check` startup preflight on `scripts/Universal/main.py`.
+"""Phase 9 — the `--check` startup preflight on `scripts/main.py`.
 
 The launchers run `python <main> --check` with the console interpreter *before* detaching
 to `pythonw` (Windows) / launching the GUI (macOS), so a fatal startup error is visible
@@ -8,6 +8,9 @@ without the flag must proceed to `launch()`.
 """
 
 from __future__ import annotations
+
+import shutil
+from pathlib import Path
 
 import pytest
 
@@ -46,3 +49,38 @@ def test_without_check_flag_launches(monkeypatch):
 
     assert rc == 0
     assert called["launch"] is True, "a normal run must reach launch()"
+
+
+def test_release_shaped_startup_needs_no_dev_tree_and_no_ai_sdk(tmp_path, offline_python):
+    """Copy only the shipped scripts tree (no ``files/``, no ``.git``) and run ``--check``.
+
+    Re-homed from the Ollama test in Phase 01A. If ordinary startup ever imports one of
+    the retired provider SDKs, the shadow modules below make it fail loudly.
+    """
+    _require_tkinter()
+    root = Path(__file__).resolve().parents[2]
+    universal = tmp_path / "release" / "scripts"
+    shutil.copytree(
+        root / "scripts", universal,
+        ignore=shutil.ignore_patterns("__pycache__"),
+    )
+    for sdk in ("ollama", "groq"):
+        (universal / f"{sdk}.py").write_text(
+            f"raise ImportError('{sdk} intentionally absent')\n", encoding="utf-8"
+        )
+    (universal / "google").mkdir()
+    (universal / "google" / "__init__.py").write_text(
+        "raise ImportError('google SDK intentionally absent')\n", encoding="utf-8"
+    )
+    assert not (tmp_path / "release" / "files").exists()
+    assert not (tmp_path / "release" / ".git").exists()
+    completed = offline_python.run(
+        [str(universal / "main.py"), "--check"],
+        cwd=tmp_path / "release",
+        text=True,
+        capture_output=True,
+        timeout=60,
+        check=False,
+    )
+    assert completed.returncode == 0, completed.stdout + completed.stderr
+    assert "Startup check passed." in completed.stdout

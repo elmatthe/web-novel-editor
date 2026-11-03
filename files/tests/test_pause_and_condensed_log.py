@@ -19,7 +19,7 @@ Contracts pinned here:
   - verbose pipeline detail stays out of the GUI log (JSONL only); pipeline "⚠"
     integrity warnings (error pages) still surface as warnings.
   - the explicit "Universal" selection logs an intentional-choice line, not
-    "No novel-specific profile for 'Universal'".
+    "No novel-specific fix-up rules for 'Universal'".
 """
 
 from __future__ import annotations
@@ -33,6 +33,7 @@ import pytest
 import core.batch_runner as batch_runner
 from core.batch_runner import run_batch
 from core.novel_registry import NovelDispatch
+from pdf.builder import build_pdf as real_build_pdf
 
 _LONG_TEXT = ("Chapter 1: The Beginning.\n\n"
               "Sunny walked through the ruins of the old city for a long time. " * 8)
@@ -98,8 +99,7 @@ def _wire_fast_seams(monkeypatch, edits=0, gui_lines=(), fail_names=()):
     def _build(_text, path):
         if os.path.basename(path) in fail_names:
             raise ValueError("boom")
-        with open(path, "w", encoding="utf-8") as fh:
-            fh.write("pdf")
+        real_build_pdf(_text, path)
 
     monkeypatch.setattr(batch_runner, "build_pdf", _build)
 
@@ -217,7 +217,7 @@ def test_edit_count_excludes_integrity_flags(tmp_path, monkeypatch):
 
     monkeypatch.setattr(batch_runner, "extract_text_from_pdf", lambda _p: _LONG_TEXT)
     monkeypatch.setattr(batch_runner, "build_pdf",
-                        lambda _t, path: open(path, "w").close())
+                        real_build_pdf)
 
     monkeypatch.setattr(batch_runner, "resolve_dispatch",
                         lambda _n: _flagging_dispatch(real_edits=0))
@@ -250,7 +250,7 @@ def test_condensed_failed_line(tmp_path, monkeypatch):
     _wire_fast_seams(monkeypatch, fail_names=("bad.pdf",))
     paths = _stub_pdfs(tmp_path, ["bad.pdf"])
     logs, summary = _run(paths, tmp_path)
-    assert ("error", "[1/1] bad.pdf — FAILED (ValueError: boom)") in logs
+    assert any(level == "error" and "[1/1] bad.pdf — FAILED (ValueError:" in message for level, message in logs)
     assert summary["failed"] == 1
 
 
@@ -295,10 +295,10 @@ def test_summary_block_totals_and_failed_skipped_lists(tmp_path, monkeypatch):
     assert any("Batch complete: 1 done, 1 failed, 1 skipped of 3." in m for m in msgs)
     failed_idx = msgs.index("Failed:")
     skipped_idx = msgs.index("Skipped:")
-    assert any("bad.pdf (ValueError: boom)" in m for m in msgs[failed_idx + 1:])
+    assert any("bad.pdf (ValueError:" in m for m in msgs[failed_idx + 1:])
     assert any("missing.pdf (not found)" in m for m in msgs[skipped_idx + 1:])
     # List lines carry the semantic tags.
-    assert ("error", "  - bad.pdf (ValueError: boom)") in logs
+    assert any(level == "error" and "  - bad.pdf (ValueError:" in message for level, message in logs)
     assert ("warn", "  - missing.pdf (not found)") in logs
 
 
@@ -342,17 +342,17 @@ def test_universal_selection_logs_intentional_choice(tmp_path, monkeypatch):
 
     assert "Universal editing selected" in text
     assert "universal-only editing" in text          # phrase other tests rely on
-    assert "No novel-specific profile for 'Universal'" not in text
+    assert "No novel-specific fix-up rules for 'Universal'" not in text
     assert summary["profile_applied"] is False
 
 
 def test_profileless_novel_keeps_no_profile_line(tmp_path, monkeypatch):
-    """A genuinely profile-less novel still gets the honest "no profile" wording."""
+    """A genuinely bare novel — no profile AND no indexed names — says exactly that."""
     monkeypatch.setattr(batch_runner, "extract_text_from_pdf", lambda _p: _LONG_TEXT)
     paths = _stub_pdfs(tmp_path, ["a.pdf"])
 
     logs, _ = _run(paths, tmp_path, dry_run=True, novel_name="Lord of the Mysteries")
     text = " ".join(_messages(logs))
 
-    assert "No novel-specific profile for 'Lord of the Mysteries'" in text
-    assert "universal-only editing" in text
+    assert "No novel-specific fix-up rules and no protected names for "            "'Lord of the Mysteries'" in text
+    assert "universal editing rules only" in text

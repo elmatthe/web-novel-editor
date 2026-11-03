@@ -27,7 +27,7 @@ from profiles.shadow_slave.canonical_names import SS_CANONICAL_NAMES
 
 _REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 _FIXTURES = os.path.join(_REPO_ROOT, "files", "test-files", "shadow_slave")
-_INDEX = os.path.join(_REPO_ROOT, "scripts", "Universal", "resources", "novel-index", "shadow-slave.txt")
+_INDEX = os.path.join(_REPO_ROOT, "scripts", "resources", "novel-index", "shadow-slave.txt")
 
 
 def _term_count(term: str, text: str) -> int:
@@ -68,12 +68,12 @@ def test_protected_terms_survive_full_pipeline(fixture):
     """
     pytest.importorskip("pdfplumber")
     from pdf.extractor import extract_text_from_pdf
-    from pipelines import shadow_slave
+    from core.novel_registry import resolve_dispatch
 
     src = extract_text_from_pdf(fixture)
     lex = load_protected_lexicon(_INDEX, SS_CANONICAL_NAMES)
     terms = expand_lexicon_variants(lex.terms)
-    out = shadow_slave.run_pipeline(src, lex)
+    out = resolve_dispatch("Shadow Slave").run_pipeline(src, lex)
 
     reductions = []
     for term in terms:
@@ -142,7 +142,7 @@ def test_index_term_shields_against_special_fix(tmp_path):
     """
     pytest.importorskip("pdfplumber")
     from pdf.extractor import extract_text_from_pdf
-    from pipelines import shadow_slave
+    from core.novel_registry import resolve_dispatch
 
     fx = os.path.join(_FIXTURES, "Chapter 1_ Nightmare Begins.pdf")
     if not os.path.isfile(fx):
@@ -156,7 +156,7 @@ def test_index_term_shields_against_special_fix(tmp_path):
 
     # Control: with the term NOT protected, special fixes rewrite it.
     base_lex = load_protected_lexicon(_INDEX, SS_CANONICAL_NAMES)
-    control = shadow_slave.run_pipeline(seeded, base_lex)
+    control = resolve_dispatch("Shadow Slave").run_pipeline(seeded, base_lex)
     assert "Almanach" not in control
     assert "Almanac" in control
 
@@ -165,6 +165,18 @@ def test_index_term_shields_against_special_fix(tmp_path):
     user_index.write_text("Almanach\n", encoding="utf-8")
     prot_lex = load_protected_lexicon(str(user_index), SS_CANONICAL_NAMES)
     assert "Almanach" in prot_lex.terms
-    protected = shadow_slave.run_pipeline(seeded, prot_lex)
+    protected = resolve_dispatch("Shadow Slave").run_pipeline(seeded, prot_lex)
     assert "Almanach" in protected
     assert re.search(r"(?<![A-Za-z])Almanac(?![A-Za-z])", protected) is None
+
+
+def test_compiled_term_patterns_are_cached_and_masking_is_unchanged():
+    from core.protected_lexicon import _term_regex, mask_protected_terms, unmask_placeholders
+    lex = load_protected_lexicon("", frozenset({"Clan Valor", "Valor", "Sunny"}))
+    text = "Clan  Valor met VALOR and Sunny's friend; valorous Sunnyside stayed."
+    masked, mapping = mask_protected_terms(text, lex)
+    assert "valorous" in masked and "Sunnyside" in masked  # letter boundaries respected
+    assert sorted(mapping.values()) == ["Clan  Valor", "Sunny's", "VALOR"]
+    assert unmask_placeholders(masked, mapping, {}) == text
+    assert _term_regex("Valor") is _term_regex("Valor")
+    assert mask_protected_terms(text, lex) == (masked, mapping)  # repeatable

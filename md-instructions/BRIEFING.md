@@ -1,11 +1,91 @@
 # Webnovel Editor — Project Briefing
 
-## Version: v0.12.0
+## Version: v0.4.0 — Offline Script-Only Modernization
 
-**v0.12.0 is RELEASED** — merged to `main` and tagged `v0.12.0`, the project's first release tag
-(DECISIONS #061). It is the shipped baseline, superseding v0.11.0.
+Version: v0.4.0 — Offline Script-Only Modernization; see GitHub Releases for publication status.
+The number is an intentional reset after v0.13.0 (DECISIONS 074). Sensitivity: personal-private
+(copyrighted local corpora and baselines stay in ignored folders; never commit chapter text).
+
+## Current State (v0.4.0)
+
+**What it is.** An offline, deterministic, script-only desktop editor that cleans web-novel chapter
+PDFs and UTF-8 TXT files for reading and TTS. No AI, model, account or network is used for editing.
+Master Plan: `files/plans/Web-Novel-Editor-Master-Implementation-Plan.md`; phase reports in
+`files/checkpoints/WNE-P00…P04-*.md`.
+
+**Stack.** Python ≥ 3.10 (tested 3.13/3.12; 3.11/3.10 declared), Tkinter/ttk (`clam`), pdfplumber
+(extraction), ReportLab (rendering), natsort, tomli on 3.10. Exact pins in `scripts/requirements.txt`.
+
+**Architecture.**
+- Launch chain: root `Setup_and_Run-Web-Novel-Editor.bat`/`.command` → `scripts/bootstrap.py`
+  (stdlib-only health proof, offline fast path, in-place repair, guarded `.venv` rebuild) →
+  `scripts/launcher.py` (headless `--help/--version/--check`) → `scripts/main.py` → `gui/app.py`.
+- GUI (`scripts/gui/`): four groups (Sources, Novel & Editing, Output, Run) + Activity pane
+  (Summary/Detailed); `activity.py` (Tk-free event channel, session logs in
+  `files/runtime-data/logs`, retention 20), `appearance.py` (Light/Dark), `preferences.py`.
+  Workers only emit events; the Tk thread drains them.
+- Engine: one `pipelines/universal.py` (Block A cleanup, Block B masked corrections, Block C
+  editorial, final typography); novels differ only by data (`resources/novel-index/*.txt`,
+  `profiles/corrections/*.toml`, built-in canonical floors).
+- Runs: `core/output_plan.py` (exclusive numbered folders, collision/path preflight, reserved
+  internal names), `core/run_manifest.py` (schema 3: hashes, prepared → completed publication,
+  resume/retry), `core/run_lock.py` (single writer, process identity), `core/batch_runner.py`.
+- Preferences: per-user `settings.json` (`%LOCALAPPDATA%\WebNovelEditor` /
+  `~/Library/Application Support/WebNovelEditor`); legacy key files are never read.
+
+**Editorial contract.** Conservative: protected names and the mandatory rulings (Clan Valor, Valor
+Clan, Valor, …) never change; curly quotes only for unambiguous pairs; apostrophes only in
+contraction/possessive endings; OCR `l`→`I` only in attested contexts; no grammar/pronoun
+guessing. Page-number removal is deferred (no evidence). Historical text below that describes
+straight-quote normalization, AI providers, cloud runs or `scripts/Universal/` is superseded.
+
+**TXT paragraphs (DECISIONS 084).** Blank lines and headings always end paragraphs. Every other
+single newline is decided by the PDF rule (`reconstruct_paragraphs`), so one paragraph per line,
+hard-wrapped and PDF-extracted TXT all keep their paragraphs. Files that use blank lines keep the
+blank-line join.
+
+**Known limits.** Windows 11 tested; macOS launcher has static/simulated checks only; no genuine
+Python-free machine was tested; first setup downloads packages; local single-writer guarantees
+only (no cloud-sync/distributed locking). Hard-wrapped TXT without blank lines can gain an extra
+paragraph break where a wrap falls right after a sentence.
+
+**Verification.** `.venv\Scripts\python.exe scripts\verify.py` (pytest, pins, CHANGELOG/BRIEFING,
+config, launcher version). Corpus/workload harnesses are ignored under `files/run-temp/rc/`.
+Editorial-delta attribution (does every output change match an approved rule?) is tracked:
+`files/qa-tools/editorial_contract.py` + `attribute_evidence.py` (runs over the ignored local
+evidence; DECISIONS 083), regressions in `files/tests/test_editorial_contract.py`.
+
+---
+
+## Historical record (v0.13.0 and earlier)
+
+### Former version header: v0.13.0
+
+> **Development direction (read first).** **Active work targets v0.4.0 — Offline Script-Only Modernization** (Master Plan `files/plans/Web-Novel-Editor-Master-Implementation-Plan.md`; DECISIONS 074 and 075). On `feature/0.4.0-script-only-editor`, Phase 01 has removed every AI path (local Ollama, the Gemini and Groq providers, model pickers, API-key / consent / quota UI and the AI dependencies), moved `scripts/Universal/*` to `scripts/*`, and consolidated the five near-identical pipelines into the single `scripts/pipelines/universal.py`. Editing is offline, deterministic and script-only. The version fields (this file, `config.toml`, the top CHANGELOG heading, README) deliberately still read v0.13.0 until the 0.4.0 release is prepared in Phase 04. **Everything below describes the v0.13.0 line this branch grew from; what it says about AI providers, cloud runs, `scripts/Universal/` or per-novel pipeline modules is historical.**
+
+**v0.13.0 is COMPLETE on `feature/plan-2b-cloud-providers`, awaiting sign-off and merge.** v0.12.0
+remains the released baseline on `main` (tagged, DECISIONS #061) until that merge happens.
 
 ## Last Updated
+2026-07-27 — **Plan 2b (optional cloud AI providers) is complete through Phase 8.** Phases 1–3 added
+per-user key storage, the versioned privacy/billing consent, the reviewed approved-model records, and
+the `GeminiProvider` and `GroqProvider` adapters; Phases 4–5 added provider-specific rate limiting and
+checkpointed runs; Phase 6 wired all of it into the GUI; Phase 7a added the pre-flight spend guard and
+7b made the project's first real cloud calls, producing `files/pilot/PROVIDER-COMPARISON.md`; **Phase 8
+took the author's decision that there is NO default cloud provider (DECISIONS #064), scoped the
+protected-term prompt block to each request (#063), batch-reviewed the flagged index terms, fixed the
+Gemini daily-quota misclassification 7b found, and wrote these v0.13.0 docs.**
+
+Cloud editing is **opt-in per run, every run** — no persisted provider preference, no remembered
+"last used" quick-switch. Local Ollama remains the default editing path and the AI pass itself is
+still OFF by default (`config.toml enabled = false`), so with it off the output is byte-for-byte the
+v0.11.0 deterministic result.
+
+Alongside the phases, the **protected-term indexes were built and audited across all eight novels**
+(DECISIONS #062): 973 terms across three novels became **4,364 across five**. Three novels have no
+corpus and their index files say so.
+
+## Prior release
 2026-07-24 — **Plan 2a is complete and v0.12.0 is released.** Phases 1–6 built the provider-neutral
 AI stack and the live-validated Ollama adapter; Phase 7 added the opt-in GUI controls; Phase 8 ran the
 stratified pilot; **Phase 9 adopted `qwen3:14b` + Strategy M as the committed default, ran the bug hunt
@@ -13,7 +93,48 @@ and the clean-room regression, and wrote these v0.12.0 docs.** A release-hygiene
 two Phase-9 Minor items (DECISIONS #060) before the merge. AI remains **opt-in and OFF by default**
 (`config.toml enabled = false`). The plan drop has been deleted per its Definition of Done.
 
-## Current State (v0.12.0 — released)
+## Current State (v0.13.0 — complete, unmerged)
+
+**Plan 2b adds two cloud providers behind the contract Plan 2a built, changing no editing logic.**
+`AIEditor`'s decision logic, the validation gate, the deterministic pipeline and the base provider
+contract are unchanged by this plan; the one deliberate, investigated exception is the prompt layer's
+protected-term block, which is now scoped per request (DECISIONS #063). Headlines:
+
+- **Two cloud adapters.** `GeminiProvider` (`google-genai==2.14.0`) and `GroqProvider`
+  (`groq==1.6.0`), both pinned, neither SDK imported at package load or unless its adapter is built.
+  Each normalises its own finish reasons, usage figures, request IDs and errors into the shared
+  `CompletionResult` and error taxonomy, and **an unrecognised finish reason fails closed**.
+- **Only exact, reviewed models are callable.** `config.toml` carries `[[ai.approved_models]]`
+  records (id, provider, status, context/output limits, `reviewed_on`, `source_url`,
+  `free_tier_confidence`, `pilot_status`). No `latest`-style alias, no substitution for a retired
+  model, and `unknown` free-tier confidence is refused in strict free-only mode — which itself must
+  be the literal boolean `True`, not merely truthy.
+- **The spend guard is the single choke point.** `ai.factory.create_provider` calls
+  `spend_guard.ensure_free_tier_run_allowed` keyed on the provider name *before any adapter object
+  exists*, so a cloud adapter cannot be constructed unguarded. A refusal stops the run in a dialog
+  rather than degrading to script-only. Nothing in the codebase queries or infers billing state from
+  a provider API — the user confirms it in the provider's own console.
+- **Keys live outside the repo.** `%LOCALAPPDATA%/WebNovelEditor/secrets.json` (or the macOS
+  equivalent), written atomically with permissions restricted as far as the OS allows. Precedence:
+  environment variable → secrets file → session-only entry → provider greyed out with a plain reason.
+  All logging passes one redaction boundary.
+- **Consent is explicit and versioned.** A privacy/billing disclosure must be acknowledged before the
+  first cloud request; only the acknowledged version is stored, never chapter text and never the key.
+- **Rate limiting is asymmetric by design.** Groq returns real headers (requests-per-**day**,
+  tokens-per-**minute**) and drives a header-driven limiter; Gemini publishes neither limits nor
+  headers and runs off conservative configured floors. RPM/TPM/RPD/TPD are distinguished, a daily
+  quota is never inferred from every 429, backoff applies only to transient faults, and every wait is
+  interruptible by Stop.
+- **Long runs checkpoint instead of sleeping.** A daily quota writes an atomic run manifest (no key,
+  no chapter text) and stops cleanly; the GUI offers **Resume incomplete run** on restart.
+- **Honest ETA.** Shown as a labelled range before a run starts, driven by the binding constraint, and
+  saying "unknown" where Gemini's limits genuinely are unknown.
+
+**Known ceiling, measured rather than assumed:** on Groq's free tier the binding limit is 100,000
+tokens/day — roughly 30 chapters. A ~3,000-chapter run is not viable on a free cloud tier; cloud is
+for subsets and comparison runs, and Ollama remains the bulk path.
+
+## Prior State (v0.12.0 — released)
 The "GUI & Batch Overhaul" plan (Plan 1, Phases 1–6) was merged into `main` by `ce96359` and shipped as
 v0.11.0. **Plan 2a (the optional local AI editorial stage) is complete and released as v0.12.0**, merged
 into `main` from `feature/plan-2a-provider-foundation` (itself branched from `9ca90fd`). With the AI pass
@@ -273,7 +394,7 @@ Tech stack: Python 3.10+ (built on 3.12.10), Tkinter, pdfplumber, reportlab, nat
   `study-examples/`, `test-logs/`, and `qa-tools/` scratch.
 
 ## Packaging Decision (RESOLVED, do not revisit by accident)
-- **Distribution = the double-click launcher (`Setup_and_Run.bat` / `.command`). NO frozen
+- **Distribution = the double-click launcher (`Setup_and_Run-Web-Novel-Editor.bat` / `.command`). NO frozen
   PyInstaller exe for v1.** The launcher already gives a non-technical user "downloaded zip
   → running GUI" with nothing installed system-wide except Python-if-missing. A frozen exe
   would *add* risk, not remove it: unsigned one-file PyInstaller binaries trip Defender/
@@ -433,7 +554,7 @@ Inspecting the real extracted fixtures this session refined the prior recon:
   `scripts/rules/spacing_cleanup.py`, `scripts/rules/chapter_titles.py`,
   `scripts/pipelines/shadow_slave.py`, `scripts/pdf/builder.py`, both launchers, `README.md`,
   `md-instructions/build-spec.md`, `md-instructions/EDITING-RULES.md`, and regression tests.
-- Source: `Setup_and_Run.bat`, `Setup_and_Run.command` (M4 pip-fail guard);
+- Source: `Setup_and_Run-Web-Novel-Editor.bat`, `Setup_and_Run-Web-Novel-Editor.command` (M4 pip-fail guard);
   `scripts/utils/file_utils.py` (M2 `debug_text_path` replaces `sibling_path`; M3 new
   `open_in_file_manager`); `scripts/core/batch_runner.py` (uses `debug_text_path`);
   `scripts/gui/app.py` (M3 auto-open on completion); `scripts/pipelines/shadow_slave.py`

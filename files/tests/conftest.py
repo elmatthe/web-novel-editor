@@ -1,15 +1,15 @@
 """Pytest bootstrap for the webnovel-editor suite.
 
 The tests live in ``files/tests/`` (dev-only, not shipped) while the packages
-they exercise ship from ``scripts/Universal/`` (``core``, ``rules``,
-``pipelines``, ``gui``, ...). Insert that ``Universal`` directory onto
+they exercise ship from ``scripts/`` (``core``, ``rules``,
+``pipelines``, ``gui``, ...). Insert that ``scripts`` directory onto
 ``sys.path`` so ``import core`` / ``import rules`` / ... resolve the same way
-``scripts/Universal/main.py`` does at runtime, no matter where pytest is invoked
+``scripts/main.py`` does at runtime, no matter where pytest is invoked
 from.
 
 Layout (relative to this file):
     <repo>/files/tests/conftest.py   <- this file  (parents[2] == <repo>)
-    <repo>/scripts/Universal/        <- package root added below
+    <repo>/scripts/                  <- package root added below
 
 Also registers the optional local-corpus test layer (Phase 2):
   * the ``local_corpus`` marker for tests that need the gitignored PDF corpora
@@ -22,14 +22,90 @@ Also registers the optional local-corpus test layer (Phase 2):
 
 from __future__ import annotations
 
+import os
+import socket
 import sys
+import subprocess
+import tempfile
+import xml.etree.ElementTree as ET
 from pathlib import Path
 
-_REPO_ROOT = Path(__file__).resolve().parents[2]
-_UNIVERSAL = _REPO_ROOT / "scripts" / "Universal"
+import pytest
 
-if str(_UNIVERSAL) not in sys.path:
-    sys.path.insert(0, str(_UNIVERSAL))
+from .offline_python import OfflinePython
+
+_REPO_ROOT = Path(__file__).resolve().parents[2]
+_SCRIPTS = _REPO_ROOT / "scripts"
+
+if str(_SCRIPTS) not in sys.path:
+    sys.path.insert(0, str(_SCRIPTS))
+
+
+@pytest.fixture
+def directory_link():
+    """Real contained junctions on Windows; directory symlinks on POSIX."""
+    def create(link, target):
+        if sys.platform == "win32":
+            result = subprocess.run(["cmd", "/c", "mklink", "/J", str(link), str(target)],
+                                    capture_output=True, text=True)
+            assert result.returncode == 0, result.stderr
+        else:
+            link.symlink_to(target, target_is_directory=True)
+        return link
+    return create
+
+
+#: Modules whose cases create Tk windows; on Windows each case runs in a fresh child.
+GUI_TEST_MODULES = frozenset({"test_app.py", "test_gui_desktop.py"})
+
+
+@pytest.fixture(autouse=True)
+def _isolated_user_state(tmp_path_factory, monkeypatch):
+    """Never read/write the developer's real settings.json or session logs from tests.
+
+    Environment overrides (inherited by child interpreters) point preferences and session
+    logs at a per-test scratch directory.
+    """
+    if os.environ.get("WNE_GUI_TEST_CHILD") == "1" and os.environ.get("WNE_SETTINGS_FILE"):
+        return  # the parent already isolated this child
+    state = tmp_path_factory.mktemp("user-state")
+    monkeypatch.setenv("WNE_SETTINGS_FILE", str(state / "settings.json"))
+    monkeypatch.setenv("WNE_LOG_DIR", str(state / "logs"))
+
+
+def _check_gui_child_report(path, expected_name):
+    """A successful exit alone cannot hide a skipped or unexecuted GUI case."""
+    report = ET.parse(path).getroot()
+    suites = report.findall("testsuite")
+    assert len(suites) == 1, "GUI child did not produce exactly one suite"
+    counts = suites[0].attrib
+    assert int(counts["tests"]) == 1, "GUI child did not execute exactly one test"
+    assert all(int(counts[key]) == 0 for key in ("skipped", "errors", "failures")), "GUI child skipped or failed"
+    cases = suites[0].findall("testcase")
+    assert len(cases) == 1 and cases[0].get("name") == expected_name, "GUI child executed the wrong test"
+
+
+@pytest.hookimpl(tryfirst=True)
+def pytest_pyfunc_call(pyfuncitem):
+    # The desktop app creates one Tk interpreter. Isolate Windows GUI cases so
+    # destroyed interpreters from other tests cannot share Tcl's event queue.
+    if (sys.platform != "win32" or pyfuncitem.path.name not in GUI_TEST_MODULES
+            or os.environ.get("WNE_GUI_TEST_CHILD") == "1"):
+        return None
+    runner = pyfuncitem._request.getfixturevalue("offline_python")
+    scratch = _REPO_ROOT / "files" / "temp"
+    scratch.mkdir(parents=True, exist_ok=True)
+    owned = Path(tempfile.mkdtemp(prefix="g-", dir=scratch))
+    temporary, report = owned / "w", owned / "case.xml"
+    child_env = dict(os.environ, WNE_GUI_TEST_CHILD="1", PYTEST_ADDOPTS="")
+    result = runner.run(
+        ["-m", "pytest", pyfuncitem.nodeid, "-q", "-rs", "-p", "no:cacheprovider",
+         "--require-local-corpora", "--basetemp", str(temporary), "--junitxml", str(report)],
+        cwd=str(_REPO_ROOT), env=child_env, capture_output=True, text=True, timeout=60,
+    )
+    assert result.returncode == 0, "GUI child failed:\n" + result.stdout + result.stderr
+    _check_gui_child_report(report, pyfuncitem.name)
+    return True
 
 
 def pytest_addoption(parser):
@@ -47,7 +123,112 @@ def pytest_addoption(parser):
 def pytest_configure(config):
     config.addinivalue_line(
         "markers",
+        "allow_tk_failure: this test deliberately provokes a Tk initialization error "
+        "(the strict-Tk fixture steps aside for it)",
+    )
+    config.addinivalue_line(
+        "markers",
         "local_corpus: needs the gitignored local PDF corpora under "
         "files/pdf-example-chapters/ (skipped with a reason when absent; "
         "made mandatory by --require-local-corpora)",
     )
+
+
+# ---------------------------------------------------------------------------
+# Offline contract (Phase 01A)
+# ---------------------------------------------------------------------------
+# Normal editing and a healthy launch need no network. Every test therefore runs with
+# outbound socket use refused and recorded, and a recorded attempt FAILS THE TEST AT
+# TEARDOWN even if the code under test caught the exception - swallowing the error must
+# not hide the attempt. This is Python-level evidence, not an OS firewall; the
+# `test_offline_guard` module also proves the guard reaches child interpreters.
+#
+# Provisioning/download tests have a separate scope and mocked installers; runtime tests
+# may not opt out just to pass.
+@pytest.fixture
+def network_attempts(request):
+    """The list of refused outbound attempts for this test (clear it to acknowledge)."""
+    return request.node._wne_network_attempts
+
+
+@pytest.fixture
+def offline_python(tmp_path_factory):
+    """Runtime smoke tests use this runner, including with an explicit env/PYTHONPATH.
+
+    Mocked dependency provisioning remains separate: shell syntax tests and installer
+    mocks do not run a runtime interpreter and do not use this fixture.
+    """
+    runner = OfflinePython(tmp_path_factory.mktemp("offline-python"))
+    yield runner
+    runner.assert_no_attempts()
+
+
+@pytest.fixture(autouse=True)
+def _deny_network(request, monkeypatch):
+    attempts: list[str] = []
+    request.node._wne_network_attempts = attempts
+
+    def refuse(kind):
+        def blocked(*args, **kwargs):
+            target = [a for a in args if not isinstance(a, socket.socket)]
+            attempts.append(f"{kind}{tuple(target)!r}")
+            raise OSError(f"network disabled by the test suite ({kind})")
+
+        return blocked
+
+    monkeypatch.setattr(socket.socket, "connect", refuse("socket.connect"))
+    monkeypatch.setattr(socket.socket, "connect_ex", refuse("socket.connect_ex"))
+    monkeypatch.setattr(socket, "create_connection", refuse("socket.create_connection"))
+    monkeypatch.setattr(socket.socket, "sendto", refuse("socket.sendto"))
+    yield
+    if attempts:
+        pytest.fail(
+            "the code under test attempted network access (even if it handled the "
+            "error): " + "; ".join(attempts),
+            pytrace=False,
+        )
+
+
+# ---------------------------------------------------------------------------
+# Strict Tk on Windows (Phase 01A)
+# ---------------------------------------------------------------------------
+# Every GUI test used to turn ANY TclError at window construction into
+# `pytest.skip("no display available for Tk")`. On a Windows desktop a display always
+# exists, so that message hid a real fault: on HOME-PC the Tcl/Tk library files
+# (init.tcl, ttk/spinbox.tcl) intermittently failed to read and 1-2 Tk tests silently
+# skipped while the verifier still exited 0. A Tk initialization error on Windows is
+# now a test ERROR carrying the real Tcl message. Set WNE_ALLOW_TK_SKIP=1 to restore the
+# old behaviour (e.g. a headless Windows CI runner); POSIX hosts are unaffected.
+@pytest.fixture(autouse=True)
+def _tk_init_errors_are_failures(request, monkeypatch):
+    if (
+        sys.platform != "win32"
+        or os.environ.get("WNE_ALLOW_TK_SKIP") == "1"
+        or request.node.get_closest_marker("allow_tk_failure")
+    ):
+        yield
+        return
+    try:
+        import tkinter
+    except Exception:  # no tkinter at all: the tests skip via importorskip, as before
+        yield
+        return
+
+    errors: list[str] = []
+    original = tkinter.Tk.__init__
+
+    def recording_init(self, *args, **kwargs):
+        try:
+            return original(self, *args, **kwargs)
+        except tkinter.TclError as exc:
+            errors.append(str(exc).strip())
+            raise
+
+    monkeypatch.setattr(tkinter.Tk, "__init__", recording_init)
+    yield
+    if errors:
+        pytest.fail(
+            "Tk failed to initialise on Windows - this is an environment fault or a "
+            "regression, not 'no display'. Real Tcl error: " + errors[0][:400],
+            pytrace=False,
+        )

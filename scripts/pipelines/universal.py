@@ -1,0 +1,363 @@
+"""The one universal editorial pipeline.
+
+Until Phase 01C this sequence existed five times (`shadow_slave`, `supreme_magus`,
+`the_noble_queen`, `renegade_immortal`, and `lord_of_mysteries`, which served as the
+universal fallback). A line-level diff in Phase 00 showed the stage order, the call order,
+the two dash passes and the special-fix applier were identical, and that the copies
+differed only in which profile data they imported and whether they wrote three audit
+summary rows. This module is that single copy. A novel is data: a `PipelineProfile`
+(its approved literal corrections, and whether it keeps the legacy audit summary rows).
+
+`run_pipeline` orchestrates the deterministic rule stages in the approved order. The order
+is grouped into three blocks by relationship to masking, which is the load-bearing
+structure:
+
+  BLOCK A  Pre-mask cleanup (raw single-\\n line stream)
+    1   unicode_cleanup.normalize_unicode     NFC, invisibles, space-likes
+    1a  unicode_cleanup.normalize_quotes      NON-STANDARD doubles -> straight " (“ ” kept, Phase 03)
+    2   ligature_cleanup.normalize_ligatures
+    1.5 junk_strip.strip_junk                 ad/URL/fingerprint (Tier 1 on, Tier 2 off)
+    3   unicode_cleanup.remove_scanner_junk    squares / replacement glyphs
+    4   spacing_cleanup.remove_headers_footers page numbers / recurring lines
+    5   spacing_cleanup.collapse_same_line_duplicate_chapters + remove_doubled_chapter_lines
+    6   spacing_cleanup.repair_page_boundaries
+    7   spacing_cleanup.dehyphenate + reconstruct_paragraphs   <-- inserts \\n\\n, isolates heading
+
+  BLOCK B  Masked corrections (letter-mutating passes run shielded)
+    8   MASK chapter lines + protected terms
+    9   ocr_repair.repair_ocr                  (non-placeholder segments)
+    9b  ocr_repair.repair_pronoun_l            Phase 03 (D6): attested OCR l -> I only (before 10)
+    10  spacing_cleanup.fix_spurious_spaces + collapse_spaces
+    10a slash_replace + first em_dash pass
+    11  literal corrections (universal first, then the profile's) while protected terms
+        remain masked
+    12  UNMASK (terms first, then chapter lines)
+
+  BLOCK C  Post-unmask editorial (needs real text back)
+    13  chapter_titles.normalize_chapter_titles
+    14  punctuation.repair_punctuation
+    15  grammar.repair_grammar
+    16  em_dash.remove_spaced_em_dashes        MANDATORY final sweep
+    17  chapter_titles.remove_duplicate_chapter_titles_global
+    18  tidy blank lines
+    19  chapter_titles.insert_chapter_page_breaks   \\f for the PDF builder
+    20  chapter_titles.validate_headings       log-only
+    21  typography.apply_typography            Phase 03: paired curly doubles + unambiguous
+                                               apostrophes; protected names + rulings masked
+
+Letter-mutating corrections (OCR, spurious-space) run inside the mask so protected names
+can never be altered; structural passes (punctuation, grammar, the final em-dash sweep,
+title/dup/page-break handling) run post-unmask because they need real sentence text and
+headings. Rule functions are pure (str -> str); high-value substitutions are recorded to
+`repl_log` here in the pipeline.
+"""
+
+from __future__ import annotations
+
+import re
+from dataclasses import dataclass, field
+from typing import Callable, Mapping, Optional, TYPE_CHECKING
+
+from core.protected_lexicon import (
+    for_non_placeholder_segments,
+    mask_chapter_lines,
+    mask_protected_terms,
+    unmask_placeholders,
+)
+from rules import (
+    chapter_titles,
+    em_dash,
+    grammar,
+    junk_strip,
+    ligature_cleanup,
+    ocr_repair,
+    punctuation,
+    slash_replace,
+    spacing_cleanup,
+    typography,
+    unicode_cleanup,
+)
+
+if TYPE_CHECKING:
+    from core.protected_lexicon import ProtectedLexicon
+    from core.replacement_log import ReplacementLog
+
+# Count-only patterns for the audit summary (the transforms themselves live in the rules).
+_COUNT_DOUBLE_QUOTES = re.compile("[„‟❝❞〝〞＂«»]")  # exactly what normalize_quotes folds
+_COUNT_SPACED_DASH = re.compile(r"\S+[\s   -   　]+[–—―⸺][\s   -   　]+\S+")
+
+#: Literal corrections that are safe for EVERY novel. Deliberately tiny and bounded: a
+#: misspelling that cannot be a valid word, replaced only as a whole word (never inside
+#: another word, a name, or a longer misspelling). Anything that is a name, a style
+#: choice, or has no corpus evidence belongs in a profile's own corrections file or
+#: nowhere. `carcassess` was promoted here from Shadow Slave's map in Phase 01C
+#: (Gate 00 decision; DECISIONS 075).
+UNIVERSAL_LITERAL_FIXES: Mapping[str, str] = {"carcassess": "carcasses"}
+
+_BOUNDED: dict[str, re.Pattern[str]] = {
+    bad: re.compile(r"(?<![A-Za-z])" + re.escape(bad) + r"(?![A-Za-z])")
+    for bad in UNIVERSAL_LITERAL_FIXES
+}
+
+
+@dataclass(frozen=True)
+class PipelineProfile:
+    """Everything that differs between novels, as plain data.
+
+    ``special_fixes``  the profile's approved literal corrections (names / terms the
+                       source text gets wrong), applied longest-key-first as plain
+                       substring replacements while protected terms are masked.
+    ``summary_rows``   keep the three legacy audit summary rows (`quote_normalize`,
+                       `slash_replace`, `em_dash`). They count as edits in the condensed
+                       log, so a profile that never had them must not start getting them
+                       (that would change its audit counts, not its text). Gate 00
+                       decision: legacy audit-row counts stay unchanged.
+    """
+
+    name: str = "Universal"
+    special_fixes: Mapping[str, str] = field(default_factory=dict)
+    summary_rows: bool = False
+
+
+UNIVERSAL_PROFILE = PipelineProfile()
+
+
+def _summary(repl_log, count: int, rule: str, category: str, note: str) -> None:
+    """Record a single audit row for a bulk/structural transform (only if it fired).
+
+    `original` carries the count of affected spots; `replacement` carries a real
+    human-readable description of the change (NOT the rule name — that lives in `rule`),
+    so the JSONL audit can be read and trusted at a glance.
+    """
+    if repl_log is not None and count > 0:
+        repl_log.record(f"{count} occurrence(s)", note, rule, category, note)
+
+
+def _is_heading(line: str) -> bool:
+    return bool(spacing_cleanup.CHAPTER_LINE_START_RE.match(line))
+
+
+def _rule_breaks(block: "list[str]") -> int:
+    """How many paragraph breaks `reconstruct_paragraphs` itself makes inside one block."""
+    return spacing_cleanup.reconstruct_paragraphs("\n".join(block)).count("\n\n")
+
+
+def _txt_paragraphs(text: str) -> str:
+    """Decide the paragraph layout of a TXT input, whatever its line layout (DECISIONS 084).
+
+    1. A blank line always ends a paragraph; a chapter-heading line is always its own.
+    2. Single newlines are left to `reconstruct_paragraphs`, the rule PDF inputs use: a
+       break only where a sentence ended and the next line does not start lowercase, so a
+       mid-sentence wrap is always joined. One paragraph per line, hard-wrapped text and
+       PDF-extracted text therefore get exactly the paragraphs the same lines get from a PDF.
+    3. A file that separates paragraphs with blank lines (at least one blank-line gap, and at
+       least as many gaps as rule-2 breaks) keeps the established join: single newlines
+       inside a block are wraps. A block that itself holds three or more rule-2 breaks making
+       up most of its line ends is a one-paragraph-per-line run and follows rule 2.
+
+    Unresolvable by design: in hard-wrapped text a wrap that falls right after a sentence
+    looks exactly like a paragraph end and is treated as one (an extra break at a sentence
+    boundary, never a lost one); a line ending without terminal punctuation (an interrupted
+    "—") joins the next line; indentation is not read. Every decision only chooses between
+    a space and a paragraph break, so words are never added, dropped or reordered.
+    """
+    blocks: list[list[str]] = []
+    gaps = -1
+    for segment in re.split(r"\n\s*\n", text):
+        current: list[str] = []
+        has_body = False
+        for raw in segment.splitlines():
+            line = raw.strip()
+            if not line:
+                continue
+            if _is_heading(line):
+                if current:
+                    blocks.append(current)
+                    current = []
+                blocks.append([line])
+                continue
+            current.append(line)
+            has_body = True
+        if current:
+            blocks.append(current)
+        gaps += has_body
+
+    breaks = [_rule_breaks(block) for block in blocks]
+    blank_line_file = gaps >= 1 and gaps >= sum(breaks)
+    paragraphs = []
+    for block, count in zip(blocks, breaks):
+        line_run = count >= 3 and 2 * count > len(block) - 1
+        if blank_line_file and not line_run:
+            paragraphs.append(" ".join(block))
+        else:
+            paragraphs.append("\n".join(block))  # reconstruct_paragraphs decides each line end
+    return "\n\n".join(paragraphs)
+
+
+def _apply_universal_fixes(text: str, repl_log) -> str:
+    """The bounded, novel-agnostic literal corrections (whole word only)."""
+    for bad, good in UNIVERSAL_LITERAL_FIXES.items():
+        pattern = _BOUNDED[bad]
+        if pattern.search(text):
+            if repl_log is not None:
+                repl_log.record(bad, good, "special_fixes", "forced_substitution", bad)
+            text = pattern.sub(good, text)
+    return text
+
+
+def _apply_pronoun_l(text: str, repl_log) -> str:
+    """OCR-L-PRONOUN (Phase 03, D6) on unmasked segments; one audit row with the count."""
+    total = 0
+
+    def repair(segment: str) -> str:
+        nonlocal total
+        fixed, count = ocr_repair.repair_pronoun_l(segment)
+        total += count
+        return fixed
+
+    text = for_non_placeholder_segments(text, repair)
+    if total and repl_log is not None:
+        repl_log.record(f"{total} OCR 'l' for the pronoun", "I", "ocr_repair.pronoun_l", "ocr",
+                        "OCR-L-PRONOUN: attested contraction or clause-initial verb context")
+    return text
+
+
+def _token_bounded(literal: str) -> "re.Pattern[str]":
+    """An escaped literal that cannot match inside a longer word (Phase 03, §8.2).
+
+    A boundary is enforced at each end of the key that is a letter or digit, so a key never
+    consumes or splits a neighbouring word; punctuation-edged keys keep their literal edge.
+    """
+    left = r"(?<![^\W_])" if literal[:1].isalnum() else ""
+    right = r"(?![^\W_])" if literal[-1:].isalnum() else ""
+    return re.compile(left + re.escape(literal) + right)
+
+
+def _apply_special_fixes(text: str, repl_log, special_fixes: Mapping[str, str]) -> str:
+    """A profile's forced substitutions, applied longest-key-first; each logged discretely.
+
+    Longest-first is not cosmetic: when one key is a prefix of another ("Ligo" / "Ligou")
+    the shorter would otherwise corrupt the longer's replacement. Since Phase 03 a key only
+    matches on token boundaries (deterministic, never inside another word).
+    """
+    for bad, good in sorted(special_fixes.items(), key=lambda kv: (-len(kv[0]), kv[0])):
+        pattern = _token_bounded(bad)
+        if pattern.search(text):
+            if repl_log is not None:
+                repl_log.record(bad, good, "special_fixes", "forced_substitution", bad)
+            text = pattern.sub(lambda _m, good=good: good, text)
+    return text
+
+
+def run_pipeline(
+    text: str,
+    lexicon: "ProtectedLexicon",
+    *,
+    repl_log: "Optional[ReplacementLog]" = None,
+    gui_log: "Optional[Callable[[str], None]]" = None,
+    dry_run: bool = False,
+    profile: PipelineProfile = UNIVERSAL_PROFILE,
+    input_kind: str = "pdf",
+) -> str:
+    """Run the full editorial pipeline over `text` for `profile` and return clean text."""
+    log = gui_log or (lambda *_a, **_k: None)
+
+    # Whole-file CDN error page? Flag for re-scrape and leave the text alone —
+    # the chapter content is missing, so stripping would yield an empty chapter.
+    error_reason = junk_strip.detect_error_page(text)
+    if error_reason:
+        log(f"  ⚠ {error_reason} — chapter text missing; file needs re-scrape")
+        if repl_log is not None:
+            repl_log.record(
+                error_reason,
+                "[FLAGGED: whole-file error page - re-scrape needed]",
+                "junk_strip.error_page_flag",
+                "integrity_flag",
+                text.split("\n", 1)[0],
+            )
+
+    # --- BLOCK A — pre-mask cleanup ----------------------------------------
+    n_quotes = len(_COUNT_DOUBLE_QUOTES.findall(text)) if profile.summary_rows else 0
+    text = unicode_cleanup.normalize_unicode(text)
+    text = unicode_cleanup.normalize_quotes(text)
+    text = ligature_cleanup.normalize_ligatures(text)
+    text = junk_strip.strip_junk(text, lexicon=lexicon, repl_log=repl_log)
+    text = unicode_cleanup.remove_scanner_junk(text)
+    text = spacing_cleanup.remove_headers_footers(text)
+    text = spacing_cleanup.collapse_same_line_duplicate_chapters(text)
+    text = spacing_cleanup.remove_doubled_chapter_lines(text)
+    text = spacing_cleanup.repair_page_boundaries(text)
+    text = spacing_cleanup.dehyphenate(text)
+
+    n_dash = len(_COUNT_SPACED_DASH.findall(text)) if profile.summary_rows else 0
+    if input_kind == "txt":
+        # Blank-line structure and headings first (DECISIONS 084); any single newline left
+        # in place is then decided by the same reconstruction PDF inputs use.
+        text = _txt_paragraphs(text)
+    text = spacing_cleanup.reconstruct_paragraphs(text)
+    if profile.summary_rows:
+        _summary(repl_log, n_quotes, "quote_normalize", "quote", "non-standard doubles -> straight")
+    log("  ✓ Block A: cleanup + paragraph reconstruction")
+
+    # --- BLOCK B — masked corrections --------------------------------------
+    text, ch_map = mask_chapter_lines(text)
+    text, prot_map = mask_protected_terms(text, lexicon)
+    text = for_non_placeholder_segments(text, ocr_repair.repair_ocr)
+    # OCR-L-PRONOUN must precede the legacy single-letter rejoin, which otherwise glues a
+    # space-preceded "l" to the next word ("left. l hope" -> "left. lhope").
+    text = _apply_pronoun_l(text, repl_log)
+    text = for_non_placeholder_segments(text, spacing_cleanup.fix_spurious_spaces)
+    text = for_non_placeholder_segments(text, unicode_cleanup.collapse_spaces)
+    slash_count_before = text.count("/")
+    text = for_non_placeholder_segments(text, slash_replace.replace_slashes)
+    n_slash = slash_count_before - text.count("/")
+    text = for_non_placeholder_segments(text, em_dash.remove_spaced_em_dashes)
+    text = _apply_universal_fixes(text, repl_log)
+    text = _apply_special_fixes(text, repl_log, profile.special_fixes)
+    text = unmask_placeholders(text, prot_map, ch_map)
+    if profile.summary_rows:
+        _summary(repl_log, n_slash, "slash_replace", "slash", "numeric ratio -> out of")
+    log(f"  ✓ Block B: masked repair ({len(prot_map)} terms, {len(ch_map)} headings)")
+
+    # --- BLOCK C — post-unmask editorial -----------------------------------
+    text = chapter_titles.normalize_chapter_titles(text)
+    text = punctuation.repair_punctuation(text)
+    text = grammar.repair_grammar(text)
+    text = em_dash.remove_spaced_em_dashes(text)  # mandatory final sweep
+    if profile.summary_rows:
+        _summary(repl_log, n_dash, "em_dash", "dash", "spaced em/en dash -> , or .")
+    text = chapter_titles.remove_duplicate_chapter_titles_global(text)
+    text = re.sub(r"\n{3,}", "\n\n", text).strip()
+    text = chapter_titles.insert_chapter_page_breaks(text)
+
+    for bad in chapter_titles.validate_headings(text):
+        log(f"  ⚠ Non-normalized chapter line: {bad}...")
+    # Phase 03 typography runs last so no earlier stage ever sees a changed glyph.
+    text = typography.apply_typography(text, lexicon, repl_log)
+    log("  ✓ Block C: editorial normalization")
+
+    return text
+
+
+def bind(profile: PipelineProfile) -> Callable[..., str]:
+    """The ``run_pipeline(text, lexicon, *, repl_log, gui_log, dry_run)`` callable for one
+    profile - the signature `core.batch_runner` and the dispatch registry expect."""
+
+    def run_profile_pipeline(
+        text: str,
+        lexicon: "ProtectedLexicon",
+        *,
+        repl_log: "Optional[ReplacementLog]" = None,
+        gui_log: "Optional[Callable[[str], None]]" = None,
+        dry_run: bool = False,
+        input_kind: str = "pdf",
+    ) -> str:
+        return run_pipeline(
+            text, lexicon, repl_log=repl_log, gui_log=gui_log, dry_run=dry_run,
+            profile=profile, input_kind=input_kind,
+        )
+
+    run_profile_pipeline.__name__ = "run_pipeline"
+    run_profile_pipeline.__qualname__ = f"run_pipeline[{profile.name}]"
+    run_profile_pipeline.profile = profile  # type: ignore[attr-defined]
+    return run_profile_pipeline

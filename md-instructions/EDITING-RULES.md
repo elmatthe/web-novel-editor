@@ -92,6 +92,37 @@ chapters are split only between complete paragraphs and reassembled in exact ord
 guarantee structure and protected terms but cannot police every small in-place corruption of arbitrary
 prose, **model quality carries that load** — which is why the safer 14b is the default, not 8b.
 
+### Every rule above is provider-independent — v0.13.0 (Plan 2b)
+
+v0.13.0 adds optional cloud providers (**Gemini**, **Groq**) alongside local Ollama. **Nothing in this
+section changes when one is selected.** That is not an aspiration; it is how the code is arranged:
+
+- Providers implement one four-method contract and are constructed through one lazy factory. The
+  editor asks for a provider and gets one; it cannot tell which.
+- **The same gate** (`ai/validation.py`, v1.0) validates every candidate, **the same chunker**
+  (`ai/chunking.py`, v1.0) splits only between complete paragraphs and asserts byte-exact reassembly,
+  and **the same chapter-atomic fallback** discards all AI changes for a chapter on any rejection.
+  There is no provider branch in any of them (DECISIONS #070). A provider influences chunking through
+  exactly one number — the safe input budget derived from the limits it reports — and through nothing
+  else. **Adapters never split text themselves.**
+- **Protected terms behave identically.** Under Strategy M they are masked before any model, local or
+  cloud, and unmasked only after exact reassembly. The gate compares every occurrence against the
+  **whole** index regardless of provider. From v0.13.0 the *prompt* lists only the terms present in
+  the request being sent (DECISIONS #063) — a cost change, not a protection change, since the prompt
+  block was always advisory and neither enforcement mechanism moved.
+- **An unrecognised finish reason fails closed** in every adapter: the candidate is discarded, never
+  returned as a successful edit. Truncation, safety blocks and context-length errors normalise into
+  the same shared error taxonomy, so the editor's response to them does not vary by vendor.
+
+What cloud adds is entirely *around* the editing rules, never inside them: keys, consent, rate
+limiting, quota checkpoints and a spend guard. **No provider may weaken the absolute rule against
+broad tone, wording, language, meaning, voice, or structural changes**, and none is given the
+opportunity to try.
+
+**Cloud is opt-in per run, every run** — there is no default cloud provider and no remembered
+preference (DECISIONS #064). Local remains the default path, and the AI pass as a whole is still off
+unless the user opts in.
+
 ---
 
 ## Stage 1.5 — Ad / URL / Fingerprint Junk Strip (IMPLEMENTED — hardened in the v0.10.0 plan)

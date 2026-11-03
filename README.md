@@ -1,88 +1,117 @@
 # Web Novel Editor
 
-Web Novel Editor is a local desktop app that turns webscraped webnovel chapter PDFs into
-clean, TTS-ready PDFs. It is designed for listening with text-to-speech tools such as
-Kokoro or Microsoft voices (the primary target is the Microsoft Edge Neural voice).
+**Version: v0.4.0 — Offline Script-Only Modernization; see GitHub Releases for publication status.**
 
-The app extracts text from your chapter PDFs, applies a careful mechanical editing
-pipeline, and saves the cleaned copies — under their original filenames — into a fresh,
-automatically numbered folder in your Downloads (for example `Downloads\universal-1`).
-It never changes your original PDFs, and a re-run never overwrites an earlier batch.
+Web Novel Editor is a desktop app that cleans web-novel chapter PDFs and UTF-8 TXT files so they
+read well and sound right in text-to-speech tools (the primary target is the Microsoft Edge Neural
+voice). It applies a careful, deterministic set of editing rules and saves clean PDF, TXT, or both.
 
-The app has a Tkinter window where you pick an editing profile from a dropdown
-("Universal" is the default and works for any novel), then either upload individual
-PDFs or select a whole folder — folders are processed in natural reading order
-(1, 2, 10 — not 1, 10, 2) and the output mirrors the folder's structure. You can pause
-and continue a batch between files. A progress bar and a one-line-per-file log show
-what happened to each file, with a summary at the end.
-
-**Shadow Slave, Supreme Magus, and The Noble Queen** are fully supported and apply their own
-editing profiles (protected names + novel-specific fixes). The dropdown also lists other
-novels; until one of them has its own profile it is edited in **Basic Edit Mode** — the
-universal cleanup rules only (grammar, spacing, Unicode, junk/URL strip, em-dash sweep, and so
-on) — and never has another novel's specific fixes applied to it.
-
-## What it fixes
-
-- PDF extraction spacing, line-wrap, ligature, and Unicode artifacts
-- Known scraper markers and URLs
-- Conservative OCR, punctuation, and grammar mistakes
-- Numeric ratios and selected spoken slash forms
-- Chapter title formatting and PDF heading layout
-- Protected names and terms, which are kept byte-for-byte unchanged
+**Everything runs on your computer.** Editing never uses AI, a model, an account or the internet,
+and your chapter files are never modified — cleaned copies are written to a new folder.
 
 ## Setup and run
 
-You do not need to open a terminal or install project dependencies by hand.
+You never need to open a terminal.
 
-- Windows: double-click `Setup_and_Run.bat`
-- macOS: double-click `Setup_and_Run.command`
+- **Windows:** double-click `Setup_and_Run-Web-Novel-Editor.bat`
+- **macOS:** double-click `Setup_and_Run-Web-Novel-Editor.command`
 
-Each launcher runs four numbered steps — checks Python, creates (or self-heals) a
-self-contained `.venv` folder in the project, installs the pinned dependencies (skipped when
-the environment is already healthy), and opens the app. If your computer warns that the
-launcher came from the internet, follow the on-screen instructions to allow the first run.
+The first run creates a private `.venv` folder inside the program folder and installs the exact
+package versions it needs; that first setup needs an internet connection. After that, a normal
+launch checks the environment **offline** in a couple of seconds and opens the app. Running the
+launcher again is also the repair path: missing packages are reinstalled and a damaged `.venv` is
+rebuilt. The launcher window shows what it is doing and waits for Enter before it closes; setup
+logs are kept in `files/runtime-data/logs`.
 
-Python 3.10 or later is required. If Python is missing or too old, the launcher stops with
-a plain-language message and explains what to do next.
+Python 3.10 or newer is required. The launcher finds an installed Python (it never uses the
+Microsoft Store "python" shortcut or Apple's built-in stub). If none is installed it asks first:
+on Windows it can install Python 3.13 for your user account only (no administrator rights);
+on macOS it opens the official python.org download page. Nothing system-wide is changed silently.
 
-**Platform support:** Windows is the primary, fully-tested platform. The macOS
-`Setup_and_Run.command` is verified — a real macOS clean-room bootstrap plus a Finder
-double-click (confirmed 2026-07-16). The `scripts/MacOS/` folder is a structural placeholder
-only (there is no macOS-exclusive code today).
+If your computer warns that the launcher came from the internet, choose "More info → Run anyway"
+(Windows) or "Open Anyway" in Privacy & Security (macOS). This only happens once.
 
-## Status
+## Using the app
 
-**Shipped: v0.12.0.** This version adds an **optional local AI proofreading pass** that runs after the
-scripted editing and before the PDF is written. It is **opt-in and OFF by default** — with it off, the
-output is exactly the same as the scripted result in v0.11.0. When switched on it runs entirely on your
-own machine via a local Ollama model (default `qwen3:14b`), makes only tiny high-confidence grammar/OCR
-corrections, and is held by a strict gate that keeps your protected names and the chapter's structure
-byte-for-byte intact — anything it is not sure about is left unchanged. Because it is off by default,
-the program behaves exactly as before unless you deliberately turn it on.
+The window has four numbered groups on the left and a large Activity log on the right (drag the
+divider to resize).
 
-Version 0.11.0 adds the overhauled batch flow: two input modes (upload PDFs / select a
-folder with natural-order recursive scanning), automatic mirrored output into an
-auto-numbered Downloads folder with original filenames, **"Universal" as the default
-dropdown choice** (novels without their own profile are marked "no profile yet"),
-a pause/continue control, a condensed one-line-per-file log, and a decorative-divider
-sweep (`* * *`, `~~~`) so TTS never reads symbol runs aloud.
+1. **Sources** — *Add Files…* (PDF or TXT) and *Add Folder…* build one queue. New imports are
+   sorted in reading order (1, 2, 10); *Move Up/Down*, *Remove* and *Clear All* adjust it.
+   *Include subfolders* controls folder imports. Keyboard: Ctrl/Cmd+A select all, Delete or
+   Backspace remove, Alt+Up/Down move, Ctrl/Cmd+O add files.
+2. **Novel & Editing** — choose the novel (**Universal** works for any novel). The app shows how
+   many protected names it keeps exactly as written.
+3. **Output** — PDF, TXT, or both (both come from the same cleaned text). Shows where runs are
+   saved. Optional *Edit audit (JSONL)*, *Debug full text* and *Dry run* apply to this session only.
+4. **Run** — *Start*, *Pause/Continue* and *Stop* (the current file always finishes first),
+   *Resume Run…*, *Resume Recent* and *Retry Failed*, with progress, completed/failed/skipped
+   counts and elapsed time.
 
-The editing pipeline itself is unchanged from 0.10.0: **three real per-novel profiles**
-(Shadow Slave, Supreme Magus, The Noble Queen), universal-only editing for every other
-novel, hardened scraper-junk/URL/watermark removal, protected-term support, audit logs,
-and the verification gate. The dropdown is driven by a novel → pipeline dispatch
-registry: a profiled novel runs its full profile, and any other novel (and "Universal")
-runs universal-only editing. Adding a real profile for another novel is a data exercise,
-not a code change. The two dirtier local corpora (Noble Queen, Supreme Magus) are local
-QA evidence, not files that ship with the app.
+The **Activity** pane has a *Summary* tab (run start, one line per file, warnings, totals) and a
+*Detailed* tab (timings, edit categories, mappings). *Clear Log* only clears the window. The
+status bar holds the **Dark mode** toggle (remembered), **Preferences & Data** and **Open Log
+Folder**.
+
+## Where files go
+
+Each run gets a new numbered folder: by default `Downloads/PDF-Editor-Outputs/<novel>-1`, then
+`-2`, and so on. In **Preferences & Data** you can choose a different folder; numbered runs are then
+created directly inside it. Output files keep their original names and the imported folder
+structure. An existing file is never overwritten. Each run folder contains a `run-manifest.json`
+that makes the run resumable.
+
+## Resume and recovery
+
+*Resume Run…* continues a stopped or interrupted run in its original folder with its original
+settings (changing preferences never affects an existing run). Before skipping anything it checks
+the source files and finished outputs by content hash. *Retry Failed* re-runs only failed items.
+Changed sources, edited outputs, unclear ownership and old-format runs are refused rather than
+overwritten. These are single-computer guarantees; folders synced by cloud services and several
+computers writing the same run are not supported.
+
+## What it fixes — and what it never touches
+
+- PDF extraction spacing, line-wrap, ligature and Unicode artifacts; scraper junk and URLs
+- Conservative OCR repairs (for example `l'm` → `I'm`), punctuation and `a`/`an`
+- Numeric ratios (`6/7` → `6 out of 7`) and chapter-title formatting
+- Spaced em/en dashes, converted for natural speech; unspaced dashes are kept
+- Typography: clearly paired straight double quotes become “curly”, and `don't`/`it's` get ’.
+  Anything uncertain is left exactly as written.
+
+It never rewrites style or grammar by guesswork, never changes pronouns, and never changes a
+protected name or the words and punctuation around it (for example *Clan Valor* always stays
+*Clan Valor*).
+
+## Upgrading from the earlier AI versions (v0.12 / v0.13)
+
+All AI editing (local Ollama and the Gemini/Groq cloud providers) has been removed. If you used
+those versions, an API key may still be saved on your computer — in
+`%LOCALAPPDATA%\WebNovelEditor\secrets.json`, in a `.env` file in the program folder, or in the
+`GEMINI_API_KEY` / `GROQ_API_KEY` environment variables. **This version never reads, uses, moves
+or deletes them.** Delete them yourself and revoke the keys in each provider's console. Unfinished
+cloud runs cannot be resumed (their files are left untouched); start a new run instead.
+
+## Privacy, settings and logs
+
+Preferences are stored per user (`%LOCALAPPDATA%\WebNovelEditor\settings.json` on Windows,
+`~/Library/Application Support/WebNovelEditor/settings.json` on macOS). *Reset Preferences*
+removes only that file. Each session writes one diagnostic log to `files/runtime-data/logs`
+(file names, counts, timings and errors — never chapter text); the latest 20 are kept.
+
+## Platform support
+
+Windows 11 is the tested platform. The macOS launcher in this version has static and simulated
+checks only; it has not yet been run on a Mac for this release. First-time setup downloads
+packages and is not an offline installer.
 
 ## For developers
 
-- Source: `scripts/Universal/` (entry point `scripts/Universal/main.py`); shipped runtime data
-  under `scripts/Universal/resources/`
-- Editing rules: `md-instructions/EDITING-RULES.md`
-- Project state: `md-instructions/BRIEFING.md` · Decisions: `md-instructions/DECISIONS.md`
-- Tests: `files/tests/` (dev-only)
-- Verification gate: `.venv\Scripts\python.exe scripts\verify.py` on Windows, or
-  `python scripts/verify.py` after activating the project virtual environment.
+- Source: `scripts/` (launch chain `bootstrap.py` → `launcher.py` → `main.py`); shipped runtime
+  data under `scripts/resources/`
+- Editing rules: `md-instructions/EDITING-RULES.md` and `scripts/resources/Novel-Edits-Details/`
+- Project state: `md-instructions/BRIEFING.md` · Decisions: `md-instructions/DECISIONS.md` ·
+  Changes: `md-instructions/CHANGELOG.md`
+- Tests: `files/tests/` (development only)
+- Verification gate: `.venv\Scripts\python.exe scripts\verify.py` (Windows) or
+  `.venv/bin/python scripts/verify.py`

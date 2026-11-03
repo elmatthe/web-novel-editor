@@ -1,0 +1,36 @@
+# ============================================================
+# Re:Monster — Do-Not-Touch Protected Terms
+# ============================================================
+# Format: one term or phrase per line
+# Lines beginning with # are comments and are ignored
+# Blank lines are ignored
+# Preserve case exactly as written here
+# Multi-word phrases are supported
+# ============================================================
+#
+# STATUS 2026-07-26: NOT YET BUILT — no corpus available for this novel.
+#
+# The other four profile-less novels were indexed on 2026-07-26 by counting
+# proper nouns in each novel's own chapter text. That method cannot run here:
+# files/pdf-example-chapters/ contains corpora for shadow-slave-1,
+# the-noble-queen-1, supreme-magus-1, renegade-immortal-1 and
+# reverend-insanity-1 only. There is no re-monster-1/.
+#
+# Terms were NOT filled in from web sources or from model recall. A protected
+# term has to match the source text byte-for-byte to mask anything, and the
+# spelling used by this particular translation cannot be confirmed without the
+# translation in hand. A plausible-looking name that is spelled differently in
+# the actual PDFs protects nothing while looking like it does — worse than an
+# empty file, which at least tells the truth.
+#
+# TO BUILD THIS INDEX:
+#   1. Put this novel's chapter PDFs in files/pdf-example-chapters/re-monster-1/
+#   2. Add "re-monster-1" to CORPORA in
+#      files/qa-tools/scratch/index-build/extract_current_corpora.py, then run it
+#   3. python files/qa-tools/scratch/index-build/qwen_candidates.py re-monster-1 80
+#   4. Add a CONFIG entry in build_all.py, then:
+#      python files/qa-tools/scratch/index-build/build_all.py re-monster
+#
+# Until then this novel edits correctly with universal rules and no protected
+# terms, exactly as it did before — an empty index is a supported state.
+# ============================================================

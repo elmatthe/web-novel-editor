@@ -98,12 +98,10 @@ def test_batch_collision_suffix(tmp_path):
         pytest.skip("fixtures not present")
     out_dir = str(tmp_path / "out")
     s1 = run_batch(pdfs, out_dir)
-    s2 = run_batch(pdfs, out_dir)            # same file again -> numeric suffix
-    assert s1["succeeded"] == 1 and s2["succeeded"] == 1
-    n1 = os.path.basename(s1["outputs"][0])
-    n2 = os.path.basename(s2["outputs"][0])
-    assert n1 != n2
-    assert n2.rsplit(".", 1)[0].endswith("_2")
+    before = {p: _sha(p) for p in s1["outputs"]}
+    with pytest.raises((FileExistsError, RuntimeError)):
+        run_batch(pdfs, out_dir)  # a durable run is immutable; use explicit Resume
+    assert {p: _sha(p) for p in s1["outputs"]} == before
 
 
 def test_batch_dry_run_writes_nothing(tmp_path):
@@ -272,9 +270,8 @@ def test_batch_mirrored_collision_suffix_in_subfolder(tmp_path):
 
     s1 = run_batch(src, str(out_dir), mirror_root=str(src_root),
                    gui_log=lambda *a, **k: None)
-    s2 = run_batch(src, str(out_dir), mirror_root=str(src_root),
-                   gui_log=lambda *a, **k: None)
-
-    assert s1["succeeded"] == 1 and s2["succeeded"] == 1
-    assert os.path.basename(s2["outputs"][0]) == "2_2.pdf"
-    assert (out_dir / "MyNovel" / "arc-2" / "2_2.pdf").is_file()
+    before = _sha(s1["outputs"][0])
+    with pytest.raises((FileExistsError, RuntimeError)):
+        run_batch(src, str(out_dir), mirror_root=str(src_root))
+    assert _sha(s1["outputs"][0]) == before
+    assert not (out_dir / "MyNovel" / "arc-2" / "2_2.pdf").exists()

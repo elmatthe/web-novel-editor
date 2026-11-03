@@ -1,0 +1,744 @@
+{
+ "schema": 1,
+ "corpora": {
+  "the-noble-queen-1": {
+   "pdf_count": 890,
+   "files": {
+    "Chapter 100_ A Golden Opportunity.pdf": {
+     "roles": [
+      "sample"
+     ],
+     "sha256": "b137093c3517b11e3825a706d4d39b61694e36595588e5748e56492cb07deffe"
+    },
+    "Chapter 106_ To the Victor.pdf": {
+     "roles": [
+      "modified"
+     ],
+     "sha256": "60e7afb76a97c2fe96d911ef8e22a53a1744b94e61a63a322959b8e9461dd966"
+    },
+    "Chapter 117_ Dead End.pdf": {
+     "roles": [
+      "modified"
+     ],
+     "sha256": "5521efad183799a5cdb94599a080b744d7c8a626490c40398478c6d171847609"
+    },
+    "Chapter 126_ A Safe Place.pdf": {
+     "roles": [
+      "modified"
+     ],
+     "sha256": "1600f0ac08f0f12aea0a98d5e35ed23bb6e0d3ab69620ece2971a25e7b279ef7"
+    },
+    "Chapter 129_ Dig a Hole and Float Over It.pdf": {
+     "roles": [
+      "modified"
+     ],
+     "sha256": "169bd5d110399efdf4a97f9faeca8567834f1d28906a665736310de9d770c103"
+    },
+    "Chapter 135_ Dare to Dream.pdf": {
+     "roles": [
+      "modified"
+     ],
+     "sha256": "3b57d2604e923f4e1e2760d8847580b2e417a45cb2c336bffd119a5fd2991a2f"
+    },
+    "Chapter 186_ Hello There.pdf": {
+     "roles": [
+      "modified"
+     ],
+     "sha256": "d7b98f774b3c2a7dea13f3ea4bf36ac864d8706b3f582f75b3f1f63ed621ff46"
+    },
+    "Chapter 187_ Are You Yellow_.pdf": {
+     "roles": [
+      "modified"
+     ],
+     "sha256": "2a44d9c60c77a66ccf65350e9f954b6f2e93a89b04fd3d7f231c5fcf80a75f54"
+    },
+    "Chapter 241_ The Truth.pdf": {
+     "roles": [
+      "modified"
+     ],
+     "sha256": "249fff9f1c3f242d2c989412355e7ba680d61c34aa389f9fcbe51140e1899feb"
+    },
+    "Chapter 242_ The Heart.pdf": {
+     "roles": [
+      "modified"
+     ],
+     "sha256": "4282944bd04566beb72c644e34573d8b96e7125f8bea4543a7f39f5e7301c59b"
+    },
+    "Chapter 243_ Birth of a Tyrant.pdf": {
+     "roles": [
+      "modified"
+     ],
+     "sha256": "837745c2b9172f05c61c4a260b6350613e4d0e51aa749d5659bad4cb69e5c6a0"
+    },
+    "Chapter 278_ Home.pdf": {
+     "roles": [
+      "modified"
+     ],
+     "sha256": "7613075652854f9c5fb0ce9f3883464212bd89eef6de3a997c748d16370f5eab"
+    },
+    "Chapter 27_ Trying to Stay Busy.pdf": {
+     "roles": [
+      "modified"
+     ],
+     "sha256": "1c6466d0e52c97a7dda61371138439344fbe286626a83b991f843f5054dc8458"
+    },
+    "Chapter 464_ Soul Searching.pdf": {
+     "roles": [
+      "modified"
+     ],
+     "sha256": "adfa2d6a4dec18648982dd5f639187dbec9139856f8ade0381e579cf620db836"
+    },
+    "Chapter 493_ Playing Coy.pdf": {
+     "roles": [
+      "modified"
+     ],
+     "sha256": "6c1d7c2607505b4763047895faaf46b131a5c46a1ba94f90989bf319ded23e65"
+    },
+    "Chapter 49_ Home.pdf": {
+     "roles": [
+      "modified"
+     ],
+     "sha256": "f8522efbe627f590d70c32766d9afa1f2785b569a5a459ccf885afa1621960ef"
+    },
+    "Chapter 501_ No Way Out.pdf": {
+     "roles": [
+      "sample"
+     ],
+     "sha256": "831c799a8088a8b28682e62adaaec7fe5840ee6e50a935067bf39edf649b3a69"
+    },
+    "Chapter 505_ A Nice Day for.pdf": {
+     "roles": [
+      "modified"
+     ],
+     "sha256": "64c49b5e115d64bdc6c2b99a8dc59f840caba1d0f9646c5c259b5efd7bfbe2ad"
+    },
+    "Chapter 532_ Wannabe.pdf": {
+     "roles": [
+      "modified"
+     ],
+     "sha256": "28a5252d60058c8b65048a5d5ff635e62c37550742be8c0d65ab680c8aac0710"
+    },
+    "Chapter 563_ Violet One.pdf": {
+     "roles": [
+      "modified"
+     ],
+     "sha256": "530c41a8b62c1e47171663b4169e3d5abd5258670f3fdc38922b4312df452323"
+    },
+    "Chapter 580_ Next Target.pdf": {
+     "roles": [
+      "modified"
+     ],
+     "sha256": "b00fd1fc844ee773e76b1785d2859a5ced7606a0b16cf2fb67792818cbd36be2"
+    },
+    "Chapter 585_ Through the Mist, Through the Woods.pdf": {
+     "roles": [
+      "modified"
+     ],
+     "sha256": "0d16d29c52dd20e84218ac0a1fa58a70c99b23055f1c96592e54cb7d60701a39"
+    },
+    "Chapter 621_ Lioness.pdf": {
+     "roles": [
+      "protected_terms"
+     ],
+     "sha256": "48ccc6267c1a55d4c0d247c91e7c1caa3dd1895a3f6721613fcd8fe37eb9f793"
+    },
+    "Chapter 727_ Which Way to Go.pdf": {
+     "roles": [
+      "modified"
+     ],
+     "sha256": "ef8750998a48a62067229d658c27a3e2950ba2564333442e0586907f52cf843f"
+    },
+    "Chapter 90_ An Offer She Can't Refuse.pdf": {
+     "roles": [
+      "modified"
+     ],
+     "sha256": "bb9d1b52217402362360821f07712b18d38cfa82f4f89c1664993d7144b3fa25"
+    },
+    "Chapter 94_ A Little Scrolling.pdf": {
+     "roles": [
+      "modified"
+     ],
+     "sha256": "ad0773f92c486171d761b734b10c38afed97a76a3396fd4b35a42773f02694ec"
+    },
+    "Chapter 9_ Calling on an Expert.pdf": {
+     "roles": [
+      "sample"
+     ],
+     "sha256": "111d4cb015d2093f6e9a0e581274c066933a3dafa6b4dbc6b01262a0b961522c"
+    }
+   }
+  },
+  "supreme-magus-1": {
+   "pdf_count": 4407,
+   "files": {
+    "Chapter 1000_ Bonds of Trust Part 2.pdf": {
+     "roles": [
+      "sample"
+     ],
+     "sha256": "ead9b671aefdb58ac15561d715dc9f4b5dfb97ebd606a72d1b0bd83dcb6b9029"
+    },
+    "Chapter 1163_ Puppeteer Abominations Part 1.pdf": {
+     "roles": [
+      "dirty"
+     ],
+     "sha256": "5a8576e2917d2bb2fab02679450f24e24895e6e4a75b262f4973ea33a028830c"
+    },
+    "Chapter 1182_ Inner Demons Part 2.pdf": {
+     "roles": [
+      "dirty"
+     ],
+     "sha256": "92b310cb92b4a1f3fd438784a327535adbeff00179049612e9fcfe258e22bc4b"
+    },
+    "Chapter 1184_ Magic and Superstition Part 2.pdf": {
+     "roles": [
+      "dirty"
+     ],
+     "sha256": "33fe5171bc3faf1d657a2b6a2b26547037b763cc3b2a00ea05ad33c8cab9dd0d"
+    },
+    "Chapter 1290_ Road Trip (Part 2).pdf": {
+     "roles": [
+      "dirty"
+     ],
+     "sha256": "f8fdd20efc5e0cdfdad13073e545ce58aaa4d3e20a9429853638260d6242d9da"
+    },
+    "Chapter 1291_ The Three Branches of Magic (Part 1).pdf": {
+     "roles": [
+      "dirty"
+     ],
+     "sha256": "c5df91c1e250f4fd97b5653de77238ed98fbfe1d39209c95542e5bbfdf0bb3a3"
+    },
+    "Chapter 1415.pdf": {
+     "roles": [
+      "error_page"
+     ],
+     "sha256": "d0a1d976fb7914498004a65a6f3042fb3ff74a9211dded7d883a870d66ad82e7"
+    },
+    "Chapter 1416.pdf": {
+     "roles": [
+      "error_page"
+     ],
+     "sha256": "f079ab5e9ab98e710cbbc213afc6ccaf09cbbcec35a8782e09b90fc422817561"
+    },
+    "Chapter 1417.pdf": {
+     "roles": [
+      "error_page"
+     ],
+     "sha256": "727641245f6e0c515d80689f6becbe476ee5b31a7654d2a0a8d65868862d1099"
+    },
+    "Chapter 1420.pdf": {
+     "roles": [
+      "error_page"
+     ],
+     "sha256": "692aa8b5c2a74310873787466f858052d8d093f7efd55092f6dfb786b209431b"
+    },
+    "Chapter 1421.pdf": {
+     "roles": [
+      "error_page"
+     ],
+     "sha256": "9c4b068164e3ccddf991d077b833310d5e1c4e5eb7615e7bd72aa95f3fc1fa4a"
+    },
+    "Chapter 1422.pdf": {
+     "roles": [
+      "error_page"
+     ],
+     "sha256": "2eea06d21e04b5c39d217e13d84a7dbb46a05ee97967dece6c962a95671a3929"
+    },
+    "Chapter 1423.pdf": {
+     "roles": [
+      "error_page"
+     ],
+     "sha256": "291ce7db359ceb22c5614eaed1ca3bc4fc12ac37d19de5e12975c9f8cab2a382"
+    },
+    "Chapter 1829_ Truths and Secrets (Part 1).pdf": {
+     "roles": [
+      "artifact"
+     ],
+     "garbled": "Thn1d",
+     "fixed": "Thrud",
+     "sha256": "9652af6ec4581c480c97248080d842d2441579ed9c9fc8624cea4769643c7c0f"
+    },
+    "Chapter 1851_ First Fall (Part 1).pdf": {
+     "roles": [
+      "dirty"
+     ],
+     "sha256": "bed1602d2e5e6a5507965848b4af87efeec7734cf9b73a5c1745b80db12aa993"
+    },
+    "Chapter 1852_ First Fall (Part 2).pdf": {
+     "roles": [
+      "dirty"
+     ],
+     "sha256": "5c35854f75e4f8b2b206c3d6e4ed4f853bfc7b921e4f336706fb197069c4b353"
+    },
+    "Chapter 1853_ Water to a Fish (Part 1).pdf": {
+     "roles": [
+      "dirty"
+     ],
+     "sha256": "e9d8d0540adc2cedbfc34ded6292cc4364248e9f704e81704ae675a7cfdbe83d"
+    },
+    "Chapter 1854_ Water to a Fish (Part 2).pdf": {
+     "roles": [
+      "dirty"
+     ],
+     "sha256": "bc1c48308d2142d059bfc98f78d2dc7c528248d35a6610342ab7d71ec475d9db"
+    },
+    "Chapter 1858_ Empty Shell (Part 2).pdf": {
+     "roles": [
+      "dirty"
+     ],
+     "sha256": "8efbb769ed419256f6720167f464d531a1301e841fee45260c6c7b326c61160c"
+    },
+    "Chapter 1861_ Broken Mind (Part 1).pdf": {
+     "roles": [
+      "dirty"
+     ],
+     "sha256": "63bc913a810a58f4a3f4790834fafb414fbb6d0a691100229a101c46cc544625"
+    },
+    "Chapter 1949_ Stepping into the Light (Part 1).pdf": {
+     "roles": [
+      "dirty"
+     ],
+     "sha256": "5ddec7459cd806f2e4940a6b49fdec2984636effb7bd19f0766928dceb3c8dc0"
+    },
+    "Chapter 1950_ Stepping into the Light (Part 2).pdf": {
+     "roles": [
+      "dirty"
+     ],
+     "sha256": "5dc8027d0ea4a6a695d2e4368104ab61e2ba73ec4d8938ef681d5749edf60b5d"
+    },
+    "Chapter 1957_ The Die is Cast (Part 1).pdf": {
+     "roles": [
+      "dirty"
+     ],
+     "sha256": "da15faac17ffc75490549beb1c89d9e942f684707ffd172819969d5b06172ebf"
+    },
+    "Chapter 1958_ The Die is Cast (Part 2).pdf": {
+     "roles": [
+      "dirty"
+     ],
+     "sha256": "85c5abc456498533f3b136c345ea627a930154a04bc56bb876e9ba8437639769"
+    },
+    "Chapter 1959_ Blight Flames (Part 1).pdf": {
+     "roles": [
+      "dirty"
+     ],
+     "sha256": "6ea8503d043d9e5647bec07ea0cdf639cca7531825cd30296bc16867c7d2749c"
+    },
+    "Chapter 1960_ Blight Flames (Part 2).pdf": {
+     "roles": [
+      "dirty"
+     ],
+     "sha256": "d915b7496f6ed7e4ab7a84f170a2a3a2fe289c31c02e831abd8430ca97d1c77d"
+    },
+    "Chapter 2133_ Honored Guest (Part 1).pdf": {
+     "roles": [
+      "dirty"
+     ],
+     "sha256": "f5362408ce37ce65ae5b822080a81a226573d253611ffdcd5588e8691a4a4847"
+    },
+    "Chapter 2484_ Power Rush (Part 2).pdf": {
+     "roles": [
+      "modified"
+     ],
+     "sha256": "37d963ff3ba40f246937bf2a0797758e37964b0623346d4b42a29ffe9d2d533e"
+    },
+    "Chapter 2562_ Counter Offer (Part 2).pdf": {
+     "roles": [
+      "dirty"
+     ],
+     "sha256": "a63a16f57763b1075e08d92a5bd95a9260e94f97b91263a7cf67b509d0d56cda"
+    },
+    "Chapter 2563_ Poisoned Chalices (Part 1).pdf": {
+     "roles": [
+      "dirty"
+     ],
+     "sha256": "54911cb6c5d1c25af1001da1dc3991b9083d6b3b7e8b7bd6a663b4b275933d8b"
+    },
+    "Chapter 2567_ Blood Bonds (Part 1).pdf": {
+     "roles": [
+      "dirty"
+     ],
+     "sha256": "d5218f2fe5007e3c948adff1c03143d9e1a5905b373a3c3eededc211248144fa"
+    },
+    "Chapter 2568_ Blood Bonds (Part 2).pdf": {
+     "roles": [
+      "dirty"
+     ],
+     "sha256": "ee3fc439d659b077b7ef1466de2d54371771ce73d5c4b2eac774fbf62ae655b9"
+    },
+    "Chapter 2575_ Two Magi (Part 1).pdf": {
+     "roles": [
+      "dirty"
+     ],
+     "sha256": "6c35ac1c8c46f90a935699d9b40293bfc74f3fcd2ee94f7502caddfabf49ef3f"
+    },
+    "Chapter 2635_ Tipping The Scales (Part 1).pdf": {
+     "roles": [
+      "dirty"
+     ],
+     "sha256": "bc59c0151e657a2b241a970af32a3417445f736847d16c3b4ce3a4d1fdf5c7f2"
+    },
+    "Chapter 2637_ Thorny Ways (Part 1).pdf": {
+     "roles": [
+      "dirty"
+     ],
+     "sha256": "8673054e404a70ffbb49369347f5a46c6fca02ef9f527cbd76a15a773d6f3aeb"
+    },
+    "Chapter 2638_ Thorny Ways (Part 2).pdf": {
+     "roles": [
+      "dirty"
+     ],
+     "sha256": "2875bcce9e3c3c1d839b353d2f6713065f16a767156111eb696de76205797e76"
+    },
+    "Chapter 2639_ Pulling The Leash (Part 1).pdf": {
+     "roles": [
+      "dirty"
+     ],
+     "sha256": "7d87ea27d27a1247c390d57e8a11f1b587e7a5b4bd4cec69ffa393d04e6e82ed"
+    },
+    "Chapter 2645_ Insider Trading (Part 1).pdf": {
+     "roles": [
+      "dirty"
+     ],
+     "sha256": "7515fe2889e5e231eceb2d284f62f3711e99699d613f8887a9c69eef312e3f9c"
+    },
+    "Chapter 2677_ From War to… (Part 1).pdf": {
+     "roles": [
+      "artifact"
+     ],
+     "garbled": "Ragnar?k",
+     "fixed": "Ragnarök",
+     "sha256": "ddaa0ac43c4444eff33799d7ed9e2a5950abea984a9e343c4f6a620bf1281bd7"
+    },
+    "Chapter 2827_ Two Minds (Part 1).pdf": {
+     "roles": [
+      "dirty"
+     ],
+     "sha256": "a8bd2655081948e3873f63b717765c4994d20001715dabdc8612e229ad447cb7"
+    },
+    "Chapter 2828_ Two Minds (Part 2).pdf": {
+     "roles": [
+      "dirty"
+     ],
+     "sha256": "af7f1833f7ec16ba16945ad509499bfc8430f643d61e762bba71dcb608db7223"
+    },
+    "Chapter 2829_ More than Flesh (Part 1).pdf": {
+     "roles": [
+      "dirty"
+     ],
+     "sha256": "1e942916cba7b921c8338b3c18bef57f5312e98f0531d93910dd9705e9f450c0"
+    },
+    "Chapter 2830_ More than Flesh (Part 2).pdf": {
+     "roles": [
+      "dirty"
+     ],
+     "sha256": "45c0bb681cf53ef5c33febdd87daf660a9fc6f962673cb6d72132934d4895688"
+    },
+    "Chapter 2983_ Mogar’s Garden (Part 1).pdf": {
+     "roles": [
+      "sample"
+     ],
+     "sha256": "4040c4abe6f7504994fce3ebb65d36efadd584c258d000e1a8d82b7651f50b78"
+    },
+    "Chapter 3489_ The Price of Progress (Part 2).pdf": {
+     "roles": [
+      "dirty"
+     ],
+     "sha256": "1c85e8b67f891a9eadafc264dd0fd893f3b4fc6030df8965726802e10c7bd071"
+    },
+    "Chapter 3492_ Betrayed Trust (Part 1).pdf": {
+     "roles": [
+      "dirty"
+     ],
+     "sha256": "4b02ce25a91f40a1353be87559f677dd3a4ee4a11171fe49f1f05b1a26532d82"
+    },
+    "Chapter 3494_ Lucky Charm (Part 1).pdf": {
+     "roles": [
+      "dirty"
+     ],
+     "sha256": "311936cb5c1bbc19a006a66e6a8b4ffcdddd955592dbadba5e6672655eaa6b5d"
+    },
+    "Chapter 3497_ Captured (Part 2).pdf": {
+     "roles": [
+      "dirty"
+     ],
+     "sha256": "9e479a50afb4885dd5bbdd86fe826e1b1216a53dfbd71d8e28aaa5eed2332f9f"
+    },
+    "Chapter 3500_ Shaky Foundations (Part 1).pdf": {
+     "roles": [
+      "dirty"
+     ],
+     "sha256": "7db4f7e236e4c765648502468e63cf9c9aa44baa4c5342ec735fad32b9b6ca23"
+    },
+    "Chapter 3501_ Shaky Foundations (Part 2).pdf": {
+     "roles": [
+      "dirty"
+     ],
+     "sha256": "86983ffd816665810126230b08ef37144f2903492c815229543b6a2d222c7f80"
+    },
+    "Chapter 3556_ Dying Bloodline (Part 1).pdf": {
+     "roles": [
+      "modified"
+     ],
+     "sha256": "a6cd779bc94e6a4eccfb4b3ac0a00641d0a43185de292c9ea3d09b9c31fe64e8"
+    },
+    "Chapter 657_ Flesh and Stone Part 1.pdf": {
+     "roles": [
+      "modified"
+     ],
+     "sha256": "2552a74a27415b5395efe65c4dd6dd63bb3fd650fd5002cb953df41c4311ee27"
+    },
+    "Chapter 659_ From Bad to Worse Part 1.pdf": {
+     "roles": [
+      "modified"
+     ],
+     "sha256": "084ca268e2604fd0e88f1ca9b421fac86491b41c2c05262fb5264cd4f80913c5"
+    },
+    "Chapter 660_ From Bad to Worse Part 2.pdf": {
+     "roles": [
+      "modified"
+     ],
+     "sha256": "2df4aa648d8185fcc7decaf45632768135d7d28bca8770fc4ab982f223cadbd0"
+    },
+    "Chapter 661_ From Bad to Worse Part 3.pdf": {
+     "roles": [
+      "modified"
+     ],
+     "sha256": "e028932f188983b1dce1da8228232883ab7beb4940e2b5bd7001cbaa1911c9fb"
+    },
+    "Chapter 663_ Battle of Wits Part 1.pdf": {
+     "roles": [
+      "modified"
+     ],
+     "sha256": "0df42a0f0e717d8467cec320acd054a0a02187f93be36721be255687df0d1a63"
+    },
+    "Chapter 664_ Battle of Wits Part 2.pdf": {
+     "roles": [
+      "modified"
+     ],
+     "sha256": "f62f13b3a00b8e991dfbbc2ec219601f125e944b2b78a494dda88b3de6944fb4"
+    },
+    "Chapter 665_ Mixed Signals Part 1.pdf": {
+     "roles": [
+      "modified"
+     ],
+     "sha256": "99c7e30855a5a4eec1461ef7bd896409ffc977d68c5f2e57c2e0c7d35b659702"
+    },
+    "Chapter 666_ Mixed Signals Part 2.pdf": {
+     "roles": [
+      "modified"
+     ],
+     "sha256": "5e81490970bc9be93d16c420b65ae0e93dfcb938668c8e212287109c0d458629"
+    },
+    "Chapter 667_ Meat Factory Part 1.pdf": {
+     "roles": [
+      "modified"
+     ],
+     "sha256": "9eba156aee11feea17bf57c122cbd74e0a4036e3b08e704e9d257f77bfef9f7e"
+    },
+    "Chapter 668_ Meat Factory Part 2.pdf": {
+     "roles": [
+      "modified"
+     ],
+     "sha256": "54a396d6b010edd480d993cc10af3945dc6ec1abdfc12d6c58c7877e3e2e7189"
+    },
+    "Chapter 669_ Planning Ahead Part 1.pdf": {
+     "roles": [
+      "modified"
+     ],
+     "sha256": "b6786f79ebcec2e2b25f4fa7413519a96c9171b0c1114a1a5556c77260d93f7b"
+    },
+    "Chapter 670_ Planning Ahead Part 2.pdf": {
+     "roles": [
+      "modified"
+     ],
+     "sha256": "a430581a46fd696c7c6bd5b4b785b2f3bfd731fa9b891faf894f5cf9cfb4dc60"
+    },
+    "Chapter 671_ Impending Threat Part 1.pdf": {
+     "roles": [
+      "modified"
+     ],
+     "sha256": "65eda087585a81d424251babf0cd8107fc66b060ec5c34b05a5771d9beca0283"
+    },
+    "Chapter 672_ Impending Threat Part 2.pdf": {
+     "roles": [
+      "modified"
+     ],
+     "sha256": "27b3a158f92338a95968b66c4b26ddd10fe3f21f8fe6278a0833784d09141c88"
+    },
+    "Chapter 673_ Paying the Price Part 1.pdf": {
+     "roles": [
+      "modified"
+     ],
+     "sha256": "5281ef25b5ec17436d36af027dc95f1d4239093d5ff01fbbf6f6962dcdab12b1"
+    },
+    "Chapter 674_ Paying the Price Part 2.pdf": {
+     "roles": [
+      "modified"
+     ],
+     "sha256": "c6b3e7fd3b1b7034b6e8c2cf6dc290777a6d8b8fb3d18fe33621bcad1c7dcd1d"
+    },
+    "Chapter 675_ Conflicting Desires Part 1.pdf": {
+     "roles": [
+      "modified"
+     ],
+     "sha256": "0e7d1f49560c66e58b725f25ec8fbd6fb2207bc8707030574bbe6d51be2ff41f"
+    },
+    "Chapter 676_ Conflicting Desires Part 2.pdf": {
+     "roles": [
+      "modified"
+     ],
+     "sha256": "d4d711a29c1ec1cb90b66cd70d403e7e711a0f8168f3d42760c2c624be83d100"
+    },
+    "Chapter 679_ Survival of the Fittest Part 1.pdf": {
+     "roles": [
+      "modified"
+     ],
+     "sha256": "b9b74aa91a4a1679ed08ffe30c588b24c7e7a492097268125346ef020cc35cd6"
+    },
+    "Chapter 680_ Surival of the Fittest Part 2.pdf": {
+     "roles": [
+      "modified"
+     ],
+     "sha256": "be9ed7328bb4b7a7a30f1de1fa6fce0994b8343f55c6ca122717fa8d68f962b6"
+    },
+    "Chapter 681_ Mysteries Part 1.pdf": {
+     "roles": [
+      "modified"
+     ],
+     "sha256": "6de4bc81ca02f366a78cd797508abda16499e1744fc684ea068c30a2c4873f06"
+    },
+    "Chapter 682_ Mysteries Part 2.pdf": {
+     "roles": [
+      "modified"
+     ],
+     "sha256": "2f1e182f494d0dd03204d2888553a6850ed4dc40a9de75e424503a7cbf8a6086"
+    },
+    "Chapter 689_ Conflicts Part 1.pdf": {
+     "roles": [
+      "modified"
+     ],
+     "sha256": "54a0f4eae5ac8aff5714b6dd6fe2764be97d56ceac935591aa836b8b7bd2babd"
+    },
+    "Chapter 691_ Bane Part 1.pdf": {
+     "roles": [
+      "modified"
+     ],
+     "sha256": "01b1d6113b62ab1b8db41e79446b477f623e49b502ec951701ddf0fddb1ce311"
+    },
+    "Chapter 692_ Bane Part 2.pdf": {
+     "roles": [
+      "modified"
+     ],
+     "sha256": "812baf12628c0b3da2dd06fe872f0b47387544d56bc133481bfd1c84b8d3fae9"
+    },
+    "Chapter 694_ Retreat Part 2.pdf": {
+     "roles": [
+      "modified"
+     ],
+     "sha256": "a485e418240c8ed693f45e9b6666446a09d6a32d14668a9b8031f7f0b1450003"
+    },
+    "Chapter 695_ Third Eye Part 1.pdf": {
+     "roles": [
+      "modified"
+     ],
+     "sha256": "009354c27792fdcd4f90a8ceaaa52670a76af64b7f5348e5eb6f6d984de96cf4"
+    },
+    "Chapter 696_ Third Eye Part 2.pdf": {
+     "roles": [
+      "modified"
+     ],
+     "sha256": "0dbe4fc5e132b7d0de1bbb22693181b4bd4da6c6539c37666d49def39f32fffb"
+    },
+    "Chapter 703_ Tyrant Part 1.pdf": {
+     "roles": [
+      "modified"
+     ],
+     "sha256": "04f8df71a383c610f14bde662f70955a91ee12de3c0cd8e71aacb4079ce9a181"
+    },
+    "Chapter 710_ Strength and Weakness Part 2.pdf": {
+     "roles": [
+      "modified"
+     ],
+     "sha256": "a214eae2f4df3d45445a2bbe592051e80080971c7bfc256b8d3e08b36e6c1f51"
+    },
+    "Chapter 711_ Green Array Part 1.pdf": {
+     "roles": [
+      "modified"
+     ],
+     "sha256": "6aa2105aa21efc81ec0632b7f6acfa778880fa6d7d8ed6d73d3837b199eff0b3"
+    },
+    "Chapter 712_ Green Array Part 2.pdf": {
+     "roles": [
+      "modified"
+     ],
+     "sha256": "79a1466885ec946dd77e63541c0e13d2d4a72239ef68d014f45a09edfbe50051"
+    },
+    "Chapter 783_ Gifts and Knowledge Part 1.pdf": {
+     "roles": [
+      "modified"
+     ],
+     "sha256": "22993f2f97a5a5237667e2420f49d9349dd2763e7dc7e5e3eb95c7cad480ebbf"
+    },
+    "Chapter 784_ Gifts and Knowledge Part 2.pdf": {
+     "roles": [
+      "modified"
+     ],
+     "sha256": "bdf9891062c6b8bcf5c28b60144beecb3806f2a857a66c8ec3f02f4d4edac20c"
+    },
+    "Chapter 785_ Grudge Part 1.pdf": {
+     "roles": [
+      "modified"
+     ],
+     "sha256": "7f63227d9d5ab293f2aa4741f48ef52ca27953a93d0df5df4c8a636f3808b9c9"
+    },
+    "Chapter 786_ Grudge Part 2.pdf": {
+     "roles": [
+      "modified"
+     ],
+     "sha256": "f3e4effc95111453b77558fe8ef50864262c53cbcb16073e34d756a23fd091a9"
+    },
+    "Chapter 787_ Javvok Part 1.pdf": {
+     "roles": [
+      "modified"
+     ],
+     "sha256": "22b156bef01634d0d4d4652c722ed852d87cc46db9b527d9ae16aa94623c8b81"
+    },
+    "Chapter 788_ Javvok Part 2.pdf": {
+     "roles": [
+      "modified"
+     ],
+     "sha256": "f6ab50426558d975e116684af57494935877895b3bc09a7e3df884e9233702d6"
+    },
+    "Chapter 9_ Understanding Spirit Magic.pdf": {
+     "roles": [
+      "sample"
+     ],
+     "sha256": "caeeb7a0d6d5ed2f7310454aa45b00dad494e3bed9394e1e5f7a621f1b89115b"
+    }
+   }
+  },
+  "shadow-slave-1": {
+   "pdf_count": 3105,
+   "files": {
+    "Chapter 1000_ The Fall of Falcon Scott (18).pdf": {
+     "roles": [
+      "sample"
+     ],
+     "sha256": "edd333b47d7c889d0fddd2ef6f6180b310277b0acbcd655da1ed4e0948129b10"
+    },
+    "Chapter 2399_ Bound.pdf": {
+     "roles": [
+      "sample"
+     ],
+     "sha256": "47b713f6e9f029ff6665fc5fbdce5bfc5e6b7d5e7e2b75fac166b85ef12444e1"
+    },
+    "Chapter 9_ Wishful Thinking.pdf": {
+     "roles": [
+      "sample"
+     ],
+     "sha256": "0ab3873e539de4ddc5a6706e99e562c85cecb67a992e21c064428eea556b33d8"
+    }
+   }
+  }
+ }
+}
