@@ -1,7 +1,14 @@
 # WNE Phase 04 — Release readiness (v0.4.0 candidate)
 
-Status: **ATTRIBUTION EVIDENCE REMEDIATED — READY FOR INDEPENDENT RE-REVIEW, NOT READY TO MERGE.**
-Two independent Codex reviews returned **BLOCKED**: of `8d93186` (7 findings, preserved in
+Status: **TXT PARAGRAPH FIX IMPLEMENTED (DECISIONS 084) — AWAITING A FOCUSED INDEPENDENT REVIEW OF
+THE NEW SHA AND A SHORT MANUAL TXT RETEST; NOT READY TO MERGE.** The remediated candidate
+`21059ae` passed an independent review (PASS WITH CONDITIONS). The user's manual acceptance then
+found that TXT inputs without blank lines lost all their paragraphs, and the user approved a fix.
+The fix, its evidence and what still has to be done are in "TXT paragraph fix" below. History
+follows unchanged.
+
+Earlier status (kept): attribution evidence remediated, ready for independent re-review. Two
+independent Codex reviews returned **BLOCKED**: of `8d93186` (7 findings, preserved in
 `WNE-P04-codex-review-8d93186.md`) and of `0989804` (preserved in
 `WNE-P04-codex-review-0989804.md`). The second confirmed six findings resolved and kept the P1
 editorial-delta attribution finding open. **Correction:** an earlier version of this report said all
@@ -22,6 +29,8 @@ original report and this remediation.
   second candidate (re-reviewed: BLOCKED on attribution evidence) · attribution remediation
   (DECISIONS 083; its SHA is given in the CLI report — a commit cannot contain its own SHA). The
   remediation changes no production code: the product tree (`scripts/`, launchers) equals `4b4d605`.
+  The remediation commit is `21059ae`. The TXT paragraph fix (DECISIONS 084) is the next commit; its
+  SHA is in the CLI report. It changes one production function, `_txt_paragraphs`, and its comment.
 - `main` = `72d68ca` (v0.12.0). Tags: `v0.4.0` absent locally and remotely (checked before tagging).
 - Unrelated untracked `md-instructions/plan-2-ai-editor-integration.md` preserved, never staged.
 
@@ -136,6 +145,104 @@ regressions, part of the verifier). The reviewed ignored checker is kept unchang
 - **Not proven by the contract:** OCR context is judged on final text; an attested `l` production
   left unrepaired is not flagged; PDF bytes were hash-checked, not re-rendered.
 
+## Independent review of `21059ae` and manual acceptance (2026-11-02)
+
+- **Review** of exactly `21059ae` by Claude Code, in a fresh context separate from the writer session;
+  working evidence is ignored under `files/run-temp/review-21059ae/`. Verdict: **PASS WITH CONDITIONS**.
+  - Tests: 1,107 passed, 0 failed, 0 skipped.
+  - Evidence: frozen 828, Shadow Slave 3,095 and Noble Queen 889, with 0 unexplained changes.
+  - Deferred, non-blocking items in the dev-only QA checker: F1 (aligner misattribution), F2 (OCR
+    context judged on final text), F3 (`quote-unverified-unchanged` passes as a note).
+  - The review did not exercise TXT inputs without blank lines.
+- **Manual acceptance** by the user on Windows 11, coordinated by Claude Code; record ignored at
+  `files/test-logs/v0.4.0_manual-acceptance.md`.
+  - **Group 1 (GUI):** 10/10 PASS. Executed with Universal, the 10 tracked Shadow Slave fixture PDFs
+    and the default Downloads output. Manifest, hashes and sources were verified, and the outputs
+    were reproduced headlessly.
+  - **Group 2 (OS-offline):** the launcher took the offline fast path. A Universal run of 2 PDFs and
+    1 TXT completed 3/0/0 with no network or repair messages; outputs were verified and reproduced.
+    The user's confirmation of the disconnection steps is still outstanding.
+  - **Group 3:** not started.
+- While verifying Group 2, the TXT input came out as one 6,992-character paragraph. Acceptance was
+  stopped, and the user chose to fix it rather than disclose it.
+
+## TXT paragraph fix (DECISIONS 084)
+
+- **Root cause.** `scripts/pipelines/universal.py::_txt_paragraphs` treated blank lines as the only
+  paragraph boundary and joined every single newline with a space. A TXT with no blank lines
+  therefore became one paragraph. That covers one paragraph per line, hard-wrapped text, and
+  PDF-extracted text like the real `442` input, which is wrapped at about 120 characters.
+- **Fix.** Blank lines and headings are still hard boundaries. Every other single newline goes to the
+  unchanged `reconstruct_paragraphs`, the PDF rule: a break only after a sentence end where the next
+  line is not lowercase. Files that use blank lines as paragraph separators keep their existing
+  join. A one-paragraph-per-line run inside such a file is detected, so mixed layouts work.
+  - The full policy and its unavoidable ambiguities are in DECISIONS 084.
+  - No other production code changed; `spacing_cleanup.py` and the PDF branch are untouched.
+- **Failing first.** `files/tests/test_txt_paragraphs.py` has 24 synthetic tests covering:
+  - the 442 pattern;
+  - one paragraph per line;
+  - hard-wrapped text at 40, 48, 60 and 72 characters, checked against a policy oracle written
+    independently of the code;
+  - mid-sentence wraps;
+  - the documented ambiguity;
+  - blank-line and wrapped-block files;
+  - scene breaks and half-and-half layouts;
+  - headings without blank lines;
+  - multi-chapter TXT;
+  - word preservation in six layouts;
+  - TXT→PDF+TXT end to end with CRLF sources, source immutability and protected names.
+
+  Against `21059ae`'s function, 15 fail. The other 9 are invariants that pass on both versions:
+  blank-line behaviour, word preservation and the mid-sentence join. All 24 pass with the fix.
+- **Real inputs**, all PDF+TXT and source unchanged:
+
+| Input | `21059ae` | Fix | PDF-input evidence for the same chapter |
+|---|---|---|---|
+| `442` TXT, Universal (the offline GUI scenario) | 2 paragraphs, longest 6,992 chars | 76 paragraphs, longest 237 | — |
+| `442` TXT, The Noble Queen | heading + 1 paragraph | 76 paragraphs | 76 paragraphs; TXT output **byte-identical** |
+| `2772` TXT, Shadow Slave | heading + 1 paragraph | 94 paragraphs | 94 paragraphs; text **identical** |
+
+- **All real PDF-extracted chapter texts used as TXT inputs:** 12,818 texts from five novels
+  (Renegade Immortal 2,082, Reverend Insanity 2,334, Shadow Slave 3,105, Supreme Magus 4,407,
+  The Noble Queen 890). For **12,818/12,818**, the TXT paragraph stage is identical to the PDF
+  reconstruction of the same lines (768,553 paragraphs).
+- **Layouts built from 300 real chapters** (200 Shadow Slave and 100 Noble Queen, 18,055 paragraphs
+  including headings). Words are identical in every case.
+
+| Layout | `21059ae` paragraphs | Fix: extra / missed | Longest paragraph (fix) |
+|---|---|---|---|
+| Blank-line paragraphs | 18,055 (exact) | 0 / 0 | 688 |
+| One paragraph per line | 600 | 0 / 0 | 688 |
+| Hard-wrapped 40 / 60 / 72 / 100 | 600 | 1,504 / 800 / 745 / 472 extra, 0 missed | ≤ 688 |
+| Blank lines + wrapped 72 | 18,055 (exact) | 0 / 0 | 688 |
+| One per line + blank scene breaks | 1,918 | 0 / 0 | 688 |
+| Half blank-line, half one per line | 9,401 | 0 / 0 | 688 |
+
+  Hard-wrapped text without blank lines is the only layout that is not exact. A wrap that falls
+  right after a sentence becomes an extra break: 2.6–8.3% extra paragraphs, about 2.5 per chapter
+  at 72 characters, and no paragraph is lost. The alternatives are measured in DECISIONS 084.
+- **PDF-input parity.**
+  - By construction, the new code runs only for `input_kind == "txt"`, and `spacing_cleanup.py` is
+    unchanged.
+  - Measured: a random sample of 800 real PDF inputs (500 Shadow Slave, 300 Noble Queen) was
+    re-run on the fix tree. All 800 completed (0 failed, 0 skipped), and **800/800** corrected
+    texts are identical to the release-evidence outputs in `files/temp/w/a|b`, so there are no
+    unexpected editorial changes. The full 3,984-chapter workload was not re-run, because the
+    PDF path did not change.
+- **Resume safety.** The rules digest changes, from `e491e4b9…` to `3174f4db…` for Universal on
+  this machine. A run started and stopped with the exported `21059ae` tree is refused under the fix
+  with "Effective rules/profile changed; start a separate new run", and its folder is unchanged.
+- **Verification.**
+  - Strict offline verifier on the fix tree (`verify-txtfix-tree.*`): **1,131 passed, 0 skipped,
+    0 failed, 0 errors; 5/5 checks PASS; 0 network attempts.** That is 1,107 plus the 24 new tests;
+    none removed.
+  - Focused suites: TXT paragraphs, mixed I/O, editorial contract, protection, rulings, rules,
+    universal engine and typography. **316 passed.**
+  - `git diff --check` is clean.
+- **Still required:** a focused independent review of the new SHA; the user's short manual retest
+  of `442` and one hard-wrapped TXT (formatting and TTS); and Group 2's outstanding confirmations
+  and Group 3.
+
 ## Workload and evidence provenance
 
 | Evidence | Code when it ran | Notes |
@@ -167,6 +274,9 @@ v0.12.0/v0.13.0 line; this release is marked Latest explicitly.)
   a folder you choose in Preferences & Data), content-hash verification, Pause/Continue/Stop at file
   boundaries, Resume in the original folder, Retry Failed, and protection against overwriting or
   aliasing existing files.
+- **TXT files keep their paragraphs.** Blank-line paragraphs, one paragraph per line and text
+  hard-wrapped at a fixed width all work. Lines that wrap mid-sentence are joined, using the same
+  rule as PDF inputs.
 - **New compact window.** Four numbered groups (Sources, Novel & Editing, Output, Run), a resizable
   Activity pane with Summary/Detailed views, remembered Light/Dark mode, Preferences & Data, and
   session logs that never contain chapter text.
@@ -192,6 +302,9 @@ v0.12.0/v0.13.0 line; this release is marked Latest explicitly.)
 - Output paths longer than the conservative Windows limit (240 characters) are refused with a clear
   message instead of being shortened; choose a shorter output folder if that happens.
 - Page-number removal is not included (no page-numbered sources were found).
+- In a hard-wrapped TXT file with no blank lines, a line break that falls right after a sentence
+  looks exactly like a paragraph end. It is treated as one, so such files can gain an occasional
+  extra paragraph break. No text is lost. Blank lines between paragraphs avoid this.
 
 ## Limitations (honest status)
 
@@ -210,6 +323,9 @@ v0.12.0/v0.13.0 line; this release is marked Latest explicitly.)
   ranges (e.g. Pillow, pypdfium2); direct dependencies are exact pins.
 - Legacy observation kept unchanged: the single-letter rejoin glues a mid-clause lone consonant
   (`the letter l was` → `lwas`).
+- TXT paragraphs (DECISIONS 084): hard-wrapped TXT without blank lines gains an extra break where a
+  wrap falls right after a sentence. A line ending without terminal punctuation joins the next line,
+  as for PDFs. Indentation is not read.
 
 ## Manual acceptance items for the user
 
@@ -224,5 +340,8 @@ support.
    TXT, and confirm the app starts, finishes and writes outputs without network errors. Python
    socket guards used by the automated tests are not a substitute.
 3. Skim a few output PDFs/TXT for layout and curly-quote appearance; listen to one in the TTS tool.
+   After the TXT paragraph fix, also re-run the original `Chapter 442_ A Startling Admission.txt`
+   and one hard-wrapped TXT through the GUI, and confirm readable paragraphs in PDF, TXT and TTS.
+   Items 1–2 and the Group 1/2 runs on `21059ae` stand as evidence and are not repeated.
 4. macOS: double-click the `.command` on a Mac. A genuine Python-free machine (Windows Sandbox/VM)
    first-time setup also remains untested; do it before claiming that path.

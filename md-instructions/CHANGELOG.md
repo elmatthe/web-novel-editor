@@ -49,9 +49,20 @@ historical heading and is left unchanged.
   protected names are never changed.
 - Deferred: position-aware page-number removal (no page-number evidence in the corpora).
 
+### Fixed — TXT paragraphs (DECISIONS 084)
+- A TXT input without blank lines was published as one giant paragraph in PDF and TXT. This
+  affected one paragraph per line, hard-wrapped text and PDF-extracted text; the real case was
+  chapter 442: 2 → 76 paragraphs.
+- Blank lines and headings still end paragraphs. Every other line break now uses the existing PDF
+  rule, so mid-sentence wraps are joined, and a PDF-extracted TXT gets the same paragraphs as the
+  PDF. Files that already used blank lines are unchanged. 24 failing-first synthetic regressions in
+  `files/tests/test_txt_paragraphs.py`.
+
 ### Known limitations
 - Windows 11 is the tested platform; the macOS launcher has static and simulated checks only.
 - First-time setup downloads packages; it is not an offline installer.
+- Hard-wrapped TXT without blank lines can gain an occasional extra paragraph break where a wrap
+  falls right after a sentence; no text is lost.
 
 ## v0.13.0 — 2026-07-27 — Optional Cloud AI Providers: Gemini and Groq (Plan 2b)
 

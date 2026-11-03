@@ -39,9 +39,15 @@ contraction/possessive endings; OCR `l`→`I` only in attested contexts; no gram
 guessing. Page-number removal is deferred (no evidence). Historical text below that describes
 straight-quote normalization, AI providers, cloud runs or `scripts/Universal/` is superseded.
 
+**TXT paragraphs (DECISIONS 084).** Blank lines and headings always end paragraphs. Every other
+single newline is decided by the PDF rule (`reconstruct_paragraphs`), so one paragraph per line,
+hard-wrapped and PDF-extracted TXT all keep their paragraphs. Files that use blank lines keep the
+blank-line join.
+
 **Known limits.** Windows 11 tested; macOS launcher has static/simulated checks only; no genuine
 Python-free machine was tested; first setup downloads packages; local single-writer guarantees
-only (no cloud-sync/distributed locking).
+only (no cloud-sync/distributed locking). Hard-wrapped TXT without blank lines can gain an extra
+paragraph break where a wrap falls right after a sentence.
 
 **Verification.** `.venv\Scripts\python.exe scripts\verify.py` (pytest, pins, CHANGELOG/BRIEFING,
 config, launcher version). Corpus/workload harnesses are ignored under `files/run-temp/rc/`.

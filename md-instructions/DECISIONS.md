@@ -9,6 +9,63 @@ its original decision date. New decisions continue to be appended here (newest o
 
 ---
 
+## 084 — TXT paragraphs no longer depend on blank lines; single newlines use the PDF rule — 2026-11-02 — Claude Code
+
+**Context.** Manual acceptance of `21059ae` (the user's OS-offline GUI run) published the TXT input
+`Chapter 442_ A Startling Admission.txt` as a heading plus one 6,992-character paragraph, in PDF
+and TXT, while the run reported success. `pipelines/universal.py::_txt_paragraphs` treated blank
+lines as the only paragraph boundary and joined every single newline with a space. The behaviour
+was deliberate and tested (the "TXT boundary" paragraph in 076), but every TXT fixture used blank
+lines, so the common layouts without them were never exercised: one paragraph per line, and text
+hard-wrapped at a width. The real input was PDF-extracted text, hard-wrapped at about 120
+characters with no blank lines. No words were lost; all paragraph structure was. The user approved
+a fix rather than a disclosed limitation.
+
+**Decision (deterministic policy, `_txt_paragraphs`).**
+1. A blank line always ends a paragraph; a chapter-heading line is always its own paragraph.
+2. Every other single newline is decided by the unchanged `spacing_cleanup.reconstruct_paragraphs`,
+   the rule PDF inputs already use: break only where a sentence ended and the next line does not
+   start lowercase. A mid-sentence wrap is therefore always joined. TXT lines get exactly the
+   paragraphs the same lines get when they come from a PDF.
+3. A file that separates its paragraphs with blank lines keeps the established 076 join: single
+   newlines inside a block are wraps. "Separates with blank lines" means at least one blank-line gap
+   between body text, and at least as many gaps as rule-2 breaks. A block in such a file that holds
+   three or more rule-2 breaks, making up most of its line ends, is a one-paragraph-per-line run and
+   follows rule 2. This handles mixed files, such as scene-break blank lines or half-and-half layouts.
+
+Every decision only chooses between a space and a paragraph break. Words are never added, dropped
+or reordered, and protected names pass through unchanged.
+
+**Ambiguities that cannot be resolved (documented, not hidden).**
+- In hard-wrapped text, a wrap that falls right after a sentence, followed by a capitalised word,
+  is indistinguishable from a paragraph end. It becomes a break. The error is an extra break at a
+  sentence boundary, never a lost paragraph.
+- A line ending without terminal punctuation (an interrupted `—`) joins the next line, as for PDFs.
+- Indentation is not read.
+
+**Alternatives measured** on synthetic layouts of 300 real chapters (17,455 body paragraphs) wrapped
+at 40, 60, 72 and 100 characters:
+
+| How a full-width line that ends a sentence is treated | Extra breaks | Missed breaks |
+|---|---|---|
+| Always joined (a width-gated variant, built and then rejected) | 0 | 705–2,455 |
+| Quote-aware hybrid | 65–276 | 417–1,363 |
+| Chosen: the PDF rule | 472–1,504 | 0 |
+
+The chosen rule has the fewest total errors at every width. Its errors are sentence-boundary splits
+rather than merges of different speakers' dialogue. It needs no tuned width threshold, and it keeps
+TXT and PDF inputs consistent.
+
+**Consequences.**
+- The PDF branch is unchanged: `spacing_cleanup.py` and every PDF-path call are untouched, and the
+  new code runs only for `input_kind == "txt"`.
+- The rules digest changes (it hashes `pipelines/`), so runs started before this change cannot be
+  resumed. They are refused with "Effective rules/profile changed; start a separate new run".
+- Evidence is in `files/checkpoints/WNE-P04-release-readiness.md` ("TXT paragraph fix").
+  Regressions: `files/tests/test_txt_paragraphs.py`, 24 synthetic tests, 15 of which fail on `21059ae`.
+
+---
+
 ## 083 — Re-review of 0989804 BLOCKED on attribution evidence; contract rebuilt on production conditions — 2026-11-01 — Claude Code
 
 **Status:** Remediated on the feature branch; awaiting independent re-review. No production code

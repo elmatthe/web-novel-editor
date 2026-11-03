@@ -133,21 +133,64 @@ def _summary(repl_log, count: int, rule: str, category: str, note: str) -> None:
         repl_log.record(f"{count} occurrence(s)", note, rule, category, note)
 
 
+def _is_heading(line: str) -> bool:
+    return bool(spacing_cleanup.CHAPTER_LINE_START_RE.match(line))
+
+
+def _rule_breaks(block: "list[str]") -> int:
+    """How many paragraph breaks `reconstruct_paragraphs` itself makes inside one block."""
+    return spacing_cleanup.reconstruct_paragraphs("\n".join(block)).count("\n\n")
+
+
 def _txt_paragraphs(text: str) -> str:
-    """Retain explicit paragraphs and headings before PDF reconstruction can infer breaks."""
+    """Decide the paragraph layout of a TXT input, whatever its line layout (DECISIONS 084).
+
+    1. A blank line always ends a paragraph; a chapter-heading line is always its own.
+    2. Single newlines are left to `reconstruct_paragraphs`, the rule PDF inputs use: a
+       break only where a sentence ended and the next line does not start lowercase, so a
+       mid-sentence wrap is always joined. One paragraph per line, hard-wrapped text and
+       PDF-extracted text therefore get exactly the paragraphs the same lines get from a PDF.
+    3. A file that separates paragraphs with blank lines (at least one blank-line gap, and at
+       least as many gaps as rule-2 breaks) keeps the established join: single newlines
+       inside a block are wraps. A block that itself holds three or more rule-2 breaks making
+       up most of its line ends is a one-paragraph-per-line run and follows rule 2.
+
+    Unresolvable by design: in hard-wrapped text a wrap that falls right after a sentence
+    looks exactly like a paragraph end and is treated as one (an extra break at a sentence
+    boundary, never a lost one); a line ending without terminal punctuation (an interrupted
+    "—") joins the next line; indentation is not read. Every decision only chooses between
+    a space and a paragraph break, so words are never added, dropped or reordered.
+    """
+    blocks: list[list[str]] = []
+    gaps = -1
+    for segment in re.split(r"\n\s*\n", text):
+        current: list[str] = []
+        has_body = False
+        for raw in segment.splitlines():
+            line = raw.strip()
+            if not line:
+                continue
+            if _is_heading(line):
+                if current:
+                    blocks.append(current)
+                    current = []
+                blocks.append([line])
+                continue
+            current.append(line)
+            has_body = True
+        if current:
+            blocks.append(current)
+        gaps += has_body
+
+    breaks = [_rule_breaks(block) for block in blocks]
+    blank_line_file = gaps >= 1 and gaps >= sum(breaks)
     paragraphs = []
-    for block in re.split(r"\n\s*\n", text):
-        lines = []
-        for line in block.splitlines():
-            if spacing_cleanup.CHAPTER_LINE_START_RE.match(line.strip()):
-                if lines:
-                    paragraphs.append(" ".join(lines))
-                    lines = []
-                paragraphs.append(line.strip())
-            else:
-                lines.append(line.strip())
-        if lines:
-            paragraphs.append(" ".join(lines))
+    for block, count in zip(blocks, breaks):
+        line_run = count >= 3 and 2 * count > len(block) - 1
+        if blank_line_file and not line_run:
+            paragraphs.append(" ".join(block))
+        else:
+            paragraphs.append("\n".join(block))  # reconstruct_paragraphs decides each line end
     return "\n\n".join(paragraphs)
 
 
@@ -248,8 +291,8 @@ def run_pipeline(
 
     n_dash = len(_COUNT_SPACED_DASH.findall(text)) if profile.summary_rows else 0
     if input_kind == "txt":
-        # Explicit blank lines are authoritative. Join wrapped lines only inside each
-        # existing paragraph, then reuse the established heading/reconstruction stage.
+        # Blank-line structure and headings first (DECISIONS 084); any single newline left
+        # in place is then decided by the same reconstruction PDF inputs use.
         text = _txt_paragraphs(text)
     text = spacing_cleanup.reconstruct_paragraphs(text)
     if profile.summary_rows:

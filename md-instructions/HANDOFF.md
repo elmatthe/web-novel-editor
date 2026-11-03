@@ -1,6 +1,37 @@
 # Web Novel Editor — Handoff
 
-## Current Focus — v0.4.0 attribution evidence remediated; awaiting independent re-review
+## Current Focus — v0.4.0 TXT paragraph fix; awaiting focused review of the new SHA
+
+**Snapshot (2026-11-02, Claude Code Opus 5.5, HOME-PC).** Branch
+`feature/0.4.0-script-only-editor`. The fix commit is on top of `21059ae`; its SHA is in the CLI
+report. Merge, tag and release happen only on explicit user authorization (DECISIONS 078).
+
+- **History:**
+  - `21059ae` (attribution remediation) was independently reviewed: PASS WITH CONDITIONS. Tests
+    1,107/0/0; 0 unexplained across frozen 828, Shadow Slave 3,095 and Noble Queen 889.
+  - Deferred dev-checker items F1–F3 are recorded in the readiness report.
+  - Manual acceptance: Group 1 GUI 10/10 PASS. Group 2 OS-offline run 3/0/0 with outputs verified;
+    the user's disconnection confirmations are outstanding.
+  - Group 2 exposed the defect: the TXT input `442` came out as one 6,992-character paragraph.
+- **Fixed (DECISIONS 084):**
+  - What changed: `scripts/pipelines/universal.py::_txt_paragraphs`. Blank lines and headings stay
+    hard boundaries. Single newlines go to the unchanged PDF rule (`reconstruct_paragraphs`), and
+    blank-line files keep the join.
+  - Real inputs: `442` → 76 paragraphs, byte-identical to its PDF-input output. 12,818/12,818 real
+    PDF-extracted texts match the PDF stage.
+  - Hard-wrapped text: 0 paragraphs lost and 2.6–8.3% extra breaks at sentence-ending wraps
+    (documented).
+  - Safety: PDF branch untouched. Old runs are refused on resume because the rules digest changed.
+- **Verification:**
+  - Strict verifier 1,131 passed (1,107 + 24 new), 0 skipped, 0 network attempts.
+  - Focused suites 316 passed.
+  - Evidence: `files/checkpoints/WNE-P04-release-readiness.md` ("TXT paragraph fix").
+- **Next exact action:** a focused independent review of the new SHA, covering TXT reconstruction,
+  hard wraps, word and name preservation, PDF parity, tests and docs. Then the user's short manual
+  TXT retest (`442` plus one hard-wrapped TXT, formatting and TTS), Group 2's confirmations and
+  Group 3. The GitHub **draft** release "v1.0.0" stays untouched. Do not merge, tag or publish.
+
+## Previous Focus — v0.4.0 attribution evidence remediated; awaiting independent re-review
 
 **Snapshot (2026-11-01, Claude Code Opus 5.5 / xHigh, HOME-PC).** Branch
 `feature/0.4.0-script-only-editor`, remediation commit on top of `0989804` (SHA in the CLI
